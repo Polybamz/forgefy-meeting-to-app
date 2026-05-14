@@ -72,14 +72,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { title: "Forgefy" },
+      { name: "description", content: "Forgefy joins your planning calls, extracts what your team actually decided, and builds Flutter, React Native, and Next.js apps — simultaneously" },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:title", content: "Forgefy" },
+      { property: "og:description", content: "Forgefy joins your planning calls, extracts what your team actually decided, and builds Flutter, React Native, and Next.js apps — simultaneously" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "Forgefy" },
+      { name: "twitter:description", content: "Forgefy joins your planning calls, extracts what your team actually decided, and builds Flutter, React Native, and Next.js apps — simultaneously" },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/751d4147-ee4c-401c-afb2-1ab18b0e1930" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/751d4147-ee4c-401c-afb2-1ab18b0e1930" },
     ],
     links: [
       {
