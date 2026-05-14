@@ -316,7 +316,7 @@ function Index() {
   const bottomRef = useReveal<HTMLDivElement>();
 
   return (
-    <div className="min-h-screen bg-background text-ink antialiased">
+    <main className="min-h-screen bg-background text-ink antialiased">
       {/* 01 — top bar */}
       <header className="h-12 border-b border-border">
         <div className="h-full mx-auto flex items-center justify-between px-[6vw] md:px-[8vw]">
@@ -531,6 +531,6 @@ function Index() {
           </span>
         </div>
       </footer>
-    </div>
+    </main>
   );
 }

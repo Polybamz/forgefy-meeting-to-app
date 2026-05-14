@@ -91,6 +91,28 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: appCss,
       },
     ],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          name: "Forgefy",
+          url: "https://forgeefy.lovable.app",
+          description:
+            "Forgefy joins your planning calls, extracts what your team decided, and builds Flutter, React Native, and Next.js apps simultaneously.",
+        }),
+      },
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          name: "Forgefy",
+          url: "https://forgeefy.lovable.app",
+        }),
+      },
+    ],
   }),
   shellComponent: RootShell,
   component: RootComponent,
