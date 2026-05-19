@@ -2,8 +2,6 @@ import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-ro
 import { useState, type FormEvent } from "react";
 import { getToken, setTokens } from "@/lib/api";
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000";
-
 export const Route = createFileRoute("/login")({
   beforeLoad: () => {
     if (getToken()) throw redirect({ to: "/dashboard" });
@@ -24,7 +22,7 @@ function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/v1/auth/login`, {
+      const res = await fetch("/api/v1/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),

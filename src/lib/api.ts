@@ -1,4 +1,6 @@
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000";
+// Empty base — Vite's dev proxy forwards /api/* and /ws/* to the backend.
+// For production, set VITE_API_URL to the backend's absolute origin.
+const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -16,9 +18,18 @@ export function clearTokens(): void {
 }
 
 export function getWsUrl(path: string): string {
-  const wsBase = API_BASE.replace(/^http/, "ws");
   const token = getToken();
-  return `${wsBase}${path}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+  const query = token ? `?token=${encodeURIComponent(token)}` : "";
+  if (API_BASE) {
+    // Absolute base configured (production) — convert http → ws
+    return `${API_BASE.replace(/^http/, "ws")}${path}${query}`;
+  }
+  // Dev proxy: derive ws URL from current page origin
+  if (typeof window !== "undefined") {
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${proto}//${window.location.host}${path}${query}`;
+  }
+  return path + query;
 }
 
 async function attemptRefresh(): Promise<boolean> {
