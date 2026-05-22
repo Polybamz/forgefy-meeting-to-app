@@ -12,7 +12,7 @@ import { loadEnv } from "vite";
 // @cloudflare/vite-plugin builds from this — wrangler.jsonc main alone is insufficient.
 export default async (env: { mode: string; command: string }) => {
   const loaded = loadEnv(env.mode, process.cwd(), "");
-  const apiTarget = (loaded.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
+  const apiTarget = (loaded.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
 
   return defineConfig({
     tanstackStart: {
@@ -25,6 +25,6 @@ export default async (env: { mode: string; command: string }) => {
           "/ws": { target: apiTarget, ws: true, changeOrigin: false },
         },
       },
-    },
+    }
   })(env);
 };
