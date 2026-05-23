@@ -119,7 +119,7 @@ function RegisterPage() {
             )}
           </button>
 
-          {/* Divider this is gretate */}
+          {/* Divider this is gretatevvv */}
           <div className="flex items-center gap-3">
             <div className="flex-1 h-px bg-border" />
             <span className="text-[12px] text-text-muted">or</span>
