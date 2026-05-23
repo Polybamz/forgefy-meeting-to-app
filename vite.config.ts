@@ -13,8 +13,9 @@ export default async (env: ConfigEnv) => {
   const apiTarget = (loaded.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
 
   return defineConfig({
+    cloudflare: false,
     tanstackStart: {
-      target: "vercel",
+      spa: { enabled: true },
     },
     vite: {
       server: {
