@@ -126,7 +126,7 @@ function RegisterPage() {
             <div className="flex-1 h-px bg-border" />
           </div>
 
-          {/* Email / password form */}
+          {/* Email / password form gggg */}
           <form onSubmit={onSubmit} className="space-y-4" aria-label="Create account">
             <div>
               <label htmlFor="email" className="label-eyebrow block mb-1.5">
