@@ -1,6 +1,6 @@
 // Empty base — Vite's dev proxy forwards /api/* and /ws/* to the backend.
 // For production, set VITE_API_URL to the backend's absolute origin.
-const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+export const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
