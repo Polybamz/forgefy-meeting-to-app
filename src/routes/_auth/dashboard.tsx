@@ -1,9 +1,8 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   apiFetch,
-  storeSession,
-  listStoredSessions,
+  getWsUrl,
   type StoredSession,
 } from "@/lib/api";
 
@@ -39,14 +38,14 @@ const STATUS_COLORS: Record<string, string> = {
   BUILDING: "text-[oklch(0.55_0.18_145)]",
 };
 
-function NewSessionForm({ onCreated }: { onCreated: (s: StoredSession) => void }) {
+function NewSessionForm({ onCreated }: { onCreated: () => void }) {
   const navigate = useNavigate();
   const [platform, setPlatform] = useState("meet");
   const [meetingUrl, setMeetingUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function onSubmit(e: FormEvent) {
+  async function onSubmit(e: SubmitEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
@@ -64,15 +63,7 @@ function NewSessionForm({ onCreated }: { onCreated: (s: StoredSession) => void }
         return;
       }
       const session = await res.json();
-      const stored: StoredSession = {
-        id: session.id,
-        platform: session.platform,
-        meeting_url: session.meeting_url,
-        status: session.status,
-        created_at: session.created_at,
-      };
-      storeSession(stored);
-      onCreated(stored);
+      onCreated();
       navigate({ to: "/sessions/$sessionId", params: { sessionId: session.id } });
     } catch {
       setError("Network error. Please try again.");
@@ -182,9 +173,25 @@ function SessionCard({ session }: { session: StoredSession }) {
 }
 
 function DashboardPage() {
-  const [sessions, setSessions] = useState<StoredSession[]>(() =>
-    listStoredSessions(),
-  );
+  const [sessions, setSessions] = useState<StoredSession[]>([]);
+  const wsRef = useRef<WebSocket | null>(null);
+
+  useEffect(() => {
+    const url = getWsUrl("/ws/sessions");
+    const ws = new WebSocket(url);
+    wsRef.current = ws;
+
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === "sessions") setSessions(msg.data);
+      } catch {}
+    };
+
+    ws.onerror = () => ws.close();
+
+    return () => ws.close();
+  }, []);
 
   return (
     <div className="px-6 md:px-[8vw] py-12 max-w-5xl mx-auto">
@@ -197,7 +204,7 @@ function DashboardPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-10">
         <div className="md:col-span-4">
-          <NewSessionForm onCreated={(s) => setSessions([s, ...sessions])} />
+          <NewSessionForm onCreated={() => {}} />
         </div>
 
         <div className="md:col-span-8">

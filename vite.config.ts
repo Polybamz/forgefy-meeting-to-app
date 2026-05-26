@@ -10,7 +10,7 @@ import { loadEnv, type ConfigEnv } from "vite";
 
 export default async (env: ConfigEnv) => {
   const loaded = loadEnv(env.mode, process.cwd(), "");
-  const apiTarget = (loaded.VITE_API_URL || "https://forgefy.onrender.com").replace(/\/$/, "");
+  const apiTarget = (loaded.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
 
   return defineConfig({
     cloudflare: false,
