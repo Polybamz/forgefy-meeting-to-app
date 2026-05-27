@@ -16,6 +16,7 @@ import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard'
 import { Route as AuthSessionsSessionIdRouteImport } from './routes/_auth/sessions/$sessionId'
+import { Route as AuthProjectsProjectIdRouteImport } from './routes/_auth/projects/$projectId'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
@@ -51,6 +52,11 @@ const AuthSessionsSessionIdRoute = AuthSessionsSessionIdRouteImport.update({
   path: '/sessions/$sessionId',
   getParentRoute: () => AuthRoute,
 } as any)
+const AuthProjectsProjectIdRoute = AuthProjectsProjectIdRouteImport.update({
+  id: '/projects/$projectId',
+  path: '/projects/$projectId',
+  getParentRoute: () => AuthRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -58,6 +64,7 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/dashboard': typeof AuthDashboardRoute
+  '/projects/$projectId': typeof AuthProjectsProjectIdRoute
   '/sessions/$sessionId': typeof AuthSessionsSessionIdRoute
 }
 export interface FileRoutesByTo {
@@ -66,6 +73,7 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/dashboard': typeof AuthDashboardRoute
+  '/projects/$projectId': typeof AuthProjectsProjectIdRoute
   '/sessions/$sessionId': typeof AuthSessionsSessionIdRoute
 }
 export interface FileRoutesById {
@@ -76,6 +84,7 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_auth/dashboard': typeof AuthDashboardRoute
+  '/_auth/projects/$projectId': typeof AuthProjectsProjectIdRoute
   '/_auth/sessions/$sessionId': typeof AuthSessionsSessionIdRoute
 }
 export interface FileRouteTypes {
@@ -86,6 +95,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/sitemap.xml'
     | '/dashboard'
+    | '/projects/$projectId'
     | '/sessions/$sessionId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -94,6 +104,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/sitemap.xml'
     | '/dashboard'
+    | '/projects/$projectId'
     | '/sessions/$sessionId'
   id:
     | '__root__'
@@ -103,6 +114,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/sitemap.xml'
     | '/_auth/dashboard'
+    | '/_auth/projects/$projectId'
     | '/_auth/sessions/$sessionId'
   fileRoutesById: FileRoutesById
 }
@@ -165,16 +177,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthSessionsSessionIdRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/projects/$projectId': {
+      id: '/_auth/projects/$projectId'
+      path: '/projects/$projectId'
+      fullPath: '/projects/$projectId'
+      preLoaderRoute: typeof AuthProjectsProjectIdRouteImport
+      parentRoute: typeof AuthRoute
+    }
   }
 }
 
 interface AuthRouteChildren {
   AuthDashboardRoute: typeof AuthDashboardRoute
+  AuthProjectsProjectIdRoute: typeof AuthProjectsProjectIdRoute
   AuthSessionsSessionIdRoute: typeof AuthSessionsSessionIdRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
   AuthDashboardRoute: AuthDashboardRoute,
+  AuthProjectsProjectIdRoute: AuthProjectsProjectIdRoute,
   AuthSessionsSessionIdRoute: AuthSessionsSessionIdRoute,
 }
 

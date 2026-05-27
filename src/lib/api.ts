@@ -83,6 +83,22 @@ export async function apiFetch(
 // without a backend list endpoint.
 // ---------------------------------------------------------------------------
 
+export interface Project {
+  id: string;
+  owner_id: string;
+  app_name: string;
+  template_key: string;
+  repo_full_name: string;
+  github_url: string;
+  preview_url: string | null;
+  artifact_url: string | null;
+  is_updating: boolean;
+  session_id: string | null;
+  blueprint_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface StoredSession {
   id: string;
   platform: string;
