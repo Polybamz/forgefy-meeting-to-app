@@ -211,6 +211,12 @@ function TranscriptDebugSection({
 // ---------------------------------------------------------------------------
 // BlueprintSection
 // ---------------------------------------------------------------------------
+const TEMPLATE_OPTIONS = [
+  { value: "flutter", label: "Flutter" },
+  { value: "react_native", label: "React Native" },
+  { value: "next", label: "Next.js" },
+];
+
 function BlueprintSection({
   sessionId,
   onApproved,
@@ -222,6 +228,13 @@ function BlueprintSection({
   const [bpLoading, setBpLoading] = useState(true);
   const [approving, setApproving] = useState(false);
   const [error, setError] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Editable fields
+  const [editAppName, setEditAppName] = useState("");
+  const [editTemplate, setEditTemplate] = useState("next");
+  const [editFeatures, setEditFeatures] = useState<{ title: string; description: string }[]>([]);
 
   useEffect(() => {
     apiFetch(`/api/v1/voxa/blueprint/session/${sessionId}`)
@@ -233,13 +246,45 @@ function BlueprintSection({
       .catch(() => { setBpLoading(false); setError("Failed to load blueprint."); });
   }, [sessionId]);
 
+  function startEdit() {
+    if (!blueprint?.json_output) return;
+    const j = blueprint.json_output;
+    setEditAppName((j.app_name as string) ?? "");
+    setEditTemplate((j.template as string) ?? "next");
+    setEditFeatures(
+      ((j.features ?? []) as { title: string; description: string }[]).map((f) => ({ title: f.title ?? "", description: f.description ?? "" }))
+    );
+    setEditing(true);
+  }
+
+  async function saveEdit() {
+    if (!blueprint) return;
+    setSaving(true);
+    setError("");
+    try {
+      const res = await apiFetch(`/api/v1/voxa/blueprint/${blueprint.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ app_name: editAppName, template_key: editTemplate, features: editFeatures }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setBlueprint(updated);
+        setEditing(false);
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setError((d as { detail?: string }).detail ?? "Save failed.");
+      }
+    } catch { setError("Network error."); }
+    finally { setSaving(false); }
+  }
+
   async function handleApprove() {
     if (!blueprint) return;
     setApproving(true);
     try {
       const res = await apiFetch(`/api/v1/voxa/blueprint/${blueprint.id}/approve`, { method: "POST" });
       if (res.ok) { setBlueprint({ ...blueprint, approved: true }); onApproved(); }
-      else { const d = await res.json().catch(() => ({})); setError(d.detail ?? "Approval failed."); }
+      else { const d = await res.json().catch(() => ({})); setError((d as { detail?: string }).detail ?? "Approval failed."); }
     } catch { setError("Network error."); }
     finally { setApproving(false); }
   }
@@ -259,33 +304,129 @@ function BlueprintSection({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h3 className="font-display text-[22px] text-ink">App Blueprint</h3>
-        {!blueprint.approved && (
-          <button
-            onClick={handleApprove}
-            disabled={approving}
-            className="px-4 py-2 rounded-xl bg-accent text-accent-foreground text-[13px] font-medium transition-colors hover:bg-[oklch(0.55_0.135_45)] disabled:opacity-60"
-          >
-            {approving ? "Approving…" : "✓ Approve & build"}
-          </button>
-        )}
-        {blueprint.approved && (
-          <span className="text-[13px] font-medium text-[oklch(0.45_0.18_145)]">✓ Approved</span>
-        )}
-      </div>
-      {error && <p className="text-[13px] text-destructive">{error}</p>}
-      <div className="rounded-lg border border-border bg-[#0f0d0b] overflow-hidden">
-        <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-[#222]">
-          <span className="h-2.5 w-2.5 rounded-full bg-[#3a3633]" />
-          <span className="h-2.5 w-2.5 rounded-full bg-[#3a3633]" />
-          <span className="h-2.5 w-2.5 rounded-full bg-[#3a3633]" />
-          <span className="ml-3 text-[11px] font-mono-ui text-[#7A6F65]">blueprint.json</span>
+        <div className="flex items-center gap-2">
+          {!blueprint.approved && !editing && (
+            <button
+              onClick={startEdit}
+              className="px-3 py-1.5 rounded-lg border border-border text-[13px] text-text-secondary hover:border-accent hover:text-ink transition-colors"
+            >
+              Edit
+            </button>
+          )}
+          {!blueprint.approved && (
+            <button
+              onClick={handleApprove}
+              disabled={approving || editing}
+              className="px-4 py-2 rounded-xl bg-accent text-accent-foreground text-[13px] font-medium transition-colors hover:bg-[oklch(0.55_0.135_45)] disabled:opacity-60"
+            >
+              {approving ? "Approving…" : "✓ Approve & build"}
+            </button>
+          )}
+          {blueprint.approved && (
+            <span className="text-[13px] font-medium text-[oklch(0.45_0.18_145)]">✓ Approved</span>
+          )}
         </div>
-        <pre className="px-5 py-5 text-[12px] leading-[1.7] font-mono-ui text-[#E8DFD3] overflow-x-auto max-h-[480px]">
-          {JSON.stringify(blueprint.json_output, null, 2)}
-        </pre>
       </div>
+
+      {error && <p className="text-[13px] text-destructive">{error}</p>}
+
+      {editing ? (
+        <div className="space-y-5 rounded-xl border border-border bg-warm-white p-6">
+          {/* App name */}
+          <div>
+            <label className="label-eyebrow block mb-1.5">App name</label>
+            <input
+              value={editAppName}
+              onChange={(e) => setEditAppName(e.target.value)}
+              className="w-full h-10 px-3 rounded-xl bg-background border border-border text-[14px] text-ink outline-none focus:border-accent transition-colors"
+            />
+          </div>
+
+          {/* Template */}
+          <div>
+            <label className="label-eyebrow block mb-1.5">Template</label>
+            <select
+              value={editTemplate}
+              onChange={(e) => setEditTemplate(e.target.value)}
+              className="w-full h-10 px-3 rounded-xl bg-background border border-border text-[14px] text-ink outline-none focus:border-accent transition-colors"
+            >
+              {TEMPLATE_OPTIONS.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Features */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="label-eyebrow">Features</label>
+              <button
+                onClick={() => setEditFeatures((f) => [...f, { title: "", description: "" }])}
+                className="text-[12px] text-accent hover:underline"
+              >
+                + Add feature
+              </button>
+            </div>
+            <div className="space-y-3">
+              {editFeatures.map((feat, i) => (
+                <div key={i} className="flex gap-2 items-start">
+                  <div className="flex-1 space-y-1.5">
+                    <input
+                      value={feat.title}
+                      onChange={(e) => setEditFeatures((f) => f.map((x, j) => j === i ? { ...x, title: e.target.value } : x))}
+                      placeholder="Feature title"
+                      className="w-full h-9 px-3 rounded-lg bg-background border border-border text-[13px] text-ink outline-none focus:border-accent transition-colors"
+                    />
+                    <input
+                      value={feat.description}
+                      onChange={(e) => setEditFeatures((f) => f.map((x, j) => j === i ? { ...x, description: e.target.value } : x))}
+                      placeholder="Description"
+                      className="w-full h-9 px-3 rounded-lg bg-background border border-border text-[13px] text-ink outline-none focus:border-accent transition-colors"
+                    />
+                  </div>
+                  <button
+                    onClick={() => setEditFeatures((f) => f.filter((_, j) => j !== i))}
+                    className="mt-1 text-[12px] text-text-muted hover:text-destructive transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={saveEdit}
+              disabled={saving}
+              className="px-4 py-2 rounded-xl bg-accent text-accent-foreground text-[13px] font-medium hover:bg-[oklch(0.55_0.135_45)] disabled:opacity-60 transition-colors"
+            >
+              {saving ? "Saving…" : "Save changes"}
+            </button>
+            <button
+              onClick={() => setEditing(false)}
+              disabled={saving}
+              className="px-4 py-2 rounded-xl border border-border text-[13px] text-text-secondary hover:border-accent transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-border bg-[#0f0d0b] overflow-hidden">
+          <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-[#222]">
+            <span className="h-2.5 w-2.5 rounded-full bg-[#3a3633]" />
+            <span className="h-2.5 w-2.5 rounded-full bg-[#3a3633]" />
+            <span className="h-2.5 w-2.5 rounded-full bg-[#3a3633]" />
+            <span className="ml-3 text-[11px] font-mono-ui text-[#7A6F65]">blueprint.json</span>
+          </div>
+          <pre className="px-5 py-5 text-[12px] leading-[1.7] font-mono-ui text-[#E8DFD3] overflow-x-auto max-h-[480px]">
+            {JSON.stringify(blueprint.json_output, null, 2)}
+          </pre>
+        </div>
+      )}
     </div>
   );
 }

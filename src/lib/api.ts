@@ -93,6 +93,7 @@ export interface Project {
   preview_url: string | null;
   artifact_url: string | null;
   is_updating: boolean;
+  build_error: string | null;
   session_id: string | null;
   blueprint_id: string | null;
   created_at: string;

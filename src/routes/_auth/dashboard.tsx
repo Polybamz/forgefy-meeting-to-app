@@ -196,7 +196,10 @@ function ProjectCard({ project }: { project: Project }) {
           </p>
         </div>
         <div className="shrink-0 flex items-center gap-2">
-          {project.is_updating && (
+          {project.build_error && (
+            <span className="text-[11px] font-medium text-destructive">Build failed</span>
+          )}
+          {project.is_updating && !project.build_error && (
             <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
           )}
           {project.preview_url && (
@@ -210,15 +213,17 @@ function ProjectCard({ project }: { project: Project }) {
               Preview ↗
             </a>
           )}
-          <a
-            href={project.github_url}
-            target="_blank"
-            rel="noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="text-[11px] text-text-muted hover:text-ink transition-colors"
-          >
-            GitHub ↗
-          </a>
+          {project.github_url && (
+            <a
+              href={project.github_url}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="text-[11px] text-text-muted hover:text-ink transition-colors"
+            >
+              GitHub ↗
+            </a>
+          )}
         </div>
       </div>
       <p className="mt-3 text-[12px] text-text-muted">
