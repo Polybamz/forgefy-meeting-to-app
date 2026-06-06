@@ -1,6 +1,7 @@
 import {
   createFileRoute,
   Link,
+  useNavigate,
 } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch, getWsUrl, updateStoredSession } from "@/lib/api";
@@ -224,6 +225,7 @@ function BlueprintSection({
   sessionId: string;
   onApproved: () => void;
 }) {
+  const navigate = useNavigate();
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
   const [bpLoading, setBpLoading] = useState(true);
   const [approving, setApproving] = useState(false);
@@ -283,8 +285,17 @@ function BlueprintSection({
     setApproving(true);
     try {
       const res = await apiFetch(`/api/v1/voxa/blueprint/${blueprint.id}/approve`, { method: "POST" });
-      if (res.ok) { setBlueprint({ ...blueprint, approved: true }); onApproved(); }
-      else { const d = await res.json().catch(() => ({})); setError((d as { detail?: string }).detail ?? "Approval failed."); }
+      if (res.ok) {
+        const data = await res.json();
+        setBlueprint({ ...blueprint, approved: true });
+        onApproved();
+        if (data.project_id) {
+          navigate({ to: "/projects/$projectId", params: { projectId: data.project_id } });
+        }
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setError((d as { detail?: string }).detail ?? "Approval failed.");
+      }
     } catch { setError("Network error."); }
     finally { setApproving(false); }
   }
@@ -702,6 +713,7 @@ function SessionPage() {
   const [actionError, setActionError] = useState("");
   const [transcript, setTranscript] = useState<TranscriptLine[]>([]);
   const [features, setFeatures] = useState<string[]>([]);
+  const [blueprintError, setBlueprintError] = useState("");
   // For physical WAITING: which sub-panel to show
   const [physicalMode, setPhysicalMode] = useState<"choose" | "upload" | "live">("choose");
 
@@ -767,6 +779,9 @@ function SessionPage() {
           case "blueprintReady":
           case "meetingStatus":
             fetchSession();
+            break;
+          case "blueprintError":
+            setBlueprintError((msg.error as string) ?? "Blueprint generation failed.");
             break;
         }
       } catch { /* ignore parse errors */ }
@@ -1027,17 +1042,28 @@ function SessionPage() {
       {/* ── PROCESSING ── */}
       {isProcessing && (
         <div className="space-y-4">
-          <div className="rounded-xl border border-border bg-warm-white p-8 text-center space-y-3">
-            <div className="flex justify-center gap-1">
-              {[0, 1, 2].map((i) => (
-                <span key={i} className="h-2 w-2 rounded-full bg-accent animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
-              ))}
+          {blueprintError ? (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-8 text-center space-y-3">
+              <p className="text-[15px] font-medium text-destructive">Blueprint generation failed</p>
+              <p className="text-[13px] text-destructive/80 max-w-md mx-auto">{blueprintError}</p>
+              <p className="text-[12px] text-text-muted">
+                This usually happens when the recording is too short, silent, or doesn't contain product discussion.
+                Try uploading a clearer recording.
+              </p>
             </div>
-            <p className="text-[15px] text-text-secondary">
-              {isPhysical ? "Transcribing and analysing your recording…" : "Analysing the transcript and generating your app blueprint…"}
-            </p>
-            <p className="text-[12px] text-text-muted">Usually takes 30–120 seconds.</p>
-          </div>
+          ) : (
+            <div className="rounded-xl border border-border bg-warm-white p-8 text-center space-y-3">
+              <div className="flex justify-center gap-1">
+                {[0, 1, 2].map((i) => (
+                  <span key={i} className="h-2 w-2 rounded-full bg-accent animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
+                ))}
+              </div>
+              <p className="text-[15px] text-text-secondary">
+                {isPhysical ? "Transcribing and analysing your recording…" : "Analysing the transcript and generating your app blueprint…"}
+              </p>
+              <p className="text-[12px] text-text-muted">Usually takes 30–120 seconds.</p>
+            </div>
+          )}
           {transcript.length > 0 && (
             <div className="rounded-xl border border-border bg-warm-white p-6 space-y-3">
               <p className="text-[13px] font-medium text-ink">Transcript</p>

@@ -175,6 +175,7 @@ function ProjectEditorPage() {
   const [prompt, setPrompt] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState("");
+  const [errorDismissed, setErrorDismissed] = useState(false);
 
   const [logs, setLogs] = useState<LogEntry[]>([]);
 
@@ -239,8 +240,9 @@ function ProjectEditorPage() {
             }]);
           }
 
-          // Update failed: inject error message
+          // Update failed: inject error message and reset dismiss state
           if (wasUpdating && !updated.is_updating && updated.build_error) {
+            setErrorDismissed(false);
             setMessages((prev) => [...prev, {
               id: `err-${Date.now()}`,
               role: "error",
@@ -256,21 +258,33 @@ function ProjectEditorPage() {
     return () => ws.close();
   }, [projectId]);
 
-  // WebSocket for build logs
+  // WebSocket for build logs — reconnects on close/error so a token refresh
+  // mid-session (30 min expiry) doesn't leave the panel stuck on "Connecting…"
   useEffect(() => {
-    const ws = new WebSocket(getWsUrl(`/ws/projects/${projectId}/logs`));
-    wsLogsRef.current = ws;
+    let ws: WebSocket;
+    let dead = false;
 
-    ws.onmessage = (e) => {
-      try {
-        const entry = JSON.parse(e.data);
-        if (entry.type === "ping") return;
-        setLogs((prev) => [...prev.slice(-200), { ...entry, ts: Date.now() + Math.random() }]);
-      } catch { /* ignore */ }
-    };
-    ws.onerror = () => ws.close();
+    function connect() {
+      if (dead) return;
+      ws = new WebSocket(getWsUrl(`/ws/projects/${projectId}/logs`));
+      wsLogsRef.current = ws;
 
-    return () => ws.close();
+      ws.onmessage = (e) => {
+        try {
+          const entry = JSON.parse(e.data);
+          if (entry.type === "ping") return;
+          setLogs((prev) => [...prev.slice(-200), { ...entry, ts: Date.now() + Math.random() }]);
+        } catch { /* ignore */ }
+      };
+
+      // On any close/error, wait 2 s then reconnect with the latest token
+      // (apiFetch may have refreshed it in the meantime).
+      ws.onclose = () => { if (!dead) setTimeout(connect, 2000); };
+      ws.onerror = () => ws.close();
+    }
+
+    connect();
+    return () => { dead = true; ws?.close(); };
   }, [projectId]);
 
   async function handleSend() {
@@ -342,8 +356,16 @@ function ProjectEditorPage() {
 
   const isBuilding = project.is_updating && !project.github_url;
   const isUpdating = project.is_updating && !!project.github_url;
-  const hasBuildError = !!project.build_error;
+  const hasBuildError = !!project.build_error && !errorDismissed;
   const inputDisabled = sending || project.is_updating;
+
+  function handleAskToFix() {
+    if (!project?.build_error) return;
+    setErrorDismissed(true);
+    const fixPrompt = `The previous build failed with this error: "${project.build_error}". Please diagnose and fix the issue.`;
+    setPrompt(fixPrompt);
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  }
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
@@ -387,11 +409,79 @@ function ProjectEditorPage() {
         {/* ── Left: Chat + log panel ── */}
         <div className="flex flex-col w-full md:w-[380px] md:max-w-[380px] shrink-0 border-r border-border bg-background">
 
-          {/* Error banner */}
+          {/* Error banner with action buttons */}
           {hasBuildError && (
-            <div className="shrink-0 mx-4 mt-4 px-4 py-3 rounded-xl bg-destructive/10 border border-destructive/20">
-              <p className="text-[12px] font-medium text-destructive mb-0.5">Build failed</p>
+            <div className="shrink-0 mx-4 mt-4 px-4 py-3 rounded-xl bg-destructive/10 border border-destructive/20 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-[12px] font-medium text-destructive">Build failed</p>
+                <button
+                  onClick={() => setErrorDismissed(true)}
+                  className="text-destructive/50 hover:text-destructive transition-colors shrink-0"
+                  title="Dismiss"
+                >
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
               <p className="text-[12px] text-destructive/80 break-words">{project.build_error}</p>
+
+              {/* action = "support" */}
+              {project.build_error_action === "support" && (
+                <a
+                  href="mailto:support@forgefy.dev"
+                  className="inline-flex items-center gap-1.5 mt-1 px-3 py-1.5 rounded-lg bg-destructive/20 hover:bg-destructive/30 text-destructive text-[12px] font-medium transition-colors"
+                >
+                  Contact Support ↗
+                </a>
+              )}
+
+              {/* action = "retry" */}
+              {project.build_error_action === "retry" && (
+                <button
+                  onClick={() => { setErrorDismissed(true); fetchProject(); }}
+                  className="inline-flex items-center gap-1.5 mt-1 px-3 py-1.5 rounded-lg bg-destructive/20 hover:bg-destructive/30 text-destructive text-[12px] font-medium transition-colors"
+                >
+                  Try Again
+                </button>
+              )}
+
+              {/* action = "user_fix" */}
+              {project.build_error_action === "user_fix" && (
+                <div className="flex items-center gap-2 mt-1">
+                  <button
+                    onClick={handleAskToFix}
+                    disabled={!!project.is_updating}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive/20 hover:bg-destructive/30 text-destructive text-[12px] font-medium transition-colors disabled:opacity-50"
+                  >
+                    Ask agent to fix
+                  </button>
+                  <button
+                    onClick={() => setErrorDismissed(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-destructive/20 hover:bg-destructive/10 text-destructive/70 text-[12px] font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Platform-owned repo banner — shown when user hasn't connected GitHub */}
+          {project.repo_owner === "platform" && project.github_url && !project.is_updating && (
+            <div className="shrink-0 mx-4 mt-4 px-4 py-3 rounded-xl bg-surface border border-border">
+              <p className="text-[12px] font-medium text-ink mb-0.5">Repo is on Forgefy's GitHub account</p>
+              <p className="text-[11px] text-text-muted mb-2">
+                Connect your GitHub account to own this repo, or transfer it manually via GitHub settings.
+              </p>
+              <a
+                href={`${project.github_url}/settings`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-block text-[11px] font-medium text-accent hover:underline"
+              >
+                Transfer repo on GitHub ↗
+              </a>
             </div>
           )}
 
