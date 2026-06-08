@@ -90,14 +90,28 @@ export interface Project {
   template_key: string;
   repo_full_name: string;
   github_url: string;
+  /** "platform" = repo is on Forgefy's GitHub account; "user" = repo is on the user's account */
+  repo_owner?: "platform" | "user";
   preview_url: string | null;
   artifact_url: string | null;
   is_updating: boolean;
   build_error: string | null;
+  /** "retry" | "user_fix" | "support" */
+  build_error_action?: string | null;
   session_id: string | null;
   blueprint_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface BillingStatus {
+  tier: string;
+  tier_name: string;
+  price_usd: number;
+  monthly_tokens: number;
+  tokens_used: number;
+  tokens_remaining: number;
+  expires_at: string | null;
 }
 
 export interface StoredSession {
