@@ -2,6 +2,7 @@ import { createFileRoute, redirect, Outlet, Link, useNavigate, useRouterState } 
 import { useEffect, useRef, useState } from "react";
 import { clearTokens, getToken, getWsUrl } from "@/lib/api";
 import { ThemeToggle } from "@/hooks/use-theme";
+import { LayoutDashboard, Mic2, FolderKanban, CreditCard, Settings, Menu, X, LogOut } from "lucide-react";
 
 export const Route = createFileRoute("/_auth")({
   beforeLoad: () => {
@@ -84,18 +85,48 @@ function TokenExhaustedModal({ event, onDismiss }: { event: QuotaEvent; onDismis
 }
 
 // ---------------------------------------------------------------------------
+// Sidebar nav item
+// ---------------------------------------------------------------------------
+
+function NavItem({
+  to,
+  icon: Icon,
+  children,
+  onNavigate,
+}: {
+  to: string;
+  icon: React.ElementType;
+  children: React.ReactNode;
+  onNavigate?: () => void;
+}) {
+  return (
+    <Link
+      to={to}
+      onClick={onNavigate}
+      activeProps={{ className: "!bg-accent/10 !text-accent !font-medium" }}
+      activeOptions={{ exact: to === "/dashboard" }}
+      className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] text-text-secondary hover:text-ink hover:bg-surface transition-colors w-full"
+    >
+      <Icon className="h-4 w-4 shrink-0" />
+      {children}
+    </Link>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Auth layout
 // ---------------------------------------------------------------------------
 
 function AuthLayout() {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const hideNav = /^\/projects\//.test(pathname);
+  // Project editor is full-screen — hide the sidebar there
+  const hideNav = /^\/projects\/[^/]+/.test(pathname);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [quotaEvent, setQuotaEvent] = useState<QuotaEvent | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
-  // Connect to the user-events WS once for the lifetime of the auth session.
   useEffect(() => {
     let ws: WebSocket;
     let reconnectTimer: ReturnType<typeof setTimeout>;
@@ -110,65 +141,112 @@ function AuthLayout() {
           if (msg.type === "quota_exceeded") {
             setQuotaEvent({ message: msg.message, tier: msg.tier ?? "free", limit: msg.limit ?? 0 });
           }
-        } catch {
-          // ignore malformed frames
-        }
+        } catch { /* ignore malformed frames */ }
       };
 
-      ws.onclose = () => {
-        // Reconnect after 5 s so the modal fires even if the connection drops mid-build.
-        reconnectTimer = setTimeout(connect, 5_000);
-      };
-
+      ws.onclose = () => { reconnectTimer = setTimeout(connect, 5_000); };
       ws.onerror = () => ws.close();
     }
 
     connect();
-
-    return () => {
-      clearTimeout(reconnectTimer);
-      wsRef.current?.close();
-    };
+    return () => { clearTimeout(reconnectTimer); wsRef.current?.close(); };
   }, []);
+
+  // Close sidebar whenever the route changes
+  useEffect(() => { setSidebarOpen(false); }, [pathname]);
 
   function handleLogout() {
     clearTokens();
     navigate({ to: "/login" });
   }
 
+  if (hideNav) {
+    return (
+      <>
+        <Outlet />
+        {quotaEvent && <TokenExhaustedModal event={quotaEvent} onDismiss={() => setQuotaEvent(null)} />}
+      </>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-background">
-      {!hideNav && (
-        <header className="h-12 border-b border-border sticky top-0 z-10 bg-background/95 backdrop-blur-sm">
-          <div className="h-full mx-auto flex items-center justify-between px-6">
-            <Link to="/dashboard" className="font-display text-[18px] text-ink hover:text-accent transition-colors">
-              Forgefy
-            </Link>
-            <div className="flex items-center gap-4">
-              <Link
-                to="/billing"
-                className="text-[13px] text-text-muted hover:text-ink transition-colors"
-              >
-                Billing
-              </Link>
-              <ThemeToggle />
-              <button
-                onClick={handleLogout}
-                className="text-[13px] text-text-muted hover:text-ink transition-colors"
-              >
-                Sign out
-              </button>
-            </div>
-          </div>
-        </header>
+    <div className="flex h-screen overflow-hidden bg-background">
+      {/* Mobile backdrop */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-20 bg-black/50 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
       )}
-      <Outlet />
+
+      {/* ── Sidebar ─────────────────────────────────────────────────────── */}
+      <aside
+        className={[
+          "fixed inset-y-0 left-0 z-30 w-[220px] flex flex-col border-r border-border bg-background",
+          "transition-transform duration-200 ease-in-out",
+          "lg:static lg:h-screen lg:translate-x-0",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full",
+        ].join(" ")}
+      >
+        {/* Brand */}
+        <div className="h-12 flex items-center justify-between px-5 border-b border-border shrink-0">
+          <Link to="/dashboard" className="font-display text-[17px] text-ink hover:text-accent transition-colors">
+            Forgefy
+          </Link>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="lg:hidden text-text-muted hover:text-ink transition-colors p-1"
+            aria-label="Close menu"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Main nav */}
+        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+          <NavItem to="/dashboard" icon={LayoutDashboard}>Dashboard</NavItem>
+          <NavItem to="/sessions" icon={Mic2}>Sessions</NavItem>
+          <NavItem to="/projects" icon={FolderKanban}>Projects</NavItem>
+        </nav>
+
+        {/* Footer nav */}
+        <div className="px-3 py-4 border-t border-border space-y-0.5 shrink-0">
+          <NavItem to="/billing" icon={CreditCard}>Billing</NavItem>
+          <NavItem to="/settings" icon={Settings}>Settings</NavItem>
+          <div className="mt-3 flex items-center justify-between px-1">
+            <ThemeToggle />
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 text-[12px] text-text-muted hover:text-ink transition-colors"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Sign out
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* ── Main content ─────────────────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Mobile top bar */}
+        <div className="h-12 border-b border-border flex items-center gap-3 px-4 lg:hidden shrink-0 bg-background">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="text-text-muted hover:text-ink transition-colors"
+            aria-label="Open menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <Link to="/dashboard" className="font-display text-[17px] text-ink">Forgefy</Link>
+        </div>
+
+        <main className="flex-1 overflow-auto">
+          <Outlet />
+        </main>
+      </div>
 
       {quotaEvent && (
-        <TokenExhaustedModal
-          event={quotaEvent}
-          onDismiss={() => setQuotaEvent(null)}
-        />
+        <TokenExhaustedModal event={quotaEvent} onDismiss={() => setQuotaEvent(null)} />
       )}
     </div>
   );
