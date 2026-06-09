@@ -12,10 +12,14 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as DocumentationRouteImport } from './routes/documentation'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthSettingsRouteImport } from './routes/_auth/settings'
 import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard'
 import { Route as AuthBillingRouteImport } from './routes/_auth/billing'
+import { Route as AuthSessionsIndexRouteImport } from './routes/_auth/sessions/index'
+import { Route as AuthProjectsIndexRouteImport } from './routes/_auth/projects/index'
 import { Route as AuthSessionsSessionIdRouteImport } from './routes/_auth/sessions/$sessionId'
 import { Route as AuthProjectsProjectIdRouteImport } from './routes/_auth/projects/$projectId'
 import { Route as AuthBillingSuccessRouteImport } from './routes/_auth/billing/success'
@@ -35,6 +39,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DocumentationRoute = DocumentationRouteImport.update({
+  id: '/documentation',
+  path: '/documentation',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
   getParentRoute: () => rootRouteImport,
@@ -44,6 +53,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthSettingsRoute = AuthSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthDashboardRoute = AuthDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -52,6 +66,16 @@ const AuthDashboardRoute = AuthDashboardRouteImport.update({
 const AuthBillingRoute = AuthBillingRouteImport.update({
   id: '/billing',
   path: '/billing',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthSessionsIndexRoute = AuthSessionsIndexRouteImport.update({
+  id: '/sessions/',
+  path: '/sessions/',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthProjectsIndexRoute = AuthProjectsIndexRouteImport.update({
+  id: '/projects/',
+  path: '/projects/',
   getParentRoute: () => AuthRoute,
 } as any)
 const AuthSessionsSessionIdRoute = AuthSessionsSessionIdRouteImport.update({
@@ -72,79 +96,104 @@ const AuthBillingSuccessRoute = AuthBillingSuccessRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/documentation': typeof DocumentationRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/billing': typeof AuthBillingRouteWithChildren
   '/dashboard': typeof AuthDashboardRoute
+  '/settings': typeof AuthSettingsRoute
   '/billing/success': typeof AuthBillingSuccessRoute
   '/projects/$projectId': typeof AuthProjectsProjectIdRoute
   '/sessions/$sessionId': typeof AuthSessionsSessionIdRoute
+  '/projects/': typeof AuthProjectsIndexRoute
+  '/sessions/': typeof AuthSessionsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/documentation': typeof DocumentationRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/billing': typeof AuthBillingRouteWithChildren
   '/dashboard': typeof AuthDashboardRoute
+  '/settings': typeof AuthSettingsRoute
   '/billing/success': typeof AuthBillingSuccessRoute
   '/projects/$projectId': typeof AuthProjectsProjectIdRoute
   '/sessions/$sessionId': typeof AuthSessionsSessionIdRoute
+  '/projects': typeof AuthProjectsIndexRoute
+  '/sessions': typeof AuthSessionsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_auth': typeof AuthRouteWithChildren
+  '/documentation': typeof DocumentationRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_auth/billing': typeof AuthBillingRouteWithChildren
   '/_auth/dashboard': typeof AuthDashboardRoute
+  '/_auth/settings': typeof AuthSettingsRoute
   '/_auth/billing/success': typeof AuthBillingSuccessRoute
   '/_auth/projects/$projectId': typeof AuthProjectsProjectIdRoute
   '/_auth/sessions/$sessionId': typeof AuthSessionsSessionIdRoute
+  '/_auth/projects/': typeof AuthProjectsIndexRoute
+  '/_auth/sessions/': typeof AuthSessionsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/documentation'
     | '/login'
     | '/register'
     | '/sitemap.xml'
     | '/billing'
     | '/dashboard'
+    | '/settings'
     | '/billing/success'
     | '/projects/$projectId'
     | '/sessions/$sessionId'
+    | '/projects/'
+    | '/sessions/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/documentation'
     | '/login'
     | '/register'
     | '/sitemap.xml'
     | '/billing'
     | '/dashboard'
+    | '/settings'
     | '/billing/success'
     | '/projects/$projectId'
     | '/sessions/$sessionId'
+    | '/projects'
+    | '/sessions'
   id:
     | '__root__'
     | '/'
     | '/_auth'
+    | '/documentation'
     | '/login'
     | '/register'
     | '/sitemap.xml'
     | '/_auth/billing'
     | '/_auth/dashboard'
+    | '/_auth/settings'
     | '/_auth/billing/success'
     | '/_auth/projects/$projectId'
     | '/_auth/sessions/$sessionId'
+    | '/_auth/projects/'
+    | '/_auth/sessions/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRouteWithChildren
+  DocumentationRoute: typeof DocumentationRoute
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
@@ -173,6 +222,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/documentation': {
+      id: '/documentation'
+      path: '/documentation'
+      fullPath: '/documentation'
+      preLoaderRoute: typeof DocumentationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_auth': {
       id: '/_auth'
       path: ''
@@ -187,6 +243,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_auth/settings': {
+      id: '/_auth/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthSettingsRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/dashboard': {
       id: '/_auth/dashboard'
       path: '/dashboard'
@@ -199,6 +262,20 @@ declare module '@tanstack/react-router' {
       path: '/billing'
       fullPath: '/billing'
       preLoaderRoute: typeof AuthBillingRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/sessions/': {
+      id: '/_auth/sessions/'
+      path: '/sessions'
+      fullPath: '/sessions/'
+      preLoaderRoute: typeof AuthSessionsIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/projects/': {
+      id: '/_auth/projects/'
+      path: '/projects'
+      fullPath: '/projects/'
+      preLoaderRoute: typeof AuthProjectsIndexRouteImport
       parentRoute: typeof AuthRoute
     }
     '/_auth/sessions/$sessionId': {
@@ -240,15 +317,21 @@ const AuthBillingRouteWithChildren = AuthBillingRoute._addFileChildren(
 interface AuthRouteChildren {
   AuthBillingRoute: typeof AuthBillingRouteWithChildren
   AuthDashboardRoute: typeof AuthDashboardRoute
+  AuthSettingsRoute: typeof AuthSettingsRoute
   AuthProjectsProjectIdRoute: typeof AuthProjectsProjectIdRoute
   AuthSessionsSessionIdRoute: typeof AuthSessionsSessionIdRoute
+  AuthProjectsIndexRoute: typeof AuthProjectsIndexRoute
+  AuthSessionsIndexRoute: typeof AuthSessionsIndexRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
   AuthBillingRoute: AuthBillingRouteWithChildren,
   AuthDashboardRoute: AuthDashboardRoute,
+  AuthSettingsRoute: AuthSettingsRoute,
   AuthProjectsProjectIdRoute: AuthProjectsProjectIdRoute,
   AuthSessionsSessionIdRoute: AuthSessionsSessionIdRoute,
+  AuthProjectsIndexRoute: AuthProjectsIndexRoute,
+  AuthSessionsIndexRoute: AuthSessionsIndexRoute,
 }
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
@@ -256,6 +339,7 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRouteWithChildren,
+  DocumentationRoute: DocumentationRoute,
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,

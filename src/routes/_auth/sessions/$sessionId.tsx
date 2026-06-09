@@ -4,6 +4,7 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { apiFetch, getWsUrl, updateStoredSession } from "@/lib/api";
 
 export const Route = createFileRoute("/_auth/sessions/$sessionId")({
@@ -218,134 +219,120 @@ const TEMPLATE_OPTIONS = [
   { value: "next", label: "Next.js" },
 ];
 
-function BlueprintSection({
-  sessionId,
+const TEMPLATE_LABEL: Record<string, string> = {
+  flutter: "Flutter",
+  react_native: "React Native",
+  next: "Next.js",
+};
+
+// Single-blueprint edit + approve panel (reused by both single and dual flows)
+function SingleBlueprintPanel({
+  blueprint,
+  onUpdated,
   onApproved,
+  showHeader = true,
 }: {
-  sessionId: string;
+  blueprint: Blueprint;
+  onUpdated: (bp: Blueprint) => void;
   onApproved: () => void;
+  showHeader?: boolean;
 }) {
   const navigate = useNavigate();
-  const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
-  const [bpLoading, setBpLoading] = useState(true);
   const [approving, setApproving] = useState(false);
-  const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Editable fields
   const [editAppName, setEditAppName] = useState("");
   const [editTemplate, setEditTemplate] = useState("next");
   const [editFeatures, setEditFeatures] = useState<{ title: string; description: string }[]>([]);
 
-  useEffect(() => {
-    apiFetch(`/api/v1/voxa/blueprint/session/${sessionId}`)
-      .then(async (res) => {
-        if (res.ok) setBlueprint(await res.json());
-        else setError("Blueprint not ready yet.");
-        setBpLoading(false);
-      })
-      .catch(() => { setBpLoading(false); setError("Failed to load blueprint."); });
-  }, [sessionId]);
-
   function startEdit() {
-    if (!blueprint?.json_output) return;
+    if (!blueprint.json_output) return;
     const j = blueprint.json_output;
     setEditAppName((j.app_name as string) ?? "");
     setEditTemplate((j.template as string) ?? "next");
     setEditFeatures(
-      ((j.features ?? []) as { title: string; description: string }[]).map((f) => ({ title: f.title ?? "", description: f.description ?? "" }))
+      ((j.features ?? []) as { title: string; description: string }[]).map((f) => ({
+        title: f.title ?? "",
+        description: f.description ?? "",
+      }))
     );
     setEditing(true);
   }
 
   async function saveEdit() {
-    if (!blueprint) return;
     setSaving(true);
-    setError("");
     try {
       const res = await apiFetch(`/api/v1/voxa/blueprint/${blueprint.id}`, {
         method: "PATCH",
         body: JSON.stringify({ app_name: editAppName, template_key: editTemplate, features: editFeatures }),
       });
       if (res.ok) {
-        const updated = await res.json();
-        setBlueprint(updated);
+        onUpdated(await res.json());
         setEditing(false);
       } else {
         const d = await res.json().catch(() => ({}));
-        setError((d as { detail?: string }).detail ?? "Save failed.");
+        toast.error((d as { detail?: string }).detail ?? "Failed to save changes.");
       }
-    } catch { setError("Network error."); }
+    } catch { toast.error("Network error — changes not saved."); }
     finally { setSaving(false); }
   }
 
   async function handleApprove() {
-    if (!blueprint) return;
     setApproving(true);
     try {
       const res = await apiFetch(`/api/v1/voxa/blueprint/${blueprint.id}/approve`, { method: "POST" });
       if (res.ok) {
         const data = await res.json();
-        setBlueprint({ ...blueprint, approved: true });
+        onUpdated({ ...blueprint, approved: true });
         onApproved();
         if (data.project_id) {
           navigate({ to: "/projects/$projectId", params: { projectId: data.project_id } });
         }
       } else {
         const d = await res.json().catch(() => ({}));
-        setError((d as { detail?: string }).detail ?? "Approval failed.");
+        toast.error((d as { detail?: string }).detail ?? "Approval failed.");
       }
-    } catch { setError("Network error."); }
+    } catch { toast.error("Network error — approval not sent."); }
     finally { setApproving(false); }
   }
 
-  if (bpLoading) return (
-    <div className="flex items-center gap-2 text-[14px] text-text-muted py-8">
-      <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
-      Loading blueprint…
-    </div>
-  );
-
-  if (error && !blueprint) return <p className="text-[13px] text-destructive py-4">{error}</p>;
-
-  if (!blueprint?.json_output) return (
+  if (!blueprint.json_output) return (
     <p className="text-[14px] text-text-muted py-4">Blueprint is empty. The AI may still be generating it.</p>
   );
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h3 className="font-display text-[22px] text-ink">App Blueprint</h3>
-        <div className="flex items-center gap-2">
-          {!blueprint.approved && !editing && (
-            <button
-              onClick={startEdit}
-              className="px-3 py-1.5 rounded-lg border border-border text-[13px] text-text-secondary hover:border-accent hover:text-ink transition-colors"
-            >
-              Edit
-            </button>
-          )}
-          {!blueprint.approved && (
-            <button
-              onClick={handleApprove}
-              disabled={approving || editing}
-              className="px-4 py-2 rounded-xl bg-accent text-accent-foreground text-[13px] font-medium transition-colors hover:bg-[oklch(0.55_0.135_45)] disabled:opacity-60"
-            >
-              {approving ? "Approving…" : "✓ Approve & build"}
-            </button>
-          )}
-          {blueprint.approved && (
-            <span className="text-[13px] font-medium text-[oklch(0.45_0.18_145)]">✓ Approved</span>
-          )}
+      {showHeader && (
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <h3 className="font-display text-[22px] text-ink">App Blueprint</h3>
+          <div className="flex items-center gap-2">
+            {!blueprint.approved && !editing && (
+              <button
+                onClick={startEdit}
+                className="px-3 py-1.5 rounded-lg border border-border text-[13px] text-text-secondary hover:border-accent hover:text-ink transition-colors"
+              >
+                Edit
+              </button>
+            )}
+            {!blueprint.approved && (
+              <button
+                onClick={handleApprove}
+                disabled={approving || editing}
+                className="px-4 py-2 rounded-xl bg-accent text-accent-foreground text-[13px] font-medium transition-colors hover:bg-[oklch(0.55_0.135_45)] disabled:opacity-60"
+              >
+                {approving ? "Approving…" : "✓ Approve & build"}
+              </button>
+            )}
+            {blueprint.approved && (
+              <span className="text-[13px] font-medium text-[oklch(0.45_0.18_145)]">✓ Approved</span>
+            )}
+          </div>
         </div>
-      </div>
-
-      {error && <p className="text-[13px] text-destructive">{error}</p>}
+      )}
 
       {editing ? (
         <div className="space-y-5 rounded-xl border border-border bg-warm-white p-6">
-          {/* App name */}
           <div>
             <label className="label-eyebrow block mb-1.5">App name</label>
             <input
@@ -354,8 +341,6 @@ function BlueprintSection({
               className="w-full h-10 px-3 rounded-xl bg-background border border-border text-[14px] text-ink outline-none focus:border-accent transition-colors"
             />
           </div>
-
-          {/* Template */}
           <div>
             <label className="label-eyebrow block mb-1.5">Template</label>
             <select
@@ -368,8 +353,6 @@ function BlueprintSection({
               ))}
             </select>
           </div>
-
-          {/* Features */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="label-eyebrow">Features</label>
@@ -407,7 +390,6 @@ function BlueprintSection({
               ))}
             </div>
           </div>
-
           <div className="flex gap-2 pt-1">
             <button
               onClick={saveEdit}
@@ -426,19 +408,245 @@ function BlueprintSection({
           </div>
         </div>
       ) : (
-        <div className="rounded-lg border border-border bg-[#0f0d0b] overflow-hidden">
-          <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-[#222]">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#3a3633]" />
-            <span className="h-2.5 w-2.5 rounded-full bg-[#3a3633]" />
-            <span className="h-2.5 w-2.5 rounded-full bg-[#3a3633]" />
-            <span className="ml-3 text-[11px] font-mono-ui text-[#7A6F65]">blueprint.json</span>
+        <>
+          {!showHeader && !blueprint.approved && (
+            <div className="flex gap-2">
+              <button
+                onClick={startEdit}
+                className="px-3 py-1.5 rounded-lg border border-border text-[13px] text-text-secondary hover:border-accent hover:text-ink transition-colors"
+              >
+                Edit
+              </button>
+              <button
+                onClick={handleApprove}
+                disabled={approving}
+                className="flex-1 px-4 py-2 rounded-xl bg-accent text-accent-foreground text-[13px] font-medium transition-colors hover:bg-[oklch(0.55_0.135_45)] disabled:opacity-60"
+              >
+                {approving ? "Building…" : "Build this first →"}
+              </button>
+            </div>
+          )}
+          <div className="rounded-lg border border-border bg-[#0f0d0b] overflow-hidden">
+            <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-[#222]">
+              <span className="h-2.5 w-2.5 rounded-full bg-[#3a3633]" />
+              <span className="h-2.5 w-2.5 rounded-full bg-[#3a3633]" />
+              <span className="h-2.5 w-2.5 rounded-full bg-[#3a3633]" />
+              <span className="ml-3 text-[11px] font-mono-ui text-[#7A6F65]">blueprint.json</span>
+            </div>
+            <pre className="px-5 py-5 text-[12px] leading-[1.7] font-mono-ui text-[#E8DFD3] overflow-x-auto max-h-[480px]">
+              {JSON.stringify(blueprint.json_output, null, 2)}
+            </pre>
           </div>
-          <pre className="px-5 py-5 text-[12px] leading-[1.7] font-mono-ui text-[#E8DFD3] overflow-x-auto max-h-[480px]">
-            {JSON.stringify(blueprint.json_output, null, 2)}
-          </pre>
-        </div>
+        </>
       )}
     </div>
+  );
+}
+
+// Dual-blueprint chooser — shown when the app needs both web + mobile
+function DualBlueprintChooser({
+  blueprints,
+  onBlueprintUpdated,
+  onApproved,
+}: {
+  blueprints: Blueprint[];
+  onBlueprintUpdated: (bp: Blueprint) => void;
+  onApproved: () => void;
+}) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Sort: mobile first, web second
+  const sorted = [...blueprints].sort((a, b) => {
+    const va = (a.json_output?.platform_variant as string) ?? "";
+    const vb = (b.json_output?.platform_variant as string) ?? "";
+    return va === "mobile" ? -1 : vb === "mobile" ? 1 : 0;
+  });
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="font-display text-[22px] text-ink">App Blueprint</h3>
+        <p className="mt-1 text-[13px] text-text-muted">
+          Your app needs both a mobile app and a web experience. Choose which to build first — you can build the other later.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        {sorted.map((bp) => {
+          const j = bp.json_output ?? {};
+          const template = (j.template as string) ?? "flutter";
+          const variant = (j.platform_variant as string) ?? "";
+          const appName = (j.app_name as string) ?? "";
+          const description = (j.app_description as string) ?? "";
+          const featureCount = ((j.features ?? []) as unknown[]).length;
+          const isExpanded = expandedId === bp.id;
+
+          return (
+            <div
+              key={bp.id}
+              className="rounded-xl border border-border bg-warm-white overflow-hidden flex flex-col"
+            >
+              {/* Card header */}
+              <div className="px-5 pt-5 pb-4 space-y-3 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-accent/10 text-accent text-[11px] font-medium uppercase tracking-wide">
+                    {TEMPLATE_LABEL[template] ?? template}
+                  </span>
+                  {variant && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface text-text-muted text-[11px] font-medium capitalize">
+                      {variant}
+                    </span>
+                  )}
+                </div>
+                {appName && (
+                  <p className="text-[15px] font-semibold text-ink">{appName}</p>
+                )}
+                {description && (
+                  <p className="text-[12px] text-text-secondary leading-[1.6] line-clamp-3">
+                    {description}
+                  </p>
+                )}
+                {featureCount > 0 && (
+                  <p className="text-[11px] text-text-muted">{featureCount} feature{featureCount !== 1 ? "s" : ""} detected</p>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="px-5 pb-5 pt-2 space-y-2 border-t border-border">
+                <button
+                  onClick={() => setExpandedId(isExpanded ? null : bp.id)}
+                  className="w-full text-[12px] text-text-muted hover:text-ink transition-colors py-1"
+                >
+                  {isExpanded ? "Hide details ↑" : "View full blueprint ↓"}
+                </button>
+                {isExpanded && (
+                  <SingleBlueprintPanel
+                    blueprint={bp}
+                    onUpdated={onBlueprintUpdated}
+                    onApproved={onApproved}
+                    showHeader={false}
+                  />
+                )}
+                {!isExpanded && !bp.approved && (
+                  <_ApproveButton blueprintId={bp.id} onApproved={onApproved} onUpdated={onBlueprintUpdated} />
+                )}
+                {bp.approved && (
+                  <p className="text-center text-[13px] font-medium text-[oklch(0.45_0.18_145)]">✓ Building…</p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Inline approve button used inside DualBlueprintChooser cards
+function _ApproveButton({
+  blueprintId,
+  onApproved,
+  onUpdated,
+}: {
+  blueprintId: string;
+  onApproved: () => void;
+  onUpdated: (bp: Blueprint) => void;
+}) {
+  const navigate = useNavigate();
+  const [approving, setApproving] = useState(false);
+
+  async function handleApprove() {
+    setApproving(true);
+    try {
+      const res = await apiFetch(`/api/v1/voxa/blueprint/${blueprintId}/approve`, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        onUpdated({ ...data, approved: true });
+        onApproved();
+        if (data.project_id) {
+          navigate({ to: "/projects/$projectId", params: { projectId: data.project_id } });
+        }
+      } else {
+        const d = await res.json().catch(() => ({}));
+        toast.error((d as { detail?: string }).detail ?? "Approval failed.");
+      }
+    } catch { toast.error("Network error — approval not sent."); }
+    finally { setApproving(false); }
+  }
+
+  return (
+    <button
+      onClick={handleApprove}
+      disabled={approving}
+      className="w-full px-4 py-2 rounded-xl bg-accent text-accent-foreground text-[13px] font-medium transition-colors hover:bg-[oklch(0.55_0.135_45)] disabled:opacity-60"
+    >
+      {approving ? "Building…" : "Build this first →"}
+    </button>
+  );
+}
+
+function BlueprintSection({
+  sessionId,
+  onApproved,
+}: {
+  sessionId: string;
+  onApproved: () => void;
+}) {
+  const [blueprints, setBlueprints] = useState<Blueprint[]>([]);
+  const [bpLoading, setBpLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    apiFetch(`/api/v1/voxa/blueprint/session/${sessionId}/all`)
+      .then(async (res) => {
+        if (res.ok) {
+          setBlueprints(await res.json());
+        } else {
+          setError("Blueprint not ready yet.");
+        }
+        setBpLoading(false);
+      })
+      .catch(() => { setBpLoading(false); setError("Failed to load blueprint."); });
+  }, [sessionId]);
+
+  function handleUpdated(updated: Blueprint) {
+    setBlueprints((prev) => prev.map((bp) => bp.id === updated.id ? updated : bp));
+  }
+
+  if (bpLoading) return (
+    <div className="flex items-center gap-2 text-[14px] text-text-muted py-8">
+      <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+      Loading blueprint…
+    </div>
+  );
+
+  if (error && blueprints.length === 0) return (
+    <p className="text-[13px] text-destructive py-4">{error}</p>
+  );
+
+  if (blueprints.length === 0) return (
+    <p className="text-[14px] text-text-muted py-4">Blueprint is empty. The AI may still be generating it.</p>
+  );
+
+  // Dual-blueprint path (app requires both web + mobile)
+  if (blueprints.length >= 2) {
+    return (
+      <DualBlueprintChooser
+        blueprints={blueprints}
+        onBlueprintUpdated={handleUpdated}
+        onApproved={onApproved}
+      />
+    );
+  }
+
+  // Single-blueprint path
+  return (
+    <SingleBlueprintPanel
+      blueprint={blueprints[0]}
+      onUpdated={handleUpdated}
+      onApproved={onApproved}
+      showHeader
+    />
   );
 }
 
@@ -551,11 +759,17 @@ function MicCapture({
 }) {
   const [phase, setPhase] = useState<"idle" | "recording" | "stopping">("idle");
   const [elapsed, setElapsed] = useState(0);
-  const [micError, setMicError] = useState("");
+  // audioLevel: 0–100, updated via rAF from the AnalyserNode
+  const [audioLevel, setAudioLevel] = useState(0);
+
   const audioCtxRef = useRef<AudioContext | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const silenceStartRef = useRef<number | null>(null);
+  const lowVolWarnedRef = useRef(false);
 
   function sendChunk(pcm16: Int16Array) {
     const ws = wsRef.current;
@@ -566,8 +780,34 @@ function MicCapture({
     ws.send(JSON.stringify({ type: "streamAudio", session_id: sessionId, chunk: btoa(bin) }));
   }
 
+  function startLevelPolling(analyser: AnalyserNode) {
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    function poll() {
+      analyser.getByteFrequencyData(data);
+      // RMS across frequency bins, normalised to 0–100
+      const rms = Math.sqrt(data.reduce((s, v) => s + v * v, 0) / data.length);
+      const level = Math.min(100, Math.round((rms / 40) * 100));
+      setAudioLevel(level);
+
+      // Warn once if audio stays silent for 5 s
+      if (level < 5) {
+        if (silenceStartRef.current === null) silenceStartRef.current = Date.now();
+        else if (!lowVolWarnedRef.current && Date.now() - silenceStartRef.current > 5000) {
+          toast.warning("Your mic seems very quiet — try speaking louder or moving closer.", {
+            duration: 6000,
+          });
+          lowVolWarnedRef.current = true;
+        }
+      } else {
+        silenceStartRef.current = null;
+      }
+
+      rafRef.current = requestAnimationFrame(poll);
+    }
+    rafRef.current = requestAnimationFrame(poll);
+  }
+
   async function startRecording() {
-    setMicError("");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       streamRef.current = stream;
@@ -577,10 +817,18 @@ function MicCapture({
       await ctx.resume();
 
       const source = ctx.createMediaStreamSource(stream);
-      // 2048-sample buffer @ 16 kHz ≈ 128 ms per callback
+
+      // Analyser for level metering (does not affect the audio path)
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 512;
+      analyser.smoothingTimeConstant = 0.75;
+      analyserRef.current = analyser;
+      source.connect(analyser);
+      startLevelPolling(analyser);
+
+      // ScriptProcessor for PCM capture → WebSocket
       const processor = ctx.createScriptProcessor(2048, 1, 1);
       processorRef.current = processor;
-
       processor.onaudioprocess = (ev) => {
         const float32 = ev.inputBuffer.getChannelData(0);
         const int16 = new Int16Array(float32.length);
@@ -589,7 +837,6 @@ function MicCapture({
         }
         sendChunk(int16);
       };
-
       source.connect(processor);
       processor.connect(ctx.destination);
 
@@ -597,27 +844,28 @@ function MicCapture({
       setElapsed(0);
       timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000);
     } catch {
-      setMicError("Microphone access denied. Please allow it in your browser and try again.");
+      toast.error("Microphone access denied — please allow it in your browser and try again.");
     }
   }
 
   async function stopRecording() {
     setPhase("stopping");
     if (timerRef.current) clearInterval(timerRef.current);
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
 
     processorRef.current?.disconnect();
     processorRef.current = null;
+    analyserRef.current = null;
     audioCtxRef.current?.close().catch(() => {});
     audioCtxRef.current = null;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
 
-    // Signal Deepgram to flush final transcripts, then hand off to parent
     const ws = wsRef.current;
     if (ws && ws.readyState === 1) {
       ws.send(JSON.stringify({ type: "endMeeting", session_id: sessionId }));
     }
-    // Brief pause so the last few Deepgram results can arrive
     await new Promise((r) => setTimeout(r, 1500));
     await onStop();
   }
@@ -625,6 +873,7 @@ function MicCapture({
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
       processorRef.current?.disconnect();
       audioCtxRef.current?.close().catch(() => {});
       streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -634,10 +883,13 @@ function MicCapture({
   const fmt = (s: number) =>
     `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
+  const levelColor =
+    audioLevel > 25 ? "bg-[oklch(0.55_0.18_145)]"
+    : audioLevel > 8  ? "bg-amber-400"
+    : "bg-red-500";
+
   return (
     <div className="space-y-4">
-      {micError && <p className="text-[13px] text-destructive">{micError}</p>}
-
       {phase === "idle" && (
         <div className="flex flex-col items-center gap-4 py-6">
           <p className="text-[14px] text-text-secondary text-center">
@@ -657,7 +909,7 @@ function MicCapture({
       )}
 
       {phase === "recording" && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
@@ -671,19 +923,37 @@ function MicCapture({
               Stop & analyse →
             </button>
           </div>
-          {/* Animated waveform bars */}
+
+          {/* Waveform — bar heights driven by live audio level */}
           <div className="flex gap-0.5 h-10 items-end overflow-hidden rounded-lg">
             {Array.from({ length: 40 }, (_, i) => (
               <div
                 key={i}
                 className="flex-1 rounded-sm bg-accent"
                 style={{
-                  height: `${30 + Math.abs(Math.sin(elapsed * 2.5 + i * 0.7)) * 70}%`,
-                  opacity: 0.5 + Math.abs(Math.sin(elapsed + i * 0.3)) * 0.5,
-                  transition: "height 0.25s ease, opacity 0.25s ease",
+                  height: `${Math.max(6, audioLevel * (0.35 + Math.abs(Math.sin(i * 0.9)) * 0.65))}%`,
+                  opacity: 0.35 + (audioLevel / 100) * 0.65,
+                  transition: "height 0.08s ease, opacity 0.08s ease",
                 }}
               />
             ))}
+          </div>
+
+          {/* VU meter */}
+          <div className="flex items-center gap-2">
+            <svg className="h-3 w-3 text-text-muted shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <div className="flex-1 h-1.5 rounded-full bg-surface overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-75 ${levelColor}`}
+                style={{ width: `${audioLevel}%` }}
+              />
+            </div>
+            {audioLevel < 8 && (
+              <span className="text-[11px] text-amber-500 shrink-0 font-medium">Too quiet</span>
+            )}
           </div>
         </div>
       )}
@@ -710,15 +980,14 @@ function SessionPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
-  const [actionError, setActionError] = useState("");
   const [transcript, setTranscript] = useState<TranscriptLine[]>([]);
   const [features, setFeatures] = useState<string[]>([]);
-  const [blueprintError, setBlueprintError] = useState("");
   // For physical WAITING: which sub-panel to show
   const [physicalMode, setPhysicalMode] = useState<"choose" | "upload" | "live">("choose");
 
   const wsRef = useRef<WebSocket | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const dbTranscriptLoadedRef = useRef(false);
 
   const fetchSession = useCallback(async () => {
     try {
@@ -781,7 +1050,10 @@ function SessionPage() {
             fetchSession();
             break;
           case "blueprintError":
-            setBlueprintError((msg.error as string) ?? "Blueprint generation failed.");
+            toast.error((msg.error as string) ?? "Blueprint generation failed.", {
+              description: "The recording may be too short or silent. Try uploading a clearer file.",
+              duration: 8000,
+            });
             break;
         }
       } catch { /* ignore parse errors */ }
@@ -801,46 +1073,65 @@ function SessionPage() {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [session?.status, fetchSession]);
 
+  // For upload sessions the Redis pub/sub message is often published before the
+  // WS subscriber is ready (race condition).  When the session reaches a
+  // post-live state and we have no live transcript, pull it from the DB so the
+  // UI can still show it.
+  useEffect(() => {
+    if (!session) return;
+    const postLiveStates: SessionStatus[] = ["BLUEPRINT_READY", "APPROVED", "BUILDING"];
+    if (!postLiveStates.includes(session.status)) return;
+    if (dbTranscriptLoadedRef.current) return;
+    dbTranscriptLoadedRef.current = true;
+
+    apiFetch(`/api/v1/voxa/session/${sessionId}/transcript`)
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = await res.json() as { transcript: string };
+        if (data.transcript) {
+          setTranscript((prev) => prev.length > 0 ? prev : [{ text: data.transcript, timestamp: 0 }]);
+        }
+      })
+      .catch(() => {});
+  }, [session?.status, sessionId]);
+
   async function handleJoin() {
     if (!session) return;
     setActionLoading(true);
-    setActionError("");
     try {
       const res = await apiFetch("/api/v1/voxa/session/join", {
         method: "POST",
         body: JSON.stringify({ session_id: session.id }),
       });
-      if (!res.ok) { const d = await res.json().catch(() => ({})); setActionError(d.detail ?? "Failed to join."); return; }
+      if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.detail ?? "Failed to join."); return; }
       await fetchSession();
-    } catch { setActionError("Network error."); }
+    } catch { toast.error("Network error — could not join meeting."); }
     finally { setActionLoading(false); }
   }
 
   async function handleStartLive() {
     if (!session) return;
     setActionLoading(true);
-    setActionError("");
     try {
       const res = await apiFetch(`/api/v1/voxa/session/${session.id}/start-live`, { method: "POST" });
-      if (!res.ok) { const d = await res.json().catch(() => ({})); setActionError(d.detail ?? "Failed to start live transcription."); return; }
-      await fetchSession(); // session now LISTENING
-    } catch { setActionError("Network error."); }
+      if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.detail ?? "Failed to start live transcription."); return; }
+      await fetchSession();
+    } catch { toast.error("Network error — could not start transcription."); }
     finally { setActionLoading(false); }
   }
 
   async function handleEnd() {
     if (!session) return;
     setActionLoading(true);
-    setActionError("");
     try {
       const res = await apiFetch("/api/v1/voxa/session/end", {
         method: "POST",
         body: JSON.stringify({ session_id: session.id }),
       });
-      if (!res.ok) { const d = await res.json().catch(() => ({})); setActionError(d.detail ?? "Failed to end session."); return; }
+      if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.detail ?? "Failed to end session."); return; }
       wsRef.current?.close();
       await fetchSession();
-    } catch { setActionError("Network error."); }
+    } catch { toast.error("Network error — could not end session."); }
     finally { setActionLoading(false); }
   }
 
@@ -885,8 +1176,6 @@ function SessionPage() {
           <StatusBadge status={session.status} />
         </div>
       </div>
-
-      {actionError && <p role="alert" className="mb-4 text-[13px] text-destructive">{actionError}</p>}
 
       {/* ── WAITING ── */}
       {session.status === "WAITING" && !isPhysical && (
@@ -1042,28 +1331,17 @@ function SessionPage() {
       {/* ── PROCESSING ── */}
       {isProcessing && (
         <div className="space-y-4">
-          {blueprintError ? (
-            <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-8 text-center space-y-3">
-              <p className="text-[15px] font-medium text-destructive">Blueprint generation failed</p>
-              <p className="text-[13px] text-destructive/80 max-w-md mx-auto">{blueprintError}</p>
-              <p className="text-[12px] text-text-muted">
-                This usually happens when the recording is too short, silent, or doesn't contain product discussion.
-                Try uploading a clearer recording.
-              </p>
+          <div className="rounded-xl border border-border bg-warm-white p-8 text-center space-y-3">
+            <div className="flex justify-center gap-1">
+              {[0, 1, 2].map((i) => (
+                <span key={i} className="h-2 w-2 rounded-full bg-accent animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
+              ))}
             </div>
-          ) : (
-            <div className="rounded-xl border border-border bg-warm-white p-8 text-center space-y-3">
-              <div className="flex justify-center gap-1">
-                {[0, 1, 2].map((i) => (
-                  <span key={i} className="h-2 w-2 rounded-full bg-accent animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
-                ))}
-              </div>
-              <p className="text-[15px] text-text-secondary">
-                {isPhysical ? "Transcribing and analysing your recording…" : "Analysing the transcript and generating your app blueprint…"}
-              </p>
-              <p className="text-[12px] text-text-muted">Usually takes 30–120 seconds.</p>
-            </div>
-          )}
+            <p className="text-[15px] text-text-secondary">
+              {isPhysical ? "Transcribing and analysing your recording…" : "Analysing the transcript and generating your app blueprint…"}
+            </p>
+            <p className="text-[12px] text-text-muted">Usually takes 30–120 seconds.</p>
+          </div>
           {transcript.length > 0 && (
             <div className="rounded-xl border border-border bg-warm-white p-6 space-y-3">
               <p className="text-[13px] font-medium text-ink">Transcript</p>
@@ -1084,7 +1362,17 @@ function SessionPage() {
       )}
 
       {/* ── BLUEPRINT_READY / APPROVED ── */}
-      {isBlueprintReady && <BlueprintSection sessionId={sessionId} onApproved={fetchSession} />}
+      {isBlueprintReady && (
+        <>
+          <BlueprintSection sessionId={sessionId} onApproved={fetchSession} />
+          {transcript.length > 0 && (
+            <div className="mt-6 rounded-xl border border-border bg-warm-white p-6 space-y-3">
+              <p className="text-[13px] font-medium text-ink">Meeting transcript</p>
+              <TranscriptPanel lines={transcript} />
+            </div>
+          )}
+        </>
+      )}
 
       {/* ── BUILDING ── */}
       {isBuilding && (
