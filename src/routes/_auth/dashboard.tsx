@@ -53,6 +53,11 @@ function GitHubConnectBanner() {
     if (params.get("github") === "connected") {
       setStatus({ linked: true });
       window.history.replaceState({}, "", window.location.pathname);
+      const returnUrl = localStorage.getItem("forgefy_github_pending_return");
+      if (returnUrl) {
+        localStorage.removeItem("forgefy_github_pending_return");
+        window.location.replace(returnUrl);
+      }
     }
   }, []);
 

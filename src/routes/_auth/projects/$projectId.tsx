@@ -163,6 +163,91 @@ function ChatBubble({ message }: { message: ChatMessage }) {
 }
 
 // ---------------------------------------------------------------------------
+// GitHub sync button — always visible in the header
+// ---------------------------------------------------------------------------
+const GH_ICON = (
+  <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2z" />
+  </svg>
+);
+
+function GitHubSyncButton({
+  project,
+  githubLinked,
+  transferring,
+  transferError,
+  onConnect,
+  onSync,
+}: {
+  project: Project;
+  githubLinked: boolean | null;
+  transferring: boolean;
+  transferError: string;
+  onConnect: () => void;
+  onSync: () => void;
+}) {
+  // Already on user's account — show linked repo
+  if (project.repo_owner === "user" && project.github_url) {
+    return (
+      <a
+        href={project.github_url}
+        target="_blank"
+        rel="noreferrer"
+        title={project.repo_full_name ?? undefined}
+        className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-border hover:border-text-secondary text-[12px] text-text-secondary hover:text-ink transition-colors"
+      >
+        {GH_ICON}
+        <span className="hidden sm:block max-w-[140px] truncate">
+          {project.repo_full_name ?? "GitHub"}
+        </span>
+        <span className="text-text-muted">↗</span>
+      </a>
+    );
+  }
+
+  // Still checking GitHub status
+  if (githubLinked === null) {
+    return (
+      <div className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-border text-[12px] text-text-muted/50">
+        {GH_ICON}
+        <span>…</span>
+      </div>
+    );
+  }
+
+  // GitHub not connected — prompt OAuth
+  if (!githubLinked) {
+    return (
+      <button
+        onClick={onConnect}
+        className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[#24292e] hover:bg-[#1a1e22] text-white text-[12px] font-medium transition-colors"
+      >
+        {GH_ICON}
+        Connect GitHub
+      </button>
+    );
+  }
+
+  // Connected but repo still on Forgefy's account — sync button
+  return (
+    <div className="flex flex-col items-end gap-0.5">
+      <button
+        onClick={onSync}
+        disabled={transferring}
+        title={transferError || "Push this project to your GitHub account"}
+        className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[#24292e] hover:bg-[#1a1e22] text-white text-[12px] font-medium transition-colors disabled:opacity-60"
+      >
+        {GH_ICON}
+        {transferring ? "Syncing…" : "Sync to GitHub"}
+      </button>
+      {transferError && (
+        <p className="text-[10px] text-destructive max-w-[180px] text-right leading-tight">{transferError}</p>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 function ProjectEditorPage() {
@@ -178,6 +263,11 @@ function ProjectEditorPage() {
   const [errorDismissed, setErrorDismissed] = useState(false);
 
   const [logs, setLogs] = useState<LogEntry[]>([]);
+
+  const [githubLinked, setGithubLinked] = useState<boolean | null>(null);
+  const [transferring, setTransferring] = useState(false);
+  const [transferError, setTransferError] = useState("");
+  const pendingTransferRef = useRef(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const wsLogsRef = useRef<WebSocket | null>(null);
@@ -209,6 +299,24 @@ function ProjectEditorPage() {
   }, [projectId]);
 
   useEffect(() => { fetchProject(); }, [fetchProject]);
+
+  useEffect(() => {
+    apiFetch("/api/v1/auth/github/status")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setGithubLinked(d.linked))
+      .catch(() => {});
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("github") === "connected") {
+      setGithubLinked(true);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    if (params.get("pending_transfer") === "true") {
+      setGithubLinked(true);
+      pendingTransferRef.current = true;
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
 
   // WebSocket for project state updates
   useEffect(() => {
@@ -286,6 +394,48 @@ function ProjectEditorPage() {
     connect();
     return () => { dead = true; ws?.close(); };
   }, [projectId]);
+
+  async function transferToGitHub() {
+    setTransferring(true);
+    setTransferError("");
+    try {
+      const res = await apiFetch(`/api/v1/projects/${projectId}/transfer-github`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        const updated: Project = await res.json();
+        setProject(updated);
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setTransferError((d as { detail?: string }).detail ?? "Transfer failed. Please try again.");
+      }
+    } catch {
+      setTransferError("Network error. Please try again.");
+    } finally {
+      setTransferring(false);
+    }
+  }
+
+  async function connectGitHubForTransfer() {
+    localStorage.setItem(
+      "forgefy_github_pending_return",
+      `${window.location.pathname}?pending_transfer=true`,
+    );
+    const res = await apiFetch("/api/v1/auth/github/authorize");
+    if (res.ok) {
+      const { url } = await res.json();
+      if (url) window.location.href = url;
+    }
+  }
+
+  // Auto-trigger transfer after returning from OAuth
+  useEffect(() => {
+    if (pendingTransferRef.current && project && !project.is_updating) {
+      pendingTransferRef.current = false;
+      transferToGitHub();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project]);
 
   async function handleSend() {
     const text = prompt.trim();
@@ -398,9 +548,14 @@ function ProjectEditorPage() {
           {project.preview_url && (
             <a href={project.preview_url} target="_blank" rel="noreferrer" className="text-[12px] text-accent hover:underline">Preview ↗</a>
           )}
-          {project.github_url && (
-            <a href={project.github_url} target="_blank" rel="noreferrer" className="text-[12px] text-text-muted hover:text-ink transition-colors">GitHub ↗</a>
-          )}
+          <GitHubSyncButton
+            project={project}
+            githubLinked={githubLinked}
+            transferring={transferring}
+            transferError={transferError}
+            onConnect={connectGitHubForTransfer}
+            onSync={transferToGitHub}
+          />
         </div>
       </header>
 
@@ -467,23 +622,6 @@ function ProjectEditorPage() {
             </div>
           )}
 
-          {/* Platform-owned repo banner — shown when user hasn't connected GitHub */}
-          {project.repo_owner === "platform" && project.github_url && !project.is_updating && (
-            <div className="shrink-0 mx-4 mt-4 px-4 py-3 rounded-xl bg-surface border border-border">
-              <p className="text-[12px] font-medium text-ink mb-0.5">Repo is on Forgefy's GitHub account</p>
-              <p className="text-[11px] text-text-muted mb-2">
-                Connect your GitHub account to own this repo, or transfer it manually via GitHub settings.
-              </p>
-              <a
-                href={`${project.github_url}/settings`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-block text-[11px] font-medium text-accent hover:underline"
-              >
-                Transfer repo on GitHub ↗
-              </a>
-            </div>
-          )}
 
           {/* Building state (initial build, no github_url yet) */}
           {isBuilding && (
