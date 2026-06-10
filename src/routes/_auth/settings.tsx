@@ -56,15 +56,18 @@ function GitHubSection() {
 
   async function connect() {
     setLoading(true);
+    localStorage.setItem("forgefy_github_pending_return", "/settings?github=connected");
     try {
       const res = await apiFetch("/api/v1/auth/github/authorize");
       if (res.ok) {
         const { url } = await res.json();
         if (url) window.location.href = url;
       } else {
+        localStorage.removeItem("forgefy_github_pending_return");
         toast.error("Could not start GitHub OAuth. Please try again.");
       }
     } catch {
+      localStorage.removeItem("forgefy_github_pending_return");
       toast.error("Network error. Please try again.");
     } finally {
       setLoading(false);
