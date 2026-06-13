@@ -1042,9 +1042,24 @@ function SessionPage() {
               { text: (msg.text as string) ?? "", speaker: msg.speaker as string | undefined, timestamp: Date.now() },
             ]);
             break;
-          case "featureDetected":
-            setFeatures((prev) => [...prev, (msg.feature as string) ?? JSON.stringify(msg.payload ?? msg)]);
+          case "featureDetected": {
+            const subState = msg.sub_state as string;
+            const p = msg.payload as Record<string, unknown> | null | undefined;
+            let label: string;
+            if (subState === "FEATURE_FOUND") {
+              label = (p?.title as string) ?? "Feature detected";
+            } else if (subState === "QUESTION_FOUND") {
+              label = `? ${(p?.text as string) ?? "Open question"}`;
+            } else if (subState === "CONFLICT_FOUND") {
+              label = `⚠ ${(p?.description as string) ?? "Conflict"}`;
+            } else if (subState === "ACTION_ITEM_FOUND") {
+              label = `→ ${(p?.task as string) ?? "Action item"}`;
+            } else {
+              label = (p?.title as string) ?? (p?.text as string) ?? subState ?? "Detected";
+            }
+            setFeatures((prev) => [...prev, label]);
             break;
+          }
           case "blueprintReady":
           case "meetingStatus":
             fetchSession();
