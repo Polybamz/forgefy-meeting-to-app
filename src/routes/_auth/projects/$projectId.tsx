@@ -92,7 +92,17 @@ function BuildLogPanel({ logs, isActive }: { logs: LogEntry[]; isActive: boolean
 // ---------------------------------------------------------------------------
 // PreviewPanel
 // ---------------------------------------------------------------------------
-function PreviewPanel({ previewUrl }: { previewUrl: string | null }) {
+function PreviewPanel({
+  previewUrl,
+  buildingPreview,
+  canBuildPreview,
+  onBuildPreview,
+}: {
+  previewUrl: string | null;
+  buildingPreview: boolean;
+  canBuildPreview: boolean;
+  onBuildPreview: () => void;
+}) {
   const [refreshKey, setRefreshKey] = useState(0);
 
   if (!previewUrl) {
@@ -105,6 +115,22 @@ function PreviewPanel({ previewUrl }: { previewUrl: string | null }) {
         </svg>
         <p className="text-[13px]">No preview available yet.</p>
         <p className="text-[12px] text-text-muted/70">A preview URL will appear once the app is deployed.</p>
+        {canBuildPreview && (
+          <button
+            onClick={onBuildPreview}
+            disabled={buildingPreview}
+            className="mt-2 flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-accent-foreground text-[13px] font-medium hover:bg-[oklch(0.55_0.135_45)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {buildingPreview ? (
+              <>
+                <span className="h-3 w-3 rounded-full border-2 border-accent-foreground/30 border-t-accent-foreground animate-spin" />
+                Building preview…
+              </>
+            ) : (
+              "Build Preview"
+            )}
+          </button>
+        )}
       </div>
     );
   }
@@ -267,6 +293,7 @@ function ProjectEditorPage() {
   const [githubLinked, setGithubLinked] = useState<boolean | null>(null);
   const [transferring, setTransferring] = useState(false);
   const [transferError, setTransferError] = useState("");
+  const [buildingPreview, setBuildingPreview] = useState(false);
   const pendingTransferRef = useRef(false);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -338,12 +365,17 @@ function ProjectEditorPage() {
 
           setProject(updated);
 
+          // Any is_updating → false transition: clear preview-build spinner
+          if (wasUpdating && !updated.is_updating) {
+            setBuildingPreview(false);
+          }
+
           // Update done (no error): inject assistant message
           if (wasUpdating && !updated.is_updating && !updated.build_error && prevUpdatedAt !== updated.updated_at) {
             setMessages((prev) => [...prev, {
               id: `assistant-${Date.now()}`,
               role: "assistant",
-              text: "Done! Your app has been updated and pushed to GitHub.",
+              text: (updated as { last_summary?: string }).last_summary || "Your app has been updated successfully!",
               timestamp: new Date(),
             }]);
           }
@@ -381,7 +413,16 @@ function ProjectEditorPage() {
         try {
           const entry = JSON.parse(e.data);
           if (entry.type === "ping") return;
-          setLogs((prev) => [...prev.slice(-200), { ...entry, ts: Date.now() + Math.random() }]);
+          const newEntry = { ...entry, ts: Date.now() + Math.random() };
+          setLogs((prev) => {
+            const sliced = prev.slice(-200);
+            // Overwrite the last entry if it was also a thinking chunk — shows live progress
+            // without flooding the log with hundreds of small lines.
+            if (entry.type === "thinking" && sliced.length > 0 && sliced[sliced.length - 1].type === "thinking") {
+              return [...sliced.slice(0, -1), newEntry];
+            }
+            return [...sliced, newEntry];
+          });
         } catch { /* ignore */ }
       };
 
@@ -436,6 +477,26 @@ function ProjectEditorPage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project]);
+
+  async function handleBuildPreview() {
+    if (buildingPreview || project?.is_updating) return;
+    setBuildingPreview(true);
+    setLogs([]);
+    try {
+      const res = await apiFetch(`/api/v1/projects/${projectId}/build-preview`, { method: "POST" });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        const errText = (d as { detail?: string }).detail ?? "Preview build failed.";
+        setMessages((prev) => [...prev, { id: `err-${Date.now()}`, role: "error", text: errText, timestamp: new Date() }]);
+        setBuildingPreview(false);
+      }
+      // On success the backend sets is_updating=true; keep buildingPreview=true
+      // until the WebSocket tells us is_updating went back to false.
+    } catch {
+      setMessages((prev) => [...prev, { id: `err-${Date.now()}`, role: "error", text: "Network error starting preview build.", timestamp: new Date() }]);
+      setBuildingPreview(false);
+    }
+  }
 
   async function handleSend() {
     const text = prompt.trim();
@@ -547,6 +608,23 @@ function ProjectEditorPage() {
         <div className="flex items-center gap-3 shrink-0">
           {project.preview_url && (
             <a href={project.preview_url} target="_blank" rel="noreferrer" className="text-[12px] text-accent hover:underline">Preview ↗</a>
+          )}
+          {project.github_url && !isBuilding && (
+            <button
+              onClick={handleBuildPreview}
+              disabled={buildingPreview || project.is_updating}
+              className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-border hover:border-accent text-[12px] text-text-secondary hover:text-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title={project.preview_url ? "Rebuild the preview" : "Build a live preview"}
+            >
+              {buildingPreview ? (
+                <>
+                  <span className="h-2.5 w-2.5 rounded-full border-2 border-text-muted/30 border-t-accent animate-spin" />
+                  <span className="hidden sm:block">Building…</span>
+                </>
+              ) : (
+                <span>{project.preview_url ? "Rebuild Preview" : "Build Preview"}</span>
+              )}
+            </button>
           )}
           <GitHubSyncButton
             project={project}
@@ -696,7 +774,12 @@ function ProjectEditorPage() {
 
         {/* ── Right: Preview ── */}
         <div className="hidden md:flex flex-col flex-1 min-w-0 p-4 bg-surface">
-          <PreviewPanel previewUrl={project.preview_url} />
+          <PreviewPanel
+            previewUrl={project.preview_url}
+            buildingPreview={buildingPreview}
+            canBuildPreview={!!project.github_url && !isBuilding}
+            onBuildPreview={handleBuildPreview}
+          />
         </div>
       </div>
     </div>
