@@ -504,7 +504,7 @@ function ProjectEditorPage() {
 
     setSendError("");
     setSending(true);
-    setLogs([]); // clear previous build log when starting a new update
+    setLogs([]); // clear previous log so new activity shows from the top
 
     const userMsg: ChatMessage = { id: `user-${Date.now()}`, role: "user", text, timestamp: new Date() };
     setMessages((prev) => [...prev, userMsg]);
@@ -512,18 +512,32 @@ function ProjectEditorPage() {
     if (textareaRef.current) textareaRef.current.style.height = "auto";
 
     try {
-      const res = await apiFetch(`/api/v1/projects/${projectId}/update`, {
+      const res = await apiFetch(`/api/v1/projects/${projectId}/chat`, {
         method: "POST",
-        body: JSON.stringify({ prompt: text }),
+        body: JSON.stringify({ message: text }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        const errText = (d as { detail?: string }).detail ?? "Update request failed.";
+        const errText = (d as { detail?: string }).detail ?? "Request failed.";
         setSendError(errText);
         setMessages((prev) => [...prev, { id: `err-${Date.now()}`, role: "error", text: errText, timestamp: new Date() }]);
       } else {
-        setProject((prev) => prev ? { ...prev, is_updating: true, build_error: null } : prev);
-        prevUpdatingRef.current = true;
+        const data = await res.json() as { type: string; response: string; update_queued: boolean };
+        // Always show the assistant's reply immediately
+        if (data.response) {
+          setMessages((prev) => [...prev, {
+            id: `assistant-${Date.now()}`,
+            role: "assistant",
+            text: data.response,
+            timestamp: new Date(),
+          }]);
+        }
+        // Only enter "updating" state when an actual build was queued
+        // (don't clear logs here — the "Analysing…" entry already arrived via WebSocket)
+        if (data.update_queued) {
+          setProject((prev) => prev ? { ...prev, is_updating: true, build_error: null } : prev);
+          prevUpdatingRef.current = true;
+        }
       }
     } catch {
       const errText = "Network error. Please try again.";
