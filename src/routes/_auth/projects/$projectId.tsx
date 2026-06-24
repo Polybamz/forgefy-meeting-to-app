@@ -52,6 +52,109 @@ const LOG_COLORS: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
+// PlanChecklist
+// ---------------------------------------------------------------------------
+interface PlanFile { path: string; purpose?: string; changes?: string }
+interface PlanDep { package: string; reason?: string }
+interface PlanData {
+  summary: string;
+  files_to_create: PlanFile[];
+  files_to_modify: PlanFile[];
+  dependencies: PlanDep[];
+  steps: string[];
+  constraints?: string[];
+}
+
+function PlanChecklist({ plan, writtenFiles, isDone }: { plan: PlanData; writtenFiles: Set<string>; isDone: boolean }) {
+  const [open, setOpen] = useState(true);
+
+  const fileItems = [
+    ...plan.files_to_create.map(f => ({ path: f.path, label: f.purpose ?? f.path, badge: "+" })),
+    ...plan.files_to_modify.map(f => ({ path: f.path, label: f.changes ?? f.path, badge: "~" })),
+  ];
+  const totalFiles = fileItems.length;
+  const doneFiles = fileItems.filter(f => isDone || writtenFiles.has(f.path)).length;
+
+  return (
+    <div className="shrink-0 border-t border-[#222] bg-[#0c0b09]">
+      {/* Header row */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-2 border-b border-[#1a1a1a] hover:bg-[#111] transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-mono-ui text-[#7A6F65]">plan</span>
+          {totalFiles > 0 && (
+            <span className="text-[10px] font-mono-ui text-text-muted">
+              {doneFiles}/{totalFiles} files
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          {isDone && <span className="text-[10px] font-mono-ui text-[oklch(0.55_0.18_145)]">done</span>}
+          <span className="text-[10px] text-text-muted">{open ? "▲" : "▼"}</span>
+        </div>
+      </button>
+
+      {open && (
+        <div className="px-4 py-3 space-y-3 max-h-56 overflow-y-auto">
+          {/* Summary */}
+          <p className="text-[11px] text-text-secondary leading-snug">{plan.summary}</p>
+
+          {/* Files */}
+          {fileItems.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[10px] font-mono-ui text-[#5a5249] uppercase tracking-wider">Files</p>
+              {fileItems.map(f => {
+                const done = isDone || writtenFiles.has(f.path);
+                return (
+                  <div key={f.path} className="flex items-start gap-2 text-[11px] font-mono-ui leading-[1.5]">
+                    <span className={`shrink-0 mt-0.5 ${done ? "text-[oklch(0.55_0.18_145)]" : "text-[#3a3633]"}`}>
+                      {done ? "✓" : "○"}
+                    </span>
+                    <span className={`break-all ${done ? "text-[#3a3633] line-through" : "text-text-secondary"}`}>
+                      {f.path}
+                    </span>
+                    <span className={`shrink-0 text-[9px] px-1 rounded ${f.badge === "+" ? "text-[oklch(0.55_0.18_145)] bg-[oklch(0.55_0.18_145)]/10" : "text-[oklch(0.6_0.18_60)] bg-[oklch(0.6_0.18_60)]/10"}`}>
+                      {f.badge}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Steps */}
+          {plan.steps.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[10px] font-mono-ui text-[#5a5249] uppercase tracking-wider">Steps</p>
+              {plan.steps.map((step, i) => (
+                <div key={i} className="flex items-start gap-2 text-[11px] font-mono-ui leading-[1.5]">
+                  <span className="shrink-0 text-[#3a3633]">{i + 1}.</span>
+                  <span className="text-text-muted break-words">{step}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Dependencies */}
+          {plan.dependencies?.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[10px] font-mono-ui text-[#5a5249] uppercase tracking-wider">Dependencies</p>
+              {plan.dependencies.map(d => (
+                <div key={d.package} className="text-[11px] font-mono-ui text-text-muted">
+                  + {d.package}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // BuildLogPanel
 // ---------------------------------------------------------------------------
 function BuildLogPanel({ logs, isActive }: { logs: LogEntry[]; isActive: boolean }) {
@@ -135,8 +238,14 @@ function PreviewPanel({
     );
   }
 
+  // Appetize.io blocks iframes on the /app/ path — /embed/ is their designated iframe URL.
+  const isAppetize = previewUrl.includes("appetize.io");
+  const iframeUrl = isAppetize
+    ? previewUrl.replace("appetize.io/app/", "appetize.io/embed/")
+    : previewUrl;
+
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col  h-full">
       <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-surface rounded-t-xl">
         <div className="flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-full bg-[#3a3633]" />
@@ -145,12 +254,14 @@ function PreviewPanel({
         </div>
         <p className="text-[11px] font-mono-ui text-text-muted truncate max-w-[200px]">{previewUrl}</p>
         <div className="flex items-center gap-2">
-          <button onClick={() => setRefreshKey((k) => k + 1)} title="Refresh" className="text-text-muted hover:text-ink transition-colors">
-            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="23 4 23 10 17 10" />
-              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-            </svg>
-          </button>
+          {!isAppetize && (
+            <button onClick={() => setRefreshKey((k) => k + 1)} title="Refresh" className="text-text-muted hover:text-ink transition-colors">
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
+            </button>
+          )}
           <a href={previewUrl} target="_blank" rel="noreferrer" title="Open in new tab" className="text-text-muted hover:text-ink transition-colors">
             <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
@@ -160,7 +271,17 @@ function PreviewPanel({
           </a>
         </div>
       </div>
-      <iframe key={refreshKey} src={previewUrl} className="flex-1 w-full border-0 rounded-b-xl" title="App preview" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" />
+      <div className="flex items-center justify-center w-full border-6 h-full overflow-hidden">
+        <iframe
+          key={refreshKey}
+          src={iframeUrl}
+          className="flex justify-center item-center w-[50%] h-full border-0   rounded-b-xl"
+          title="App preview"
+          allow="camera; microphone"
+          sandbox={isAppetize ? "allow-scripts allow-same-origin allow-forms allow-popups allow-modals" : "allow-scripts allow-same-origin allow-forms allow-popups"}
+        />
+      </div>
+
     </div>
   );
 }
@@ -176,8 +297,8 @@ function ChatBubble({ message }: { message: ChatMessage }) {
       <div className={[
         "max-w-[85%] rounded-xl px-4 py-3 text-[13px] leading-[1.6]",
         isUser ? "bg-accent text-accent-foreground rounded-br-sm" :
-        isError ? "bg-destructive/10 border border-destructive/20 text-destructive rounded-bl-sm" :
-        "bg-surface border border-border text-text-secondary rounded-bl-sm",
+          isError ? "bg-destructive/10 border border-destructive/20 text-destructive rounded-bl-sm" :
+            "bg-surface border border-border text-text-secondary rounded-bl-sm",
       ].join(" ")}>
         <p className="whitespace-pre-wrap">{message.text}</p>
         <p className={`text-[10px] mt-1.5 ${isUser ? "text-accent-foreground/60" : "text-text-muted"}`}>
@@ -282,13 +403,25 @@ function ProjectEditorPage() {
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState("");
 
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const chatStorageKey = `forgefy_chat_${projectId}`;
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    try {
+      const raw = localStorage.getItem(chatStorageKey);
+      if (raw) {
+        const arr = JSON.parse(raw) as Array<{ id: string; role: string; text: string; timestamp: string }>;
+        return arr.map((m) => ({ ...m, timestamp: new Date(m.timestamp) })) as ChatMessage[];
+      }
+    } catch { /* ignore */ }
+    return [];
+  });
   const [prompt, setPrompt] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState("");
   const [errorDismissed, setErrorDismissed] = useState(false);
 
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [currentPlan, setCurrentPlan] = useState<PlanData | null>(null);
+  const [writtenFiles, setWrittenFiles] = useState<Set<string>>(new Set());
 
   const [githubLinked, setGithubLinked] = useState<boolean | null>(null);
   const [transferring, setTransferring] = useState(false);
@@ -302,10 +435,49 @@ function ProjectEditorPage() {
   const prevUpdatingRef = useRef(false);
   const prevUpdatedAtRef = useRef<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const dbSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // On mount: fetch authoritative history from the server (overwrites the localStorage cache)
+  useEffect(() => {
+    apiFetch(`/api/v1/projects/${projectId}/chat-history`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { messages: Array<{ id: string; role: string; text: string; timestamp: string }> } | null) => {
+        if (data?.messages?.length) {
+          const serverMsgs = data.messages.map((m) => ({
+            ...m,
+            timestamp: new Date(m.timestamp),
+          })) as ChatMessage[];
+          setMessages(serverMsgs);
+          localStorage.setItem(chatStorageKey, JSON.stringify(serverMsgs));
+        }
+      })
+      .catch(() => { /* keep localStorage version on network failure */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
+
+  // Write to localStorage immediately on every change
+  useEffect(() => {
+    try {
+      localStorage.setItem(chatStorageKey, JSON.stringify(messages.slice(-100)));
+    } catch { /* ignore quota errors */ }
+  }, [messages, chatStorageKey]);
+
+  // Write to the server 1 s after the last change (debounced to avoid flooding)
+  useEffect(() => {
+    if (messages.length === 0) return;
+    if (dbSaveTimerRef.current) clearTimeout(dbSaveTimerRef.current);
+    dbSaveTimerRef.current = setTimeout(() => {
+      apiFetch(`/api/v1/projects/${projectId}/chat-history`, {
+        method: "POST",
+        body: JSON.stringify({ messages: messages.slice(-100) }),
+      }).catch(() => { });
+    }, 1000);
+    return () => { if (dbSaveTimerRef.current) clearTimeout(dbSaveTimerRef.current); };
+  }, [messages, projectId]);
 
   const fetchProject = useCallback(async () => {
     try {
@@ -331,7 +503,7 @@ function ProjectEditorPage() {
     apiFetch("/api/v1/auth/github/status")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && setGithubLinked(d.linked))
-      .catch(() => {});
+      .catch(() => { });
 
     const params = new URLSearchParams(window.location.search);
     if (params.get("github") === "connected") {
@@ -371,6 +543,11 @@ function ProjectEditorPage() {
           }
 
           // Update done (no error): inject assistant message
+          // Clear the plan checklist 2 s after the update finishes (success or failure)
+          if (wasUpdating && !updated.is_updating) {
+            setTimeout(() => { setCurrentPlan(null); setWrittenFiles(new Set()); }, 2000);
+          }
+
           if (wasUpdating && !updated.is_updating && !updated.build_error && prevUpdatedAt !== updated.updated_at) {
             setMessages((prev) => [...prev, {
               id: `assistant-${Date.now()}`,
@@ -413,6 +590,22 @@ function ProjectEditorPage() {
         try {
           const entry = JSON.parse(e.data);
           if (entry.type === "ping") return;
+
+          // Structured plan event — render as checklist, not a log line
+          if (entry.type === "plan") {
+            try {
+              setCurrentPlan(JSON.parse(entry.message) as PlanData);
+              setWrittenFiles(new Set());
+            } catch { /* ignore malformed plan */ }
+            return;
+          }
+
+          // Track file writes for the plan checklist
+          if (entry.type === "file_written") {
+            if (entry.message) setWrittenFiles(prev => new Set([...prev, entry.message as string]));
+            return;
+          }
+
           const newEntry = { ...entry, ts: Date.now() + Math.random() };
           setLogs((prev) => {
             const sliced = prev.slice(-200);
@@ -475,7 +668,7 @@ function ProjectEditorPage() {
       pendingTransferRef.current = false;
       transferToGitHub();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project]);
 
   async function handleBuildPreview() {
@@ -782,12 +975,21 @@ function ProjectEditorPage() {
             </div>
           )}
 
+          {/* Plan checklist — shown while an update is running */}
+          {currentPlan && (
+            <PlanChecklist
+              plan={currentPlan}
+              writtenFiles={writtenFiles}
+              isDone={!project.is_updating}
+            />
+          )}
+
           {/* Build log panel */}
           <BuildLogPanel logs={logs} isActive={project.is_updating} />
         </div>
 
         {/* ── Right: Preview ── */}
-        <div className="hidden md:flex flex-col flex-1 min-w-0 p-4 bg-surface">
+        <div className="hidden md:flex flex-col flex-1 min-w-0 p-4 bg-surface  ">
           <PreviewPanel
             previewUrl={project.preview_url}
             buildingPreview={buildingPreview}
