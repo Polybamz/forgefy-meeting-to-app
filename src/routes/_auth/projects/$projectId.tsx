@@ -52,6 +52,109 @@ const LOG_COLORS: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
+// PlanChecklist
+// ---------------------------------------------------------------------------
+interface PlanFile { path: string; purpose?: string; changes?: string }
+interface PlanDep { package: string; reason?: string }
+interface PlanData {
+  summary: string;
+  files_to_create: PlanFile[];
+  files_to_modify: PlanFile[];
+  dependencies: PlanDep[];
+  steps: string[];
+  constraints?: string[];
+}
+
+function PlanChecklist({ plan, writtenFiles, isDone }: { plan: PlanData; writtenFiles: Set<string>; isDone: boolean }) {
+  const [open, setOpen] = useState(true);
+
+  const fileItems = [
+    ...plan.files_to_create.map(f => ({ path: f.path, label: f.purpose ?? f.path, badge: "+" })),
+    ...plan.files_to_modify.map(f => ({ path: f.path, label: f.changes ?? f.path, badge: "~" })),
+  ];
+  const totalFiles = fileItems.length;
+  const doneFiles = fileItems.filter(f => isDone || writtenFiles.has(f.path)).length;
+
+  return (
+    <div className="shrink-0 border-t border-[#222] bg-[#0c0b09]">
+      {/* Header row */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-2 border-b border-[#1a1a1a] hover:bg-[#111] transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-mono-ui text-[#7A6F65]">plan</span>
+          {totalFiles > 0 && (
+            <span className="text-[10px] font-mono-ui text-text-muted">
+              {doneFiles}/{totalFiles} files
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          {isDone && <span className="text-[10px] font-mono-ui text-[oklch(0.55_0.18_145)]">done</span>}
+          <span className="text-[10px] text-text-muted">{open ? "▲" : "▼"}</span>
+        </div>
+      </button>
+
+      {open && (
+        <div className="px-4 py-3 space-y-3 max-h-56 overflow-y-auto">
+          {/* Summary */}
+          <p className="text-[11px] text-text-secondary leading-snug">{plan.summary}</p>
+
+          {/* Files */}
+          {fileItems.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[10px] font-mono-ui text-[#5a5249] uppercase tracking-wider">Files</p>
+              {fileItems.map(f => {
+                const done = isDone || writtenFiles.has(f.path);
+                return (
+                  <div key={f.path} className="flex items-start gap-2 text-[11px] font-mono-ui leading-[1.5]">
+                    <span className={`shrink-0 mt-0.5 ${done ? "text-[oklch(0.55_0.18_145)]" : "text-[#3a3633]"}`}>
+                      {done ? "✓" : "○"}
+                    </span>
+                    <span className={`break-all ${done ? "text-[#3a3633] line-through" : "text-text-secondary"}`}>
+                      {f.path}
+                    </span>
+                    <span className={`shrink-0 text-[9px] px-1 rounded ${f.badge === "+" ? "text-[oklch(0.55_0.18_145)] bg-[oklch(0.55_0.18_145)]/10" : "text-[oklch(0.6_0.18_60)] bg-[oklch(0.6_0.18_60)]/10"}`}>
+                      {f.badge}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Steps */}
+          {plan.steps.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[10px] font-mono-ui text-[#5a5249] uppercase tracking-wider">Steps</p>
+              {plan.steps.map((step, i) => (
+                <div key={i} className="flex items-start gap-2 text-[11px] font-mono-ui leading-[1.5]">
+                  <span className="shrink-0 text-[#3a3633]">{i + 1}.</span>
+                  <span className="text-text-muted break-words">{step}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Dependencies */}
+          {plan.dependencies?.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[10px] font-mono-ui text-[#5a5249] uppercase tracking-wider">Dependencies</p>
+              {plan.dependencies.map(d => (
+                <div key={d.package} className="text-[11px] font-mono-ui text-text-muted">
+                  + {d.package}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // BuildLogPanel
 // ---------------------------------------------------------------------------
 function BuildLogPanel({ logs, isActive }: { logs: LogEntry[]; isActive: boolean }) {
@@ -92,7 +195,17 @@ function BuildLogPanel({ logs, isActive }: { logs: LogEntry[]; isActive: boolean
 // ---------------------------------------------------------------------------
 // PreviewPanel
 // ---------------------------------------------------------------------------
-function PreviewPanel({ previewUrl }: { previewUrl: string | null }) {
+function PreviewPanel({
+  previewUrl,
+  buildingPreview,
+  canBuildPreview,
+  onBuildPreview,
+}: {
+  previewUrl: string | null;
+  buildingPreview: boolean;
+  canBuildPreview: boolean;
+  onBuildPreview: () => void;
+}) {
   const [refreshKey, setRefreshKey] = useState(0);
 
   if (!previewUrl) {
@@ -105,12 +218,34 @@ function PreviewPanel({ previewUrl }: { previewUrl: string | null }) {
         </svg>
         <p className="text-[13px]">No preview available yet.</p>
         <p className="text-[12px] text-text-muted/70">A preview URL will appear once the app is deployed.</p>
+        {canBuildPreview && (
+          <button
+            onClick={onBuildPreview}
+            disabled={buildingPreview}
+            className="mt-2 flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-accent-foreground text-[13px] font-medium hover:bg-[oklch(0.55_0.135_45)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {buildingPreview ? (
+              <>
+                <span className="h-3 w-3 rounded-full border-2 border-accent-foreground/30 border-t-accent-foreground animate-spin" />
+                Building preview…
+              </>
+            ) : (
+              "Build Preview"
+            )}
+          </button>
+        )}
       </div>
     );
   }
 
+  // Appetize.io blocks iframes on the /app/ path — /embed/ is their designated iframe URL.
+  const isAppetize = previewUrl.includes("appetize.io");
+  const iframeUrl = isAppetize
+    ? previewUrl.replace("appetize.io/app/", "appetize.io/embed/")
+    : previewUrl;
+
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col  h-full">
       <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-surface rounded-t-xl">
         <div className="flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-full bg-[#3a3633]" />
@@ -119,12 +254,14 @@ function PreviewPanel({ previewUrl }: { previewUrl: string | null }) {
         </div>
         <p className="text-[11px] font-mono-ui text-text-muted truncate max-w-[200px]">{previewUrl}</p>
         <div className="flex items-center gap-2">
-          <button onClick={() => setRefreshKey((k) => k + 1)} title="Refresh" className="text-text-muted hover:text-ink transition-colors">
-            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="23 4 23 10 17 10" />
-              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-            </svg>
-          </button>
+          {!isAppetize && (
+            <button onClick={() => setRefreshKey((k) => k + 1)} title="Refresh" className="text-text-muted hover:text-ink transition-colors">
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
+            </button>
+          )}
           <a href={previewUrl} target="_blank" rel="noreferrer" title="Open in new tab" className="text-text-muted hover:text-ink transition-colors">
             <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
@@ -134,7 +271,17 @@ function PreviewPanel({ previewUrl }: { previewUrl: string | null }) {
           </a>
         </div>
       </div>
-      <iframe key={refreshKey} src={previewUrl} className="flex-1 w-full border-0 rounded-b-xl" title="App preview" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" />
+      <div className="flex items-center justify-center w-full border-6 h-full overflow-hidden">
+        <iframe
+          key={refreshKey}
+          src={iframeUrl}
+          className="flex justify-center item-center w-[50%] h-full border-0   rounded-b-xl"
+          title="App preview"
+          allow="camera; microphone"
+          sandbox={isAppetize ? "allow-scripts allow-same-origin allow-forms allow-popups allow-modals" : "allow-scripts allow-same-origin allow-forms allow-popups"}
+        />
+      </div>
+
     </div>
   );
 }
@@ -150,8 +297,8 @@ function ChatBubble({ message }: { message: ChatMessage }) {
       <div className={[
         "max-w-[85%] rounded-xl px-4 py-3 text-[13px] leading-[1.6]",
         isUser ? "bg-accent text-accent-foreground rounded-br-sm" :
-        isError ? "bg-destructive/10 border border-destructive/20 text-destructive rounded-bl-sm" :
-        "bg-surface border border-border text-text-secondary rounded-bl-sm",
+          isError ? "bg-destructive/10 border border-destructive/20 text-destructive rounded-bl-sm" :
+            "bg-surface border border-border text-text-secondary rounded-bl-sm",
       ].join(" ")}>
         <p className="whitespace-pre-wrap">{message.text}</p>
         <p className={`text-[10px] mt-1.5 ${isUser ? "text-accent-foreground/60" : "text-text-muted"}`}>
@@ -256,17 +403,30 @@ function ProjectEditorPage() {
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState("");
 
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const chatStorageKey = `forgefy_chat_${projectId}`;
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    try {
+      const raw = localStorage.getItem(chatStorageKey);
+      if (raw) {
+        const arr = JSON.parse(raw) as Array<{ id: string; role: string; text: string; timestamp: string }>;
+        return arr.map((m) => ({ ...m, timestamp: new Date(m.timestamp) })) as ChatMessage[];
+      }
+    } catch { /* ignore */ }
+    return [];
+  });
   const [prompt, setPrompt] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState("");
   const [errorDismissed, setErrorDismissed] = useState(false);
 
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [currentPlan, setCurrentPlan] = useState<PlanData | null>(null);
+  const [writtenFiles, setWrittenFiles] = useState<Set<string>>(new Set());
 
   const [githubLinked, setGithubLinked] = useState<boolean | null>(null);
   const [transferring, setTransferring] = useState(false);
   const [transferError, setTransferError] = useState("");
+  const [buildingPreview, setBuildingPreview] = useState(false);
   const pendingTransferRef = useRef(false);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -275,10 +435,49 @@ function ProjectEditorPage() {
   const prevUpdatingRef = useRef(false);
   const prevUpdatedAtRef = useRef<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const dbSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // On mount: fetch authoritative history from the server (overwrites the localStorage cache)
+  useEffect(() => {
+    apiFetch(`/api/v1/projects/${projectId}/chat-history`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { messages: Array<{ id: string; role: string; text: string; timestamp: string }> } | null) => {
+        if (data?.messages?.length) {
+          const serverMsgs = data.messages.map((m) => ({
+            ...m,
+            timestamp: new Date(m.timestamp),
+          })) as ChatMessage[];
+          setMessages(serverMsgs);
+          localStorage.setItem(chatStorageKey, JSON.stringify(serverMsgs));
+        }
+      })
+      .catch(() => { /* keep localStorage version on network failure */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
+
+  // Write to localStorage immediately on every change
+  useEffect(() => {
+    try {
+      localStorage.setItem(chatStorageKey, JSON.stringify(messages.slice(-100)));
+    } catch { /* ignore quota errors */ }
+  }, [messages, chatStorageKey]);
+
+  // Write to the server 1 s after the last change (debounced to avoid flooding)
+  useEffect(() => {
+    if (messages.length === 0) return;
+    if (dbSaveTimerRef.current) clearTimeout(dbSaveTimerRef.current);
+    dbSaveTimerRef.current = setTimeout(() => {
+      apiFetch(`/api/v1/projects/${projectId}/chat-history`, {
+        method: "POST",
+        body: JSON.stringify({ messages: messages.slice(-100) }),
+      }).catch(() => { });
+    }, 1000);
+    return () => { if (dbSaveTimerRef.current) clearTimeout(dbSaveTimerRef.current); };
+  }, [messages, projectId]);
 
   const fetchProject = useCallback(async () => {
     try {
@@ -304,7 +503,7 @@ function ProjectEditorPage() {
     apiFetch("/api/v1/auth/github/status")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && setGithubLinked(d.linked))
-      .catch(() => {});
+      .catch(() => { });
 
     const params = new URLSearchParams(window.location.search);
     if (params.get("github") === "connected") {
@@ -338,12 +537,22 @@ function ProjectEditorPage() {
 
           setProject(updated);
 
+          // Any is_updating → false transition: clear preview-build spinner
+          if (wasUpdating && !updated.is_updating) {
+            setBuildingPreview(false);
+          }
+
           // Update done (no error): inject assistant message
+          // Clear the plan checklist 2 s after the update finishes (success or failure)
+          if (wasUpdating && !updated.is_updating) {
+            setTimeout(() => { setCurrentPlan(null); setWrittenFiles(new Set()); }, 2000);
+          }
+
           if (wasUpdating && !updated.is_updating && !updated.build_error && prevUpdatedAt !== updated.updated_at) {
             setMessages((prev) => [...prev, {
               id: `assistant-${Date.now()}`,
               role: "assistant",
-              text: "Done! Your app has been updated and pushed to GitHub.",
+              text: (updated as { last_summary?: string }).last_summary || "Your app has been updated successfully!",
               timestamp: new Date(),
             }]);
           }
@@ -381,7 +590,32 @@ function ProjectEditorPage() {
         try {
           const entry = JSON.parse(e.data);
           if (entry.type === "ping") return;
-          setLogs((prev) => [...prev.slice(-200), { ...entry, ts: Date.now() + Math.random() }]);
+
+          // Structured plan event — render as checklist, not a log line
+          if (entry.type === "plan") {
+            try {
+              setCurrentPlan(JSON.parse(entry.message) as PlanData);
+              setWrittenFiles(new Set());
+            } catch { /* ignore malformed plan */ }
+            return;
+          }
+
+          // Track file writes for the plan checklist
+          if (entry.type === "file_written") {
+            if (entry.message) setWrittenFiles(prev => new Set([...prev, entry.message as string]));
+            return;
+          }
+
+          const newEntry = { ...entry, ts: Date.now() + Math.random() };
+          setLogs((prev) => {
+            const sliced = prev.slice(-200);
+            // Overwrite the last entry if it was also a thinking chunk — shows live progress
+            // without flooding the log with hundreds of small lines.
+            if (entry.type === "thinking" && sliced.length > 0 && sliced[sliced.length - 1].type === "thinking") {
+              return [...sliced.slice(0, -1), newEntry];
+            }
+            return [...sliced, newEntry];
+          });
         } catch { /* ignore */ }
       };
 
@@ -434,8 +668,28 @@ function ProjectEditorPage() {
       pendingTransferRef.current = false;
       transferToGitHub();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project]);
+
+  async function handleBuildPreview() {
+    if (buildingPreview || project?.is_updating) return;
+    setBuildingPreview(true);
+    setLogs([]);
+    try {
+      const res = await apiFetch(`/api/v1/projects/${projectId}/build-preview`, { method: "POST" });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        const errText = (d as { detail?: string }).detail ?? "Preview build failed.";
+        setMessages((prev) => [...prev, { id: `err-${Date.now()}`, role: "error", text: errText, timestamp: new Date() }]);
+        setBuildingPreview(false);
+      }
+      // On success the backend sets is_updating=true; keep buildingPreview=true
+      // until the WebSocket tells us is_updating went back to false.
+    } catch {
+      setMessages((prev) => [...prev, { id: `err-${Date.now()}`, role: "error", text: "Network error starting preview build.", timestamp: new Date() }]);
+      setBuildingPreview(false);
+    }
+  }
 
   async function handleSend() {
     const text = prompt.trim();
@@ -443,7 +697,7 @@ function ProjectEditorPage() {
 
     setSendError("");
     setSending(true);
-    setLogs([]); // clear previous build log when starting a new update
+    setLogs([]); // clear previous log so new activity shows from the top
 
     const userMsg: ChatMessage = { id: `user-${Date.now()}`, role: "user", text, timestamp: new Date() };
     setMessages((prev) => [...prev, userMsg]);
@@ -451,18 +705,32 @@ function ProjectEditorPage() {
     if (textareaRef.current) textareaRef.current.style.height = "auto";
 
     try {
-      const res = await apiFetch(`/api/v1/projects/${projectId}/update`, {
+      const res = await apiFetch(`/api/v1/projects/${projectId}/chat`, {
         method: "POST",
-        body: JSON.stringify({ prompt: text }),
+        body: JSON.stringify({ message: text }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        const errText = (d as { detail?: string }).detail ?? "Update request failed.";
+        const errText = (d as { detail?: string }).detail ?? "Request failed.";
         setSendError(errText);
         setMessages((prev) => [...prev, { id: `err-${Date.now()}`, role: "error", text: errText, timestamp: new Date() }]);
       } else {
-        setProject((prev) => prev ? { ...prev, is_updating: true, build_error: null } : prev);
-        prevUpdatingRef.current = true;
+        const data = await res.json() as { type: string; response: string; update_queued: boolean };
+        // Always show the assistant's reply immediately
+        if (data.response) {
+          setMessages((prev) => [...prev, {
+            id: `assistant-${Date.now()}`,
+            role: "assistant",
+            text: data.response,
+            timestamp: new Date(),
+          }]);
+        }
+        // Only enter "updating" state when an actual build was queued
+        // (don't clear logs here — the "Analysing…" entry already arrived via WebSocket)
+        if (data.update_queued) {
+          setProject((prev) => prev ? { ...prev, is_updating: true, build_error: null } : prev);
+          prevUpdatingRef.current = true;
+        }
       }
     } catch {
       const errText = "Network error. Please try again.";
@@ -547,6 +815,23 @@ function ProjectEditorPage() {
         <div className="flex items-center gap-3 shrink-0">
           {project.preview_url && (
             <a href={project.preview_url} target="_blank" rel="noreferrer" className="text-[12px] text-accent hover:underline">Preview ↗</a>
+          )}
+          {project.github_url && !isBuilding && (
+            <button
+              onClick={handleBuildPreview}
+              disabled={buildingPreview || project.is_updating}
+              className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-border hover:border-accent text-[12px] text-text-secondary hover:text-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title={project.preview_url ? "Rebuild the preview" : "Build a live preview"}
+            >
+              {buildingPreview ? (
+                <>
+                  <span className="h-2.5 w-2.5 rounded-full border-2 border-text-muted/30 border-t-accent animate-spin" />
+                  <span className="hidden sm:block">Building…</span>
+                </>
+              ) : (
+                <span>{project.preview_url ? "Rebuild Preview" : "Build Preview"}</span>
+              )}
+            </button>
           )}
           <GitHubSyncButton
             project={project}
@@ -690,13 +975,27 @@ function ProjectEditorPage() {
             </div>
           )}
 
+          {/* Plan checklist — shown while an update is running */}
+          {currentPlan && (
+            <PlanChecklist
+              plan={currentPlan}
+              writtenFiles={writtenFiles}
+              isDone={!project.is_updating}
+            />
+          )}
+
           {/* Build log panel */}
           <BuildLogPanel logs={logs} isActive={project.is_updating} />
         </div>
 
         {/* ── Right: Preview ── */}
-        <div className="hidden md:flex flex-col flex-1 min-w-0 p-4 bg-surface">
-          <PreviewPanel previewUrl={project.preview_url} />
+        <div className="hidden md:flex flex-col flex-1 min-w-0 p-4 bg-surface  ">
+          <PreviewPanel
+            previewUrl={project.preview_url}
+            buildingPreview={buildingPreview}
+            canBuildPreview={!!project.github_url && !isBuilding}
+            onBuildPreview={handleBuildPreview}
+          />
         </div>
       </div>
     </div>
