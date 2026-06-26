@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch, getWsUrl, type Project } from "@/lib/api";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 export const Route = createFileRoute("/_auth/projects/$projectId")({
   component: ProjectEditorPage,
@@ -51,11 +53,8 @@ const LOG_COLORS: Record<string, string> = {
   done: "text-[oklch(0.55_0.18_145)]",
 };
 
-// ---------------------------------------------------------------------------
-// PlanChecklist
-// ---------------------------------------------------------------------------
 interface PlanFile { path: string; purpose?: string; changes?: string }
-interface PlanDep { package: string; reason?: string }
+interface PlanDep  { package: string; reason?: string }
 interface PlanData {
   summary: string;
   files_to_create: PlanFile[];
@@ -65,128 +64,103 @@ interface PlanData {
   constraints?: string[];
 }
 
-function PlanChecklist({ plan, writtenFiles, isDone }: { plan: PlanData; writtenFiles: Set<string>; isDone: boolean }) {
-  const [open, setOpen] = useState(true);
-
-  const fileItems = [
-    ...plan.files_to_create.map(f => ({ path: f.path, label: f.purpose ?? f.path, badge: "+" })),
-    ...plan.files_to_modify.map(f => ({ path: f.path, label: f.changes ?? f.path, badge: "~" })),
-  ];
-  const totalFiles = fileItems.length;
-  const doneFiles = fileItems.filter(f => isDone || writtenFiles.has(f.path)).length;
-
-  return (
-    <div className="shrink-0 border-t border-[#222] bg-[#0c0b09]">
-      {/* Header row */}
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-4 py-2 border-b border-[#1a1a1a] hover:bg-[#111] transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] font-mono-ui text-[#7A6F65]">plan</span>
-          {totalFiles > 0 && (
-            <span className="text-[10px] font-mono-ui text-text-muted">
-              {doneFiles}/{totalFiles} files
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          {isDone && <span className="text-[10px] font-mono-ui text-[oklch(0.55_0.18_145)]">done</span>}
-          <span className="text-[10px] text-text-muted">{open ? "▲" : "▼"}</span>
-        </div>
-      </button>
-
-      {open && (
-        <div className="px-4 py-3 space-y-3 max-h-56 overflow-y-auto">
-          {/* Summary */}
-          <p className="text-[11px] text-text-secondary leading-snug">{plan.summary}</p>
-
-          {/* Files */}
-          {fileItems.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-[10px] font-mono-ui text-[#5a5249] uppercase tracking-wider">Files</p>
-              {fileItems.map(f => {
-                const done = isDone || writtenFiles.has(f.path);
-                return (
-                  <div key={f.path} className="flex items-start gap-2 text-[11px] font-mono-ui leading-[1.5]">
-                    <span className={`shrink-0 mt-0.5 ${done ? "text-[oklch(0.55_0.18_145)]" : "text-[#3a3633]"}`}>
-                      {done ? "✓" : "○"}
-                    </span>
-                    <span className={`break-all ${done ? "text-[#3a3633] line-through" : "text-text-secondary"}`}>
-                      {f.path}
-                    </span>
-                    <span className={`shrink-0 text-[9px] px-1 rounded ${f.badge === "+" ? "text-[oklch(0.55_0.18_145)] bg-[oklch(0.55_0.18_145)]/10" : "text-[oklch(0.6_0.18_60)] bg-[oklch(0.6_0.18_60)]/10"}`}>
-                      {f.badge}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Steps */}
-          {plan.steps.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-[10px] font-mono-ui text-[#5a5249] uppercase tracking-wider">Steps</p>
-              {plan.steps.map((step, i) => (
-                <div key={i} className="flex items-start gap-2 text-[11px] font-mono-ui leading-[1.5]">
-                  <span className="shrink-0 text-[#3a3633]">{i + 1}.</span>
-                  <span className="text-text-muted break-words">{step}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Dependencies */}
-          {plan.dependencies?.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-[10px] font-mono-ui text-[#5a5249] uppercase tracking-wider">Dependencies</p>
-              {plan.dependencies.map(d => (
-                <div key={d.package} className="text-[11px] font-mono-ui text-text-muted">
-                  + {d.package}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ---------------------------------------------------------------------------
-// BuildLogPanel
+// AgentActivityBlock — renders inline in the chat thread (like Claude Code)
 // ---------------------------------------------------------------------------
-function BuildLogPanel({ logs, isActive }: { logs: LogEntry[]; isActive: boolean }) {
+function AgentActivityBlock({
+  logs,
+  isActive,
+  plan,
+  writtenFiles,
+}: {
+  logs: LogEntry[];
+  isActive: boolean;
+  plan: PlanData | null;
+  writtenFiles: Set<string>;
+}) {
   const endRef = useRef<HTMLDivElement>(null);
+  const [planOpen, setPlanOpen] = useState(true);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
-  if (logs.length === 0 && !isActive) return null;
+  if (logs.length === 0 && !isActive && !plan) return null;
+
+  const fileItems = plan ? [
+    ...plan.files_to_create.map((f: PlanFile) => ({ path: f.path, badge: "+", done: !isActive || writtenFiles.has(f.path) })),
+    ...plan.files_to_modify.map((f: PlanFile) => ({ path: f.path, badge: "~", done: !isActive || writtenFiles.has(f.path) })),
+  ] : [];
 
   return (
-    <div className="shrink-0 border-t border-border bg-[#0f0d0b]">
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-[#222]">
-        {isActive && <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />}
-        <span className="text-[11px] font-mono-ui text-[#7A6F65]">build log</span>
-      </div>
-      <div className="max-h-48 overflow-y-auto px-4 py-2 space-y-0.5">
-        {logs.map((entry) => (
-          <div key={entry.ts} className="flex items-start gap-2 text-[11px] font-mono-ui leading-[1.6]">
-            <span className={`shrink-0 ${LOG_COLORS[entry.type] ?? "text-text-muted"}`}>
-              {LOG_ICONS[entry.type] ?? "·"}
-            </span>
-            <span className={`${LOG_COLORS[entry.type] ?? "text-text-muted"} break-words`}>
-              {entry.message}
-            </span>
+    <div className="flex justify-start">
+      <div className="w-full max-w-[92%] text-[11px] font-mono-ui">
+
+        {/* Header */}
+        <div className="flex items-center gap-2 px-1 py-1">
+          {isActive
+            ? <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse shrink-0" />
+            : <span className="text-[oklch(0.55_0.18_145)]">✓</span>
+          }
+          <span className="text-[#7A6F65]">forgefy agent</span>
+        </div>
+
+        {/* Plan section */}
+        {plan && (
+          <div className="mb-1">
+            <button
+              onClick={() => setPlanOpen(o => !o)}
+              className="w-full flex items-center justify-between px-1 py-1 hover:opacity-80 transition-opacity"
+            >
+              <span className="text-[#5a5249] uppercase tracking-wider text-[9px]">
+                plan · {fileItems.filter(f => f.done).length}/{fileItems.length} files
+              </span>
+              <span className="text-[#3a3633] text-[9px]">{planOpen ? "▲" : "▼"}</span>
+            </button>
+            {planOpen && (
+              <div className="px-1 pb-1 space-y-1">
+                <p className="text-text-muted leading-snug pb-1">{plan.summary}</p>
+                {fileItems.map(f => (
+                  <div key={f.path} className="flex items-center gap-2 leading-[1.6]">
+                    <span className={f.done ? "text-[oklch(0.55_0.18_145)]" : "text-[#3a3633]"}>
+                      {f.done ? "✓" : "○"}
+                    </span>
+                    <span className={`break-all ${f.done ? "text-[#3a3633] line-through" : "text-text-secondary"}`}>
+                      {f.path}
+                    </span>
+                    <span className={`shrink-0 text-[9px] px-0.5 ${f.badge === "+" ? "text-[oklch(0.55_0.18_145)]" : "text-[oklch(0.6_0.18_60)]"}`}>
+                      {f.badge}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        ))}
-        {isActive && logs.length === 0 && (
-          <p className="text-[11px] font-mono-ui text-[#7A6F65] italic">Connecting…</p>
         )}
-        <div ref={endRef} />
+
+        {/* Log stream */}
+        <div className="max-h-52 overflow-y-auto px-1 py-1 space-y-0.5">
+          {logs.length === 0 && isActive && (
+            <span className="text-[#7A6F65] italic">Connecting…</span>
+          )}
+          {logs.map((entry) => (
+            <div key={entry.ts} className="flex items-start gap-2 leading-[1.6]">
+              <span className={`shrink-0 ${LOG_COLORS[entry.type] ?? "text-text-muted"}`}>
+                {LOG_ICONS[entry.type] ?? "·"}
+              </span>
+              {entry.type === "text" || entry.type === "done" ? (
+                <Md className={`${LOG_COLORS[entry.type] ?? "text-text-muted"} text-[11px] break-words`}>
+                  {entry.message}
+                </Md>
+              ) : (
+                <span className={`${LOG_COLORS[entry.type] ?? "text-text-muted"} break-words`}>
+                  {entry.message}
+                </span>
+              )}
+            </div>
+          ))}
+          <div ref={endRef} />
+        </div>
       </div>
     </div>
   );
@@ -287,6 +261,41 @@ function PreviewPanel({
 }
 
 // ---------------------------------------------------------------------------
+// Shared markdown renderer
+// ---------------------------------------------------------------------------
+function Md({ children, className = "" }: { children: string; className?: string }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      className={className}
+      components={{
+        p:      ({ children }) => <p className="mb-1.5 last:mb-0 leading-relaxed">{children}</p>,
+        ul:     ({ children }) => <ul className="list-disc pl-4 mb-1.5 space-y-0.5">{children}</ul>,
+        ol:     ({ children }) => <ol className="list-decimal pl-4 mb-1.5 space-y-0.5">{children}</ol>,
+        li:     ({ children }) => <li className="leading-relaxed">{children}</li>,
+        strong: ({ children }) => <strong className="font-semibold text-inherit">{children}</strong>,
+        em:     ({ children }) => <em className="italic text-inherit">{children}</em>,
+        code:   ({ children, className: cls }) => {
+          const isBlock = cls?.includes("language-");
+          return isBlock
+            ? <code className="block bg-black/20 rounded px-2 py-1.5 text-[10px] font-mono overflow-x-auto my-1">{children}</code>
+            : <code className="bg-black/20 rounded px-1 py-0.5 text-[10px] font-mono">{children}</code>;
+        },
+        pre:    ({ children }) => <pre className="overflow-x-auto my-1">{children}</pre>,
+        h1:     ({ children }) => <h1 className="font-semibold text-[14px] mb-1">{children}</h1>,
+        h2:     ({ children }) => <h2 className="font-semibold text-[13px] mb-1">{children}</h2>,
+        h3:     ({ children }) => <h3 className="font-medium text-[12px] mb-0.5">{children}</h3>,
+        a:      ({ href, children }) => <a href={href} target="_blank" rel="noreferrer" className="underline underline-offset-2 opacity-80 hover:opacity-100">{children}</a>,
+        hr:     () => <hr className="border-current opacity-20 my-2" />,
+        blockquote: ({ children }) => <blockquote className="border-l-2 border-current opacity-70 pl-2 my-1">{children}</blockquote>,
+      }}
+    >
+      {children}
+    </ReactMarkdown>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // ChatBubble
 // ---------------------------------------------------------------------------
 function ChatBubble({ message }: { message: ChatMessage }) {
@@ -300,7 +309,10 @@ function ChatBubble({ message }: { message: ChatMessage }) {
           isError ? "bg-destructive/10 border border-destructive/20 text-destructive rounded-bl-sm" :
             "bg-surface border border-border text-text-secondary rounded-bl-sm",
       ].join(" ")}>
-        <p className="whitespace-pre-wrap">{message.text}</p>
+        {isUser
+          ? <p className="whitespace-pre-wrap">{message.text}</p>
+          : <Md className="text-[13px]">{message.text}</Md>
+        }
         <p className={`text-[10px] mt-1.5 ${isUser ? "text-accent-foreground/60" : "text-text-muted"}`}>
           {message.timestamp.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
         </p>
@@ -543,10 +555,7 @@ function ProjectEditorPage() {
           }
 
           // Update done (no error): inject assistant message
-          // Clear the plan checklist 2 s after the update finishes (success or failure)
-          if (wasUpdating && !updated.is_updating) {
-            setTimeout(() => { setCurrentPlan(null); setWrittenFiles(new Set()); }, 2000);
-          }
+          // Plan + logs stay visible until the user sends the next message
 
           if (wasUpdating && !updated.is_updating && !updated.build_error && prevUpdatedAt !== updated.updated_at) {
             setMessages((prev) => [...prev, {
@@ -697,7 +706,9 @@ function ProjectEditorPage() {
 
     setSendError("");
     setSending(true);
-    setLogs([]); // clear previous log so new activity shows from the top
+    setLogs([]);
+    setCurrentPlan(null);
+    setWrittenFiles(new Set());
 
     const userMsg: ChatMessage = { id: `user-${Date.now()}`, role: "user", text, timestamp: new Date() };
     setMessages((prev) => [...prev, userMsg]);
@@ -921,7 +932,7 @@ function ProjectEditorPage() {
 
           {/* Chat history */}
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-            {messages.length === 0 && !isBuilding ? (
+            {messages.length === 0 && !isBuilding && !isUpdating ? (
               <div className="flex flex-col items-center justify-center h-full gap-3 text-text-muted py-12">
                 <svg className="h-8 w-8 opacity-30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -932,14 +943,14 @@ function ProjectEditorPage() {
             ) : (
               messages.map((msg) => <ChatBubble key={msg.id} message={msg} />)
             )}
-            {isUpdating && messages.length > 0 && (
-              <div className="flex justify-start">
-                <div className="flex items-center gap-1.5 px-4 py-3 rounded-xl bg-surface border border-border">
-                  {[0, 1, 2].map((i) => (
-                    <span key={i} className="h-1.5 w-1.5 rounded-full bg-accent animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
-                  ))}
-                </div>
-              </div>
+            {/* Inline agent activity — stays visible after done, cleared on next send */}
+            {logs.length > 0 && (
+              <AgentActivityBlock
+                logs={logs}
+                isActive={isUpdating}
+                plan={currentPlan}
+                writtenFiles={writtenFiles}
+              />
             )}
             <div ref={chatEndRef} />
           </div>
@@ -975,17 +986,6 @@ function ProjectEditorPage() {
             </div>
           )}
 
-          {/* Plan checklist — shown while an update is running */}
-          {currentPlan && (
-            <PlanChecklist
-              plan={currentPlan}
-              writtenFiles={writtenFiles}
-              isDone={!project.is_updating}
-            />
-          )}
-
-          {/* Build log panel */}
-          <BuildLogPanel logs={logs} isActive={project.is_updating} />
         </div>
 
         {/* ── Right: Preview ── */}
