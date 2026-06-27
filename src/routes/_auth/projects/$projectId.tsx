@@ -40,6 +40,7 @@ const LOG_ICONS: Record<string, string> = {
   warning: "⚠",
   error: "✕",
   done: "✓",
+  validating: "◈",
 };
 
 const LOG_COLORS: Record<string, string> = {
@@ -51,6 +52,7 @@ const LOG_COLORS: Record<string, string> = {
   warning: "text-[oklch(0.6_0.18_60)]",
   error: "text-destructive",
   done: "text-[oklch(0.55_0.18_145)]",
+  validating: "text-[oklch(0.6_0.15_280)]",
 };
 
 interface PlanFile { path: string; purpose?: string; changes?: string }
@@ -94,7 +96,7 @@ function AgentActivityBlock({
 
   return (
     <div className="flex justify-start">
-      <div className="w-full max-w-[92%] text-[11px] font-mono-ui">
+      <div className="w-full  text-[11px] font-mono-ui border-2 border-border/50 rounded-lg bg-[#fdfaf6]">
 
         {/* Header */}
         <div className="flex items-center gap-2 px-1 py-1">
@@ -104,7 +106,8 @@ function AgentActivityBlock({
           }
           <span className="text-[#7A6F65]">forgefy agent</span>
         </div>
-
+{/* devider */}
+        <div className="border-t border-border/50" />
         {/* Plan section */}
         {plan && (
           <div className="mb-1">
@@ -137,14 +140,15 @@ function AgentActivityBlock({
             )}
           </div>
         )}
+        <div className="border-t-4 mb-2 border-border/50" />
 
         {/* Log stream */}
-        <div className="max-h-52 overflow-y-auto px-1 py-1 space-y-0.5">
+        <div className="max-h-52 overflow-y-auto px-1 py-1 space-y-0.5 ">
           {logs.length === 0 && isActive && (
             <span className="text-[#7A6F65] italic">Connecting…</span>
           )}
           {logs.map((entry) => (
-            <div key={entry.ts} className="flex items-start gap-2 leading-[1.6]">
+            <div key={entry.ts} className="flex items-start gap-2 leading-[1.6] border-b border-border/50 last:border-0 pb-0.5">
               <span className={`shrink-0 ${LOG_COLORS[entry.type] ?? "text-text-muted"}`}>
                 {LOG_ICONS[entry.type] ?? "·"}
               </span>
@@ -256,6 +260,212 @@ function PreviewPanel({
         />
       </div>
 
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CodePanel — file tree + syntax-highlighted viewer
+// ---------------------------------------------------------------------------
+const LANG_MAP: Record<string, string> = {
+  ts: "typescript", tsx: "typescript", js: "javascript", jsx: "javascript",
+  dart: "dart", py: "python", json: "json", yaml: "yaml", yml: "yaml",
+  md: "markdown", css: "css", html: "html", sh: "bash", gradle: "gradle",
+  xml: "xml", kt: "kotlin", swift: "swift", toml: "toml",
+};
+
+function fileIcon(path: string): string {
+  const ext = path.split(".").pop()?.toLowerCase() ?? "";
+  const icons: Record<string, string> = {
+    ts: "📘", tsx: "⚛", js: "📒", jsx: "⚛", dart: "🎯",
+    json: "📋", yaml: "📋", yml: "📋", md: "📝", css: "🎨",
+    html: "🌐", sh: "⚙", gradle: "🐘", xml: "📄", py: "🐍",
+    kt: "📗", swift: "🍎", toml: "⚙",
+  };
+  return icons[ext] ?? "📄";
+}
+
+function buildTree(files: string[]): Record<string, unknown> {
+  const root: Record<string, unknown> = {};
+  for (const path of files) {
+    const parts = path.split("/");
+    let node: Record<string, unknown> = root;
+    for (let i = 0; i < parts.length - 1; i++) {
+      if (!node[parts[i]]) node[parts[i]] = {};
+      node = node[parts[i]] as Record<string, unknown>;
+    }
+    node[parts[parts.length - 1]] = path; // leaf = full path string
+  }
+  return root;
+}
+
+function TreeNode({
+  name,
+  node,
+  depth,
+  selected,
+  onSelect,
+}: {
+  name: string;
+  node: unknown;
+  depth: number;
+  selected: string | null;
+  onSelect: (path: string) => void;
+}) {
+  const [open, setOpen] = useState(depth < 2);
+  const isFile = typeof node === "string";
+
+  if (isFile) {
+    const active = selected === node;
+    return (
+      <button
+        onClick={() => onSelect(node as string)}
+        className={`w-full flex items-center gap-1.5 px-2 py-0.5 rounded text-left text-[11px] font-mono-ui transition-colors ${
+          active ? "bg-accent/15 text-accent font-medium" : "text-text-secondary hover:bg-surface hover:text-ink"
+        }`}
+        style={{ paddingLeft: `${depth * 12 + 8}px` }}
+      >
+        <span className="shrink-0 text-[10px]">{fileIcon(name)}</span>
+        <span className="truncate">{name}</span>
+      </button>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center gap-1.5 px-2 py-0.5 rounded text-left text-[11px] font-mono-ui text-text-muted hover:text-ink hover:bg-surface transition-colors"
+        style={{ paddingLeft: `${depth * 12 + 8}px` }}
+      >
+        <span className="shrink-0 text-[9px]">{open ? "▾" : "▸"}</span>
+        <span className="shrink-0">📁</span>
+        <span className="truncate font-medium">{name}</span>
+      </button>
+      {open && (
+        <div>
+          {Object.entries(node as Record<string, unknown>)
+            .sort(([, a], [, b]) => {
+              const aFile = typeof a === "string";
+              const bFile = typeof b === "string";
+              if (aFile !== bFile) return aFile ? 1 : -1; // dirs first
+              return 0;
+            })
+            .map(([k, v]) => (
+              <TreeNode key={k} name={k} node={v} depth={depth + 1} selected={selected} onSelect={onSelect} />
+            ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CodePanel({ projectId }: { projectId: string }) {
+  const [files, setFiles] = useState<string[]>([]);
+  const [loadingTree, setLoadingTree] = useState(true);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [content, setContent] = useState<string | null>(null);
+  const [loadingFile, setLoadingFile] = useState(false);
+
+  useEffect(() => {
+    setLoadingTree(true);
+    apiFetch(`/api/v1/projects/${projectId}/code/tree`)
+      .then((r) => (r.ok ? r.json() : { files: [] }))
+      .then((d) => setFiles(d.files ?? []))
+      .catch(() => setFiles([]))
+      .finally(() => setLoadingTree(false));
+  }, [projectId]);
+
+  async function openFile(path: string) {
+    if (path === selected) return;
+    setSelected(path);
+    setContent(null);
+    setLoadingFile(true);
+    try {
+      const r = await apiFetch(`/api/v1/projects/${projectId}/code/file?path=${encodeURIComponent(path)}`);
+      const d = await r.json();
+      setContent(r.ok ? (d.content ?? "") : `Error: ${d.detail ?? "Could not load file"}`);
+    } catch {
+      setContent("Network error loading file.");
+    } finally {
+      setLoadingFile(false);
+    }
+  }
+
+  const tree = buildTree(files);
+  const ext = selected?.split(".").pop()?.toLowerCase() ?? "";
+  const lang = LANG_MAP[ext] ?? "plaintext";
+
+  return (
+    <div className="flex h-full rounded-xl border border-border overflow-hidden bg-[#1e1e1e]">
+      {/* File tree */}
+      <div className="w-56 shrink-0 flex flex-col border-r border-white/10 bg-[#252526] overflow-y-auto">
+        <div className="px-3 py-2 border-b border-white/10">
+          <p className="text-[10px] font-mono-ui text-[#858585] uppercase tracking-wider">Explorer</p>
+        </div>
+        {loadingTree ? (
+          <div className="flex items-center justify-center flex-1 text-[11px] text-[#858585]">Loading…</div>
+        ) : files.length === 0 ? (
+          <div className="flex items-center justify-center flex-1 text-[11px] text-[#858585]">No files yet</div>
+        ) : (
+          <div className="py-1 overflow-y-auto">
+            {Object.entries(tree)
+              .sort(([, a], [, b]) => {
+                const aFile = typeof a === "string";
+                const bFile = typeof b === "string";
+                if (aFile !== bFile) return aFile ? 1 : -1;
+                return 0;
+              })
+              .map(([k, v]) => (
+                <TreeNode key={k} name={k} node={v} depth={0} selected={selected} onSelect={openFile} />
+              ))}
+          </div>
+        )}
+      </div>
+
+      {/* Editor pane */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Tab bar */}
+        <div className="flex items-center gap-0 border-b border-white/10 bg-[#2d2d2d] min-h-[32px]">
+          {selected ? (
+            <div className="flex items-center gap-1.5 px-4 py-1.5 bg-[#1e1e1e] border-t border-accent text-[11px] font-mono-ui text-[#ccc]">
+              <span>{fileIcon(selected)}</span>
+              <span>{selected.split("/").pop()}</span>
+            </div>
+          ) : (
+            <span className="px-4 py-1.5 text-[11px] font-mono-ui text-[#858585]">No file open</span>
+          )}
+        </div>
+
+        {/* Code */}
+        <div className="flex-1 overflow-auto">
+          {!selected && (
+            <div className="flex flex-col items-center justify-center h-full gap-2 text-[#858585]">
+              <svg className="w-8 h-8 opacity-30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+              </svg>
+              <p className="text-[12px]">Select a file to view</p>
+            </div>
+          )}
+          {selected && loadingFile && (
+            <div className="flex items-center justify-center h-32 text-[11px] text-[#858585]">Loading…</div>
+          )}
+          {selected && !loadingFile && content !== null && (
+            <pre className="p-4 text-[11.5px] font-mono-ui text-[#d4d4d4] leading-relaxed whitespace-pre overflow-x-auto">
+              <code>{content}</code>
+            </pre>
+          )}
+        </div>
+
+        {/* Status bar */}
+        {selected && (
+          <div className="shrink-0 flex items-center gap-3 px-4 py-1 border-t border-white/10 bg-accent text-accent-foreground text-[10px] font-mono-ui">
+            <span>{lang}</span>
+            <span className="opacity-60">·</span>
+            <span className="truncate opacity-70">{selected}</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -428,6 +638,7 @@ function ProjectEditorPage() {
   });
   const [prompt, setPrompt] = useState("");
   const [sending, setSending] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const [sendError, setSendError] = useState("");
   const [errorDismissed, setErrorDismissed] = useState(false);
 
@@ -439,6 +650,7 @@ function ProjectEditorPage() {
   const [transferring, setTransferring] = useState(false);
   const [transferError, setTransferError] = useState("");
   const [buildingPreview, setBuildingPreview] = useState(false);
+  const [rightTab, setRightTab] = useState<"preview" | "code">("preview");
   const pendingTransferRef = useRef(false);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -752,6 +964,19 @@ function ProjectEditorPage() {
     }
   }
 
+  async function handleStop() {
+    if (stopping) return;
+    setStopping(true);
+    try {
+      await apiFetch(`/api/v1/projects/${projectId}/stop`, { method: "POST" });
+      setProject((prev) => prev ? { ...prev, is_updating: false } : prev);
+    } catch {
+      // swallow — the UI already unblocks on the next Firestore snapshot
+    } finally {
+      setStopping(false);
+    }
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
@@ -786,7 +1011,7 @@ function ProjectEditorPage() {
   const isBuilding = project.is_updating && !project.github_url;
   const isUpdating = project.is_updating && !!project.github_url;
   const hasBuildError = !!project.build_error && !errorDismissed;
-  const inputDisabled = sending || project.is_updating;
+  const inputDisabled = sending // || project.is_updating;
 
   function handleAskToFix() {
     if (!project?.build_error) return;
@@ -811,12 +1036,34 @@ function ProjectEditorPage() {
             <span className="shrink-0 flex items-center gap-1.5 text-[12px] text-accent font-medium">
               <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
               Building…
+              <button
+                onClick={handleStop}
+                disabled={stopping}
+                title="Stop build"
+                className="ml-1 flex items-center justify-center w-5 h-5 rounded bg-destructive text-white hover:bg-[oklch(0.5_0.2_25)] transition-colors disabled:opacity-50"
+              >
+                {stopping
+                  ? <svg className="w-2.5 h-2.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                  : <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
+                }
+              </button>
             </span>
           )}
           {isUpdating && (
             <span className="shrink-0 flex items-center gap-1.5 text-[12px] text-accent font-medium">
               <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
               Updating…
+              <button
+                onClick={handleStop}
+                disabled={stopping}
+                title="Stop agent"
+                className="ml-1 flex items-center justify-center w-5 h-5 rounded bg-destructive text-white hover:bg-[oklch(0.5_0.2_25)] transition-colors disabled:opacity-50"
+              >
+                {stopping
+                  ? <svg className="w-2.5 h-2.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                  : <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
+                }
+              </button>
             </span>
           )}
           {hasBuildError && (
@@ -974,13 +1221,33 @@ function ProjectEditorPage() {
                 />
                 <div className="flex items-center justify-between px-3 pb-2">
                   <p className="text-[11px] text-text-muted">⌘↵ to send</p>
-                  <button
-                    onClick={handleSend}
-                    disabled={!prompt.trim() || inputDisabled}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-accent-foreground text-[12px] font-medium transition-colors hover:bg-[oklch(0.55_0.135_45)] disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {sending ? "Sending…" : "Send →"}
-                  </button>
+                  {project?.is_updating ? (
+                    <button
+                      onClick={handleStop}
+                      disabled={stopping}
+                      className="flex items-center justify-center w-8 h-8 rounded-lg bg-destructive text-white transition-colors hover:bg-[oklch(0.5_0.2_25)] disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Stop agent"
+                    >
+                      {stopping ? (
+                        <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                      ) : (
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleSend}
+                      disabled={!prompt.trim() || inputDisabled}
+                      className="flex items-center justify-center w-8 h-8 rounded-lg bg-accent text-accent-foreground transition-colors hover:bg-[oklch(0.55_0.135_45)] disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Send (⌘↵)"
+                    >
+                      {sending ? (
+                        <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                      ) : (
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -988,14 +1255,51 @@ function ProjectEditorPage() {
 
         </div>
 
-        {/* ── Right: Preview ── */}
-        <div className="hidden md:flex flex-col flex-1 min-w-0 p-4 bg-surface  ">
-          <PreviewPanel
-            previewUrl={project.preview_url}
-            buildingPreview={buildingPreview}
-            canBuildPreview={!!project.github_url && !isBuilding}
-            onBuildPreview={handleBuildPreview}
-          />
+        {/* ── Right: Preview / Code ── */}
+        <div className="hidden md:flex flex-col flex-1 min-w-0 bg-surface">
+          {/* Tab bar */}
+          <div className="shrink-0 flex items-center gap-1 px-4 py-2 border-b border-border">
+            <button
+              onClick={() => setRightTab("preview")}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[12px] font-medium transition-colors ${
+                rightTab === "preview"
+                  ? "bg-accent/10 text-accent"
+                  : "text-text-muted hover:text-ink"
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+              </svg>
+              Preview
+            </button>
+            <button
+              onClick={() => setRightTab("code")}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[12px] font-medium transition-colors ${
+                rightTab === "code"
+                  ? "bg-accent/10 text-accent"
+                  : "text-text-muted hover:text-ink"
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+              </svg>
+              Code
+            </button>
+          </div>
+
+          {/* Panel content */}
+          <div className="flex-1 min-h-0 p-4">
+            {rightTab === "preview" ? (
+              <PreviewPanel
+                previewUrl={project.preview_url}
+                buildingPreview={buildingPreview}
+                canBuildPreview={!!project.github_url && !isBuilding}
+                onBuildPreview={handleBuildPreview}
+              />
+            ) : (
+              <CodePanel projectId={projectId} />
+            )}
+          </div>
         </div>
       </div>
     </div>
