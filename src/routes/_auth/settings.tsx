@@ -107,6 +107,80 @@ function GitHubSection() {
   );
 }
 
+const BUILD_MODEL_OPTIONS = [
+  { value: "gemini", label: "Gemini", sub: "Google — fast & capable" },
+  { value: "claude", label: "Claude", sub: "Anthropic — precise reasoning" },
+  { value: "gpt",    label: "GPT-4o", sub: "OpenAI" },
+  { value: "Qwen3",  label: "Qwen3",  sub: "Local / Ollama" },
+] as const;
+
+function BuildModelSection() {
+  const [current, setCurrent] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    apiFetch("/api/v1/admin/build-model")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setCurrent(d.model))
+      .catch(() => {});
+  }, []);
+
+  async function select(value: string) {
+    if (saving || value === current) return;
+    setSaving(true);
+    try {
+      const res = await apiFetch("/api/v1/admin/build-model", {
+        method: "PATCH",
+        body: JSON.stringify({ model: value }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setCurrent(d.model);
+        toast.success(`Build model switched to ${BUILD_MODEL_OPTIONS.find(o => o.value === d.model)?.label ?? d.model}.`);
+      } else {
+        toast.error("Failed to update build model.");
+      }
+    } catch {
+      toast.error("Network error. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Section title="Build Model">
+      <p className="text-[12px] text-text-muted mb-4">
+        The AI model used to generate and update your app code. Takes effect on the next build or update.
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        {BUILD_MODEL_OPTIONS.map((opt) => {
+          const active = current === opt.value;
+          return (
+            <button
+              key={opt.value}
+              onClick={() => select(opt.value)}
+              disabled={saving}
+              className={`flex flex-col items-start gap-0.5 px-4 py-3 rounded-lg border text-left transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
+                active
+                  ? "border-accent bg-accent/5 ring-1 ring-accent"
+                  : "border-border hover:border-text-muted"
+              }`}
+            >
+              <span className={`text-[13px] font-medium ${active ? "text-accent" : "text-ink"}`}>
+                {active && <span className="mr-1.5">✓</span>}{opt.label}
+              </span>
+              <span className="text-[11px] text-text-muted">{opt.sub}</span>
+            </button>
+          );
+        })}
+      </div>
+      {current === null && (
+        <p className="mt-3 text-[12px] text-text-muted">Loading…</p>
+      )}
+    </Section>
+  );
+}
+
 function AppearanceSection() {
   return (
     <Section title="Appearance">
@@ -156,6 +230,7 @@ function SettingsPage() {
 
       <div className="space-y-4">
         <GitHubSection />
+        <BuildModelSection />
         <AppearanceSection />
         <AccountSection onSignOut={handleSignOut} />
       </div>
