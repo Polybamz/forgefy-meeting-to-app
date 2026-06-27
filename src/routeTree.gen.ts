@@ -23,6 +23,7 @@ import { Route as AuthProjectsIndexRouteImport } from './routes/_auth/projects/i
 import { Route as AuthSessionsSessionIdRouteImport } from './routes/_auth/sessions/$sessionId'
 import { Route as AuthProjectsProjectIdRouteImport } from './routes/_auth/projects/$projectId'
 import { Route as AuthBillingSuccessRouteImport } from './routes/_auth/billing/success'
+import { Route as AuthProjectsProjectIdSettingsRouteImport } from './routes/_auth/projects/$projectId_.settings'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
@@ -93,6 +94,12 @@ const AuthBillingSuccessRoute = AuthBillingSuccessRouteImport.update({
   path: '/success',
   getParentRoute: () => AuthBillingRoute,
 } as any)
+const AuthProjectsProjectIdSettingsRoute =
+  AuthProjectsProjectIdSettingsRouteImport.update({
+    id: '/projects/$projectId_/settings',
+    path: '/projects/$projectId/settings',
+    getParentRoute: () => AuthRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -108,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/sessions/$sessionId': typeof AuthSessionsSessionIdRoute
   '/projects/': typeof AuthProjectsIndexRoute
   '/sessions/': typeof AuthSessionsIndexRoute
+  '/projects/$projectId/settings': typeof AuthProjectsProjectIdSettingsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -123,6 +131,7 @@ export interface FileRoutesByTo {
   '/sessions/$sessionId': typeof AuthSessionsSessionIdRoute
   '/projects': typeof AuthProjectsIndexRoute
   '/sessions': typeof AuthSessionsIndexRoute
+  '/projects/$projectId/settings': typeof AuthProjectsProjectIdSettingsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -140,6 +149,7 @@ export interface FileRoutesById {
   '/_auth/sessions/$sessionId': typeof AuthSessionsSessionIdRoute
   '/_auth/projects/': typeof AuthProjectsIndexRoute
   '/_auth/sessions/': typeof AuthSessionsIndexRoute
+  '/_auth/projects/$projectId_/settings': typeof AuthProjectsProjectIdSettingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -157,6 +167,7 @@ export interface FileRouteTypes {
     | '/sessions/$sessionId'
     | '/projects/'
     | '/sessions/'
+    | '/projects/$projectId/settings'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -172,6 +183,7 @@ export interface FileRouteTypes {
     | '/sessions/$sessionId'
     | '/projects'
     | '/sessions'
+    | '/projects/$projectId/settings'
   id:
     | '__root__'
     | '/'
@@ -188,6 +200,7 @@ export interface FileRouteTypes {
     | '/_auth/sessions/$sessionId'
     | '/_auth/projects/'
     | '/_auth/sessions/'
+    | '/_auth/projects/$projectId_/settings'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -299,6 +312,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthBillingSuccessRouteImport
       parentRoute: typeof AuthBillingRoute
     }
+    '/_auth/projects/$projectId_/settings': {
+      id: '/_auth/projects/$projectId_/settings'
+      path: '/projects/$projectId/settings'
+      fullPath: '/projects/$projectId/settings'
+      preLoaderRoute: typeof AuthProjectsProjectIdSettingsRouteImport
+      parentRoute: typeof AuthRoute
+    }
   }
 }
 
@@ -322,6 +342,7 @@ interface AuthRouteChildren {
   AuthSessionsSessionIdRoute: typeof AuthSessionsSessionIdRoute
   AuthProjectsIndexRoute: typeof AuthProjectsIndexRoute
   AuthSessionsIndexRoute: typeof AuthSessionsIndexRoute
+  AuthProjectsProjectIdSettingsRoute: typeof AuthProjectsProjectIdSettingsRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
@@ -332,6 +353,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthSessionsSessionIdRoute: AuthSessionsSessionIdRoute,
   AuthProjectsIndexRoute: AuthProjectsIndexRoute,
   AuthSessionsIndexRoute: AuthSessionsIndexRoute,
+  AuthProjectsProjectIdSettingsRoute: AuthProjectsProjectIdSettingsRoute,
 }
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
