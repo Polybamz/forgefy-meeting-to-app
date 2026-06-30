@@ -621,7 +621,7 @@ function BlueprintSection({
   );
 
   if (error && blueprints.length === 0) return (
-    <p className="text-[13px] text-destructive py-4">{error}</p>
+    <p className="text-[13px] text-amber-600 dark:text-amber-400 py-4">{error}</p>
   );
 
   if (blueprints.length === 0) return (
@@ -731,7 +731,7 @@ function UploadForm({
           <p className="text-[11px] text-text-muted text-right">{progress}%</p>
         </div>
       )}
-      {error && <p role="alert" className="text-[13px] text-destructive">{error}</p>}
+      {error && <p role="alert" className="text-[13px] text-amber-600 dark:text-amber-400">{error}</p>}
       <button
         type="submit"
         disabled={!file || uploading}
@@ -1162,7 +1162,7 @@ function SessionPage() {
   if (error || !session) {
     return (
       <div className="px-6 md:px-[8vw] py-12 max-w-3xl mx-auto">
-        <p className="text-destructive text-[14px]">{error || "Session not found."}</p>
+        <p className="text-amber-600 dark:text-amber-400 text-[14px]">{error || "Session not found."}</p>
         <Link to="/dashboard" className="mt-4 inline-block text-[13px] text-accent underline">← Back to dashboard</Link>
       </div>
     );

@@ -230,7 +230,7 @@ function NewSessionCard() {
         </div>
       </div>
 
-      {error && <p role="alert" className="mt-3 text-[12px] text-destructive">{error}</p>}
+      {error && <p role="alert" className="mt-3 text-[12px] text-amber-600 dark:text-amber-400">{error}</p>}
     </form>
   );
 }

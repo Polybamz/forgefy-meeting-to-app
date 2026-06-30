@@ -115,7 +115,7 @@ function NewSessionForm({ onCreated }: { onCreated: () => void }) {
         </div>
       )}
 
-      {error && <p role="alert" className="text-[13px] text-destructive">{error}</p>}
+      {error && <p role="alert" className="text-[13px] text-amber-600 dark:text-amber-400">{error}</p>}
 
       <button
         type="submit"
@@ -128,39 +128,188 @@ function NewSessionForm({ onCreated }: { onCreated: () => void }) {
   );
 }
 
-function SessionCard({ session }: { session: StoredSession }) {
+function DeleteSessionModal({
+  session,
+  onClose,
+  onDeleted,
+}: {
+  session: StoredSession;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleDelete() {
+    if (deleting) return;
+    setDeleting(true);
+    setError("");
+    try {
+      const res = await apiFetch(`/api/v1/voxa/session/${session.id}`, {
+        method: "DELETE",
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+      if (res.ok) {
+        toast.success("Session deleted.");
+        onDeleted();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setError((d as { detail?: string }).detail ?? "Failed to delete session.");
+      }
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="w-full max-w-sm bg-warm-white rounded-2xl border border-border shadow-xl overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h2 className="text-[15px] font-semibold text-ink">Delete Session</h2>
+          <button onClick={onClose} className="text-text-muted hover:text-ink transition-colors">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-5 space-y-4">
+          <p className="text-[13px] text-text-secondary">
+            This will permanently delete the{" "}
+            <span className="font-medium text-ink">
+              {PLATFORM_LABELS[session.platform] ?? session.platform}
+            </span>{" "}
+            session and all its data. This cannot be undone.
+          </p>
+
+          <div className="space-y-1.5">
+            <label className="text-[12px] text-text-secondary block">
+              Reason for deleting <span className="text-text-muted">(optional)</span>
+            </label>
+            <textarea
+              value={reason}
+              onChange={(e) => { setReason(e.target.value); setError(""); }}
+              placeholder="e.g. Duplicate session, wrong meeting, test run…"
+              rows={3}
+              className="w-full px-3 py-2 rounded-lg border border-border bg-white text-[13px] text-ink placeholder:text-text-muted outline-none focus:border-accent transition-colors resize-none"
+            />
+          </div>
+
+          {error && <p className="text-[12px] text-amber-600 dark:text-amber-400">{error}</p>}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border bg-surface">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg border border-border text-[13px] text-text-secondary hover:text-ink hover:border-text-muted transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-destructive text-white text-[13px] font-medium hover:bg-[oklch(0.5_0.2_25)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {deleting ? (
+              <>
+                <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                </svg>
+                Deleting…
+              </>
+            ) : (
+              <>
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6l-1 14H6L5 6"/>
+                  <path d="M10 11v6"/><path d="M14 11v6"/>
+                  <path d="M9 6V4h6v2"/>
+                </svg>
+                Delete
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SessionCard({
+  session,
+  onDeleted,
+}: {
+  session: StoredSession;
+  onDeleted: (id: string) => void;
+}) {
+  const [showDelete, setShowDelete] = useState(false);
   const date = new Date(session.created_at);
   const label = STATUS_LABELS[session.status] ?? session.status;
   const color = STATUS_COLORS[session.status] ?? "text-text-muted";
   const isActive = ["JOINING", "LISTENING", "PROCESSING"].includes(session.status);
 
   return (
-    <Link
-      to="/sessions/$sessionId"
-      params={{ sessionId: session.id }}
-      className="flex items-center justify-between gap-4 px-5 py-4 rounded-xl border border-border bg-warm-white hover:border-accent transition-colors group"
-    >
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          {isActive && <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse shrink-0" />}
-          <p className="text-[14px] font-medium text-ink group-hover:text-accent transition-colors truncate">
-            {PLATFORM_LABELS[session.platform] ?? session.platform}
-          </p>
-        </div>
-        {session.meeting_url && (
-          <p className="mt-0.5 text-[12px] font-mono-ui text-text-muted truncate max-w-[300px]">
-            {session.meeting_url}
-          </p>
-        )}
-        <p className="mt-1 text-[11px] text-text-muted">
-          {date.toLocaleDateString(undefined, {
-            month: "short", day: "numeric", year: "numeric",
-            hour: "2-digit", minute: "2-digit",
-          })}
-        </p>
+    <>
+      <div className="relative group">
+        <Link
+          to="/sessions/$sessionId"
+          params={{ sessionId: session.id }}
+          className="flex items-center justify-between gap-4 px-5 py-4 rounded-xl border border-border bg-warm-white hover:border-accent transition-colors group"
+        >
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              {isActive && <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse shrink-0" />}
+              <p className="text-[14px] font-medium text-ink group-hover:text-accent transition-colors truncate">
+                {PLATFORM_LABELS[session.platform] ?? session.platform}
+              </p>
+            </div>
+            {session.meeting_url && (
+              <p className="mt-0.5 text-[12px] font-mono-ui text-text-muted truncate max-w-[300px]">
+                {session.meeting_url}
+              </p>
+            )}
+            <p className="mt-1 text-[11px] text-text-muted">
+              {date.toLocaleDateString(undefined, {
+                month: "short", day: "numeric", year: "numeric",
+                hour: "2-digit", minute: "2-digit",
+              })}
+            </p>
+          </div>
+          <span className={`text-[12px] font-medium shrink-0 ${color}`}>{label}</span>
+        </Link>
+
+        {/* Delete button — appears on hover */}
+        <button
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowDelete(true); }}
+          title="Delete session"
+          className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex items-center justify-center w-7 h-7 rounded-lg text-text-muted hover:text-destructive hover:bg-destructive/10 transition-all"
+        >
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6l-1 14H6L5 6"/>
+            <path d="M10 11v6"/><path d="M14 11v6"/>
+            <path d="M9 6V4h6v2"/>
+          </svg>
+        </button>
       </div>
-      <span className={`text-[12px] font-medium shrink-0 ${color}`}>{label}</span>
-    </Link>
+
+      {showDelete && (
+        <DeleteSessionModal
+          session={session}
+          onClose={() => setShowDelete(false)}
+          onDeleted={() => { setShowDelete(false); onDeleted(session.id); }}
+        />
+      )}
+    </>
   );
 }
 
@@ -171,6 +320,10 @@ function SessionCard({ session }: { session: StoredSession }) {
 function SessionsPage() {
   const [sessions, setSessions] = useState<StoredSession[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
+
+  function handleSessionDeleted(id: string) {
+    setSessions((prev) => prev.filter((s) => s.id !== id));
+  }
 
   useEffect(() => {
     const ws = new WebSocket(getWsUrl("/ws/sessions"));
@@ -211,7 +364,7 @@ function SessionsPage() {
             <>
               <p className="label-eyebrow mb-3">All sessions ({sessions.length})</p>
               {sessions.map((s) => (
-                <SessionCard key={s.id} session={s} />
+                <SessionCard key={s.id} session={s} onDeleted={handleSessionDeleted} />
               ))}
             </>
           )}

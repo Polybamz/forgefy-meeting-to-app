@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch, getWsUrl, type Project } from "@/lib/api";
 import ReactMarkdown from "react-markdown";
@@ -516,7 +516,7 @@ function ChatBubble({ message }: { message: ChatMessage }) {
       <div className={[
         "max-w-[85%] rounded-xl px-4 py-3 text-[13px] leading-[1.6]",
         isUser ? "bg-accent text-accent-foreground rounded-br-sm" :
-          isError ? "bg-destructive/10 border border-destructive/20 text-destructive rounded-bl-sm" :
+          isError ? "bg-amber-500/10 border border-amber-400/20 text-amber-700 dark:text-amber-400 rounded-bl-sm" :
             "bg-surface border border-border text-text-secondary rounded-bl-sm",
       ].join(" ")}>
         {isUser
@@ -610,7 +610,7 @@ function GitHubSyncButton({
         {transferring ? "Syncing…" : "Sync to GitHub"}
       </button>
       {transferError && (
-        <p className="text-[10px] text-destructive max-w-[180px] text-right leading-tight">{transferError}</p>
+        <p className="text-[10px] text-amber-600 dark:text-amber-400 max-w-[180px] text-right leading-tight">{transferError}</p>
       )}
     </div>
   );
@@ -651,6 +651,7 @@ function ProjectEditorPage() {
   const [transferError, setTransferError] = useState("");
   const [buildingPreview, setBuildingPreview] = useState(false);
   const [rightTab, setRightTab] = useState<"preview" | "code">("preview");
+  const navigate = useNavigate();
   const pendingTransferRef = useRef(false);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -981,7 +982,7 @@ function ProjectEditorPage() {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       handleSend();
-    }
+    } 
   }
 
   function autoResize(e: React.ChangeEvent<HTMLTextAreaElement>) {
@@ -1002,7 +1003,7 @@ function ProjectEditorPage() {
   if (pageError || !project) {
     return (
       <div className="px-6 md:px-[8vw] py-12 max-w-3xl mx-auto">
-        <p className="text-destructive text-[14px]">{pageError || "Project not found."}</p>
+        <p className="text-amber-600 dark:text-amber-400 text-[14px]">{pageError || "Project not found."}</p>
         <Link to="/dashboard" className="mt-4 inline-block text-[13px] text-accent underline">← Back to dashboard</Link>
       </div>
     );
@@ -1067,7 +1068,7 @@ function ProjectEditorPage() {
             </span>
           )}
           {hasBuildError && (
-            <span className="shrink-0 text-[12px] font-medium text-destructive">Build failed</span>
+            <span className="shrink-0 text-[12px] font-medium text-amber-600 dark:text-amber-400">Build failed</span>
           )}
         </div>
         <div className="flex items-center gap-3 shrink-0">
@@ -1099,8 +1100,21 @@ function ProjectEditorPage() {
             onConnect={connectGitHubForTransfer}
             onSync={transferToGitHub}
           />
+          {/* Settings gear */}
+          <button
+            onClick={() => navigate({ to: "/projects/$projectId/settings", params: { projectId } })}
+            title="Project settings"
+            className="flex items-center justify-center w-8 h-8 rounded-lg border border-border text-text-muted hover:text-ink hover:border-text-muted transition-colors"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </button>
         </div>
       </header>
+
+
 
       {/* ── Split body ── */}
       <div className="flex flex-1 min-h-0">
@@ -1109,12 +1123,12 @@ function ProjectEditorPage() {
 
           {/* Error banner with action buttons */}
           {hasBuildError && (
-            <div className="shrink-0 mx-4 mt-4 px-4 py-3 rounded-xl bg-destructive/10 border border-destructive/20 space-y-2">
+            <div className="shrink-0 mx-3 mt-3 px-3 py-2.5 rounded-lg bg-amber-500/[0.07] border border-amber-400/20 space-y-1.5">
               <div className="flex items-start justify-between gap-2">
-                <p className="text-[12px] font-medium text-destructive">Build failed</p>
+                <p className="text-[12px] font-medium text-amber-700 dark:text-amber-400">Build failed</p>
                 <button
                   onClick={() => setErrorDismissed(true)}
-                  className="text-destructive/50 hover:text-destructive transition-colors shrink-0"
+                  className="text-amber-600/40 hover:text-amber-600 dark:text-amber-400/40 dark:hover:text-amber-400 transition-colors shrink-0"
                   title="Dismiss"
                 >
                   <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1122,13 +1136,13 @@ function ProjectEditorPage() {
                   </svg>
                 </button>
               </div>
-              <p className="text-[12px] text-destructive/80 break-words">{project.build_error}</p>
+              <p className="text-[12px] text-amber-700/75 dark:text-amber-400/75 break-words">{project.build_error}</p>
 
               {/* action = "support" */}
               {project.build_error_action === "support" && (
                 <a
                   href="mailto:support@forgefy.dev"
-                  className="inline-flex items-center gap-1.5 mt-1 px-3 py-1.5 rounded-lg bg-destructive/20 hover:bg-destructive/30 text-destructive text-[12px] font-medium transition-colors"
+                  className="inline-flex items-center gap-1.5 mt-0.5 px-2.5 py-1 rounded-md bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-400 text-[12px] font-medium transition-colors"
                 >
                   Contact Support ↗
                 </a>
@@ -1138,7 +1152,7 @@ function ProjectEditorPage() {
               {project.build_error_action === "retry" && (
                 <button
                   onClick={() => { setErrorDismissed(true); fetchProject(); }}
-                  className="inline-flex items-center gap-1.5 mt-1 px-3 py-1.5 rounded-lg bg-destructive/20 hover:bg-destructive/30 text-destructive text-[12px] font-medium transition-colors"
+                  className="inline-flex items-center gap-1.5 mt-0.5 px-2.5 py-1 rounded-md bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-400 text-[12px] font-medium transition-colors"
                 >
                   Try Again
                 </button>
@@ -1146,17 +1160,17 @@ function ProjectEditorPage() {
 
               {/* action = "user_fix" */}
               {project.build_error_action === "user_fix" && (
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex items-center gap-2 mt-0.5">
                   <button
                     onClick={handleAskToFix}
                     disabled={!!project.is_updating}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive/20 hover:bg-destructive/30 text-destructive text-[12px] font-medium transition-colors disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-400 text-[12px] font-medium transition-colors disabled:opacity-50"
                   >
                     Ask agent to fix
                   </button>
                   <button
                     onClick={() => setErrorDismissed(true)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-destructive/20 hover:bg-destructive/10 text-destructive/70 text-[12px] font-medium transition-colors"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-amber-400/20 hover:bg-amber-500/[0.07] text-amber-600/70 dark:text-amber-400/60 text-[12px] font-medium transition-colors"
                   >
                     Cancel
                   </button>
@@ -1203,7 +1217,7 @@ function ProjectEditorPage() {
           </div>
 
           {/* Send error */}
-          {sendError && <p role="alert" className="px-4 pb-1 text-[12px] text-destructive">{sendError}</p>}
+          {sendError && <p role="alert" className="px-4 pb-1 text-[12px] text-amber-600 dark:text-amber-400">{sendError}</p>}
 
           {/* Input (hidden during initial build) */}
           {!isBuilding && (

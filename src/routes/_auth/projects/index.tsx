@@ -52,7 +52,7 @@ function ProjectCard({ project }: { project: Project }) {
         </p>
         <div className="flex items-center gap-3">
           {project.build_error && (
-            <span className="text-[11px] font-medium text-destructive">Build failed</span>
+            <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">Build failed</span>
           )}
           {project.is_updating && !project.build_error && (
             <span className="flex items-center gap-1.5 text-[11px] text-accent">
@@ -157,7 +157,7 @@ function ProjectsPage() {
 
           {failed.length > 0 && (
             <section>
-              <p className="label-eyebrow mb-3 text-destructive">Failed ({failed.length})</p>
+              <p className="label-eyebrow mb-3 text-amber-600 dark:text-amber-400">Failed ({failed.length})</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {failed.map((p) => <ProjectCard key={p.id} project={p} />)}
               </div>
