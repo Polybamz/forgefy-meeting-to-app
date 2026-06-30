@@ -115,7 +115,7 @@ function NewSessionForm({ onCreated }: { onCreated: () => void }) {
         </div>
       )}
 
-      {error && <p role="alert" className="text-[13px] text-destructive">{error}</p>}
+      {error && <p role="alert" className="text-[13px] text-amber-600 dark:text-amber-400">{error}</p>}
 
       <button
         type="submit"
@@ -203,7 +203,7 @@ function DeleteSessionModal({
             />
           </div>
 
-          {error && <p className="text-[12px] text-destructive">{error}</p>}
+          {error && <p className="text-[12px] text-amber-600 dark:text-amber-400">{error}</p>}
         </div>
 
         {/* Footer */}

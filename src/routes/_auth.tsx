@@ -2,7 +2,7 @@ import { createFileRoute, redirect, Outlet, Link, useNavigate, useRouterState } 
 import { useEffect, useRef, useState } from "react";
 import { clearTokens, getToken, getWsUrl } from "@/lib/api";
 import { ThemeToggle } from "@/hooks/use-theme";
-import { LayoutDashboard, Mic2, FolderKanban, CreditCard, Settings, Menu, X, LogOut } from "lucide-react";
+import { LayoutDashboard, Mic2, FolderKanban, CreditCard, Settings, Menu, X, LogOut, Zap } from "lucide-react";
 
 export const Route = createFileRoute("/_auth")({
   beforeLoad: () => {
@@ -29,48 +29,44 @@ function TokenExhaustedModal({ event, onDismiss }: { event: QuotaEvent; onDismis
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 sm:p-6">
       {/* backdrop */}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm fade-in"
         onClick={onDismiss}
       />
 
       {/* panel */}
-      <div className="relative w-full max-w-md rounded-2xl bg-card border border-border shadow-2xl p-8 flex flex-col gap-5">
+      <div className="relative w-full max-w-md rounded-2xl bg-card border border-border shadow-warm-xl slide-up p-8 flex flex-col gap-5">
         {/* icon */}
-        <div className="flex items-center justify-center w-14 h-14 rounded-full bg-accent/10 mx-auto">
-          <svg className="w-7 h-7 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-            <line x1="12" y1="9" x2="12" y2="13" />
-            <line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
+        <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-destructive/10 mx-auto shadow-warm-sm">
+          <Zap className="w-6 h-6 text-destructive" />
         </div>
 
         {/* heading */}
         <div className="text-center">
-          <h2 className="font-display text-xl text-ink mb-1">Tokens exhausted</h2>
+          <h2 className="font-display text-[22px] text-ink mb-2">Tokens exhausted</h2>
           <p className="text-[13px] text-text-secondary leading-relaxed">
             You've used all{" "}
-            <span className="font-medium text-ink">{fmt(event.limit)}</span> tokens in your{" "}
-            <span className="font-medium text-ink capitalize">{event.tier}</span> plan this month.
+            <span className="font-semibold text-ink">{fmt(event.limit)}</span> tokens in your{" "}
+            <span className="font-semibold text-ink capitalize">{event.tier}</span> plan this month.
             Upgrade to keep building.
           </p>
         </div>
 
         {/* usage bar */}
-        <div className="w-full h-2 rounded-full bg-border overflow-hidden">
-          <div className="h-full bg-accent rounded-full w-full" />
+        <div className="w-full h-2 rounded-full bg-border overflow-hidden shadow-warm-xs">
+          <div className="h-full bg-destructive rounded-full w-full" />
         </div>
 
         {/* actions */}
         <div className="flex flex-col gap-2 mt-1">
           <Link
             to="/billing"
-            className="w-full flex items-center justify-center gap-2 h-10 rounded-xl bg-accent text-primary-foreground text-[13px] font-medium hover:opacity-90 transition-opacity"
+            className="w-full flex items-center justify-center gap-2 h-11 rounded-xl bg-accent text-primary-foreground text-[14px] font-medium hover:opacity-90 transition-opacity btn-press shadow-warm-sm"
             onClick={onDismiss}
           >
-            Upgrade plan
+            Upgrade plan →
           </Link>
           <button
             onClick={onDismiss}
@@ -103,11 +99,13 @@ function NavItem({
     <Link
       to={to}
       onClick={onNavigate}
-      activeProps={{ className: "!bg-accent/10 !text-accent !font-medium" }}
+      activeProps={{ className: "!bg-accent/10 !text-accent !font-semibold shadow-warm-xs" }}
       activeOptions={{ exact: to === "/dashboard" }}
-      className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] text-text-secondary hover:text-ink hover:bg-surface transition-colors w-full"
+      className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] text-text-secondary hover:text-ink hover:bg-surface transition-all duration-150 w-full group"
     >
-      <Icon className="h-4 w-4 shrink-0" />
+      <span className="flex items-center justify-center w-[26px] h-[26px] rounded-lg bg-transparent group-hover:bg-border/50 transition-colors shrink-0">
+        <Icon className="h-[14px] w-[14px]" />
+      </span>
       {children}
     </Link>
   );
@@ -174,7 +172,7 @@ function AuthLayout() {
       {/* Mobile backdrop */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-20 bg-black/50 lg:hidden"
+          className="fixed inset-0 z-20 bg-black/50 backdrop-blur-sm lg:hidden fade-in"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -182,42 +180,59 @@ function AuthLayout() {
       {/* ── Sidebar ─────────────────────────────────────────────────────── */}
       <aside
         className={[
-          "fixed inset-y-0 left-0 z-30 w-[220px] flex flex-col border-r border-border bg-background",
-          "transition-transform duration-200 ease-in-out",
+          "fixed inset-y-0 left-0 z-30 w-[240px] flex flex-col border-r border-border frost",
+          "transition-transform duration-300 ease-out",
           "lg:static lg:h-screen lg:translate-x-0",
           sidebarOpen ? "translate-x-0" : "-translate-x-full",
         ].join(" ")}
       >
         {/* Brand */}
-        <div className="h-12 flex items-center justify-between px-5 border-b border-border shrink-0">
-          <Link to="/dashboard" className="font-display text-[17px] text-ink hover:text-accent transition-colors">
-            Forgefy
+        <div className="h-[56px] flex items-center justify-between px-4 border-b border-border/60 shrink-0">
+          <Link to="/dashboard" className="flex items-center gap-2.5 group">
+            <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center shadow-warm-sm group-hover:shadow-warm-md transition-shadow shrink-0">
+              <svg className="w-3.5 h-3.5 text-accent-foreground" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 1L2 4.5v7L8 15l6-3.5v-7L8 1zm0 1.8l4.2 2.45v4.9L8 12.6 3.8 10.15V5.25L8 2.8z"/>
+              </svg>
+            </div>
+            <span className="font-display text-[18px] text-ink group-hover:text-accent transition-colors leading-none">
+              Forgefy
+            </span>
           </Link>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden text-text-muted hover:text-ink transition-colors p-1"
+            className="lg:hidden flex items-center justify-center w-7 h-7 rounded-lg text-text-muted hover:text-ink hover:bg-surface transition-colors"
             aria-label="Close menu"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
+        {/* Section label */}
+        <div className="px-4 pt-5 pb-1">
+          <p className="text-[10px] font-medium uppercase tracking-[0.10em] text-text-muted">Workspace</p>
+        </div>
+
         {/* Main nav */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        <nav className="flex-1 px-3 pb-4 space-y-0.5 overflow-y-auto">
           <NavItem to="/dashboard" icon={LayoutDashboard}>Dashboard</NavItem>
           <NavItem to="/sessions" icon={Mic2}>Sessions</NavItem>
           <NavItem to="/projects" icon={FolderKanban}>Projects</NavItem>
         </nav>
 
         {/* Footer nav */}
-        <div className="px-3 py-4 border-t border-border space-y-0.5 shrink-0">
-          <NavItem to="/billing" icon={CreditCard}>Billing</NavItem>
-          <NavItem to="/settings" icon={Settings}>Settings</NavItem>
-          <div className="mt-3 flex items-center justify-between px-1">
+        <div className="border-t border-border/60 shrink-0">
+          <div className="px-4 pt-4 pb-1">
+            <p className="text-[10px] font-medium uppercase tracking-[0.10em] text-text-muted">Account</p>
+          </div>
+          <div className="px-3 pb-4 space-y-0.5">
+            <NavItem to="/billing" icon={CreditCard}>Billing</NavItem>
+            <NavItem to="/settings" icon={Settings}>Settings</NavItem>
+          </div>
+          <div className="px-4 py-3 border-t border-border/40 flex items-center justify-between">
             <ThemeToggle />
             <button
               onClick={handleLogout}
-              className="flex items-center gap-1.5 text-[12px] text-text-muted hover:text-ink transition-colors"
+              className="flex items-center gap-1.5 text-[12px] text-text-muted hover:text-ink transition-colors px-2 py-1 rounded-lg hover:bg-surface"
             >
               <LogOut className="h-3.5 w-3.5" />
               Sign out
@@ -229,19 +244,28 @@ function AuthLayout() {
       {/* ── Main content ─────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile top bar */}
-        <div className="h-12 border-b border-border flex items-center gap-3 px-4 lg:hidden shrink-0 bg-background">
+        <div className="h-[56px] border-b border-border flex items-center gap-3 px-4 lg:hidden shrink-0 frost">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="text-text-muted hover:text-ink transition-colors"
+            className="flex items-center justify-center w-8 h-8 rounded-lg text-text-muted hover:text-ink hover:bg-surface transition-colors"
             aria-label="Open menu"
           >
             <Menu className="h-5 w-5" />
           </button>
-          <Link to="/dashboard" className="font-display text-[17px] text-ink">Forgefy</Link>
+          <Link to="/dashboard" className="flex items-center gap-2 group">
+            <div className="w-6 h-6 rounded-md bg-accent flex items-center justify-center shrink-0">
+              <svg className="w-3 h-3 text-accent-foreground" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 1L2 4.5v7L8 15l6-3.5v-7L8 1zm0 1.8l4.2 2.45v4.9L8 12.6 3.8 10.15V5.25L8 2.8z"/>
+              </svg>
+            </div>
+            <span className="font-display text-[17px] text-ink">Forgefy</span>
+          </Link>
         </div>
 
         <main className="flex-1 overflow-auto">
-          <Outlet />
+          <div className="page-enter">
+            <Outlet />
+          </div>
         </main>
       </div>
 

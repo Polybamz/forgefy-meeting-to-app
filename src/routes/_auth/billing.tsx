@@ -119,7 +119,7 @@ function BillingPage() {
       </div>
 
       {error && (
-        <div className="px-4 py-3 rounded-xl bg-destructive/10 border border-destructive/20 text-[13px] text-destructive">
+        <div className="px-3 py-2.5 rounded-lg bg-amber-500/[0.07] border border-amber-400/20 text-[13px] text-amber-700 dark:text-amber-400">
           {error}
         </div>
       )}
