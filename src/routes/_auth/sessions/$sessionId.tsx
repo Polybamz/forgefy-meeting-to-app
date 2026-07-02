@@ -6,6 +6,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { apiFetch, getWsUrl, updateStoredSession } from "@/lib/api";
+import { ChevronDown, Mic, Upload, CheckCircle2, X, Plus, ArrowLeft } from "lucide-react";
 
 export const Route = createFileRoute("/_auth/sessions/$sessionId")({
   component: SessionPage,
@@ -86,12 +87,12 @@ function StatusBadge({ status }: { status: SessionStatus }) {
   return (
     <span
       className={[
-        "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[12px] font-medium",
+        "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-medium",
         isActive
           ? "bg-accent/10 text-accent"
           : isReady
             ? "bg-[oklch(0.55_0.18_145)]/10 text-[oklch(0.45_0.18_145)]"
-            : "bg-surface text-text-muted",
+            : "bg-surface text-text-muted border border-border",
       ].join(" ")}
     >
       {isActive && (
@@ -113,7 +114,7 @@ function TranscriptPanel({ lines }: { lines: TranscriptLine[] }) {
 
   if (lines.length === 0) {
     return (
-      <p className="text-[13px] text-text-muted italic">
+      <p className="text-[13px] text-text-muted italic py-2">
         Transcript will appear here as the meeting progresses…
       </p>
     );
@@ -124,7 +125,7 @@ function TranscriptPanel({ lines }: { lines: TranscriptLine[] }) {
       {lines.map((l, i) => (
         <div key={i} className="text-[13px] leading-[1.6]">
           {l.speaker && (
-            <span className="font-medium text-accent mr-2">{l.speaker}:</span>
+            <span className="font-semibold text-accent mr-2">{l.speaker}:</span>
           )}
           <span className="text-text-secondary">{l.text}</span>
         </div>
@@ -135,7 +136,7 @@ function TranscriptPanel({ lines }: { lines: TranscriptLine[] }) {
 }
 
 // ---------------------------------------------------------------------------
-// TranscriptDebugSection — always-visible raw transcript for testing
+// TranscriptDebugSection
 // ---------------------------------------------------------------------------
 function TranscriptDebugSection({
   sessionId,
@@ -149,7 +150,7 @@ function TranscriptDebugSection({
   const [loading, setLoading] = useState(false);
 
   async function load() {
-    if (dbText !== null) return; // already loaded
+    if (dbText !== null) return;
     setLoading(true);
     try {
       const res = await apiFetch(`/api/v1/voxa/session/${sessionId}/transcript`);
@@ -171,34 +172,25 @@ function TranscriptDebugSection({
     : (dbText ?? "");
 
   return (
-    <div className="mt-6 rounded-xl border border-border bg-warm-white overflow-hidden">
+    <div className="mt-6 rounded-2xl border border-border bg-card overflow-hidden shadow-warm-xs">
       <button
         onClick={toggle}
-        className="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-surface transition-colors"
+        className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-surface transition-colors"
       >
-        <span className="text-[13px] font-medium text-ink flex items-center gap-2">
-          <svg className="h-3.5 w-3.5 text-text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" strokeLinecap="round" strokeLinejoin="round"/>
+        <span className="text-[13px] font-medium text-text-secondary flex items-center gap-2">
+          <svg className="h-3.5 w-3.5 text-text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
           </svg>
           Raw transcript
-          <span className="text-[11px] text-text-muted font-normal">(test)</span>
+          <span className="text-[11px] text-text-muted font-normal">(debug)</span>
         </span>
-        <svg
-          className={`h-4 w-4 text-text-muted transition-transform ${open ? "rotate-180" : ""}`}
-          viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-        >
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
+        <ChevronDown className={`h-4 w-4 text-text-muted transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
         <div className="border-t border-border px-5 py-4">
-          {loading && (
-            <p className="text-[12px] text-text-muted italic">Loading transcript…</p>
-          )}
-          {!loading && !displayText && (
-            <p className="text-[12px] text-text-muted italic">No transcript stored yet.</p>
-          )}
+          {loading && <p className="text-[12px] text-text-muted italic">Loading transcript…</p>}
+          {!loading && !displayText && <p className="text-[12px] text-text-muted italic">No transcript stored yet.</p>}
           {!loading && displayText && (
             <pre className="text-[12px] leading-[1.7] font-mono-ui text-text-secondary whitespace-pre-wrap break-words max-h-[400px] overflow-y-auto">
               {displayText}
@@ -225,7 +217,6 @@ const TEMPLATE_LABEL: Record<string, string> = {
   next: "Next.js",
 };
 
-// Single-blueprint edit + approve panel (reused by both single and dual flows)
 function SingleBlueprintPanel({
   blueprint,
   onUpdated,
@@ -302,7 +293,7 @@ function SingleBlueprintPanel({
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {showHeader && (
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h3 className="font-display text-[22px] text-ink">App Blueprint</h3>
@@ -310,7 +301,7 @@ function SingleBlueprintPanel({
             {!blueprint.approved && !editing && (
               <button
                 onClick={startEdit}
-                className="px-3 py-1.5 rounded-lg border border-border text-[13px] text-text-secondary hover:border-accent hover:text-ink transition-colors"
+                className="px-3.5 py-2 rounded-xl border border-border text-[13px] text-text-secondary hover:border-accent hover:text-ink transition-colors btn-press"
               >
                 Edit
               </button>
@@ -319,30 +310,43 @@ function SingleBlueprintPanel({
               <button
                 onClick={handleApprove}
                 disabled={approving || editing}
-                className="px-4 py-2 rounded-xl bg-accent text-accent-foreground text-[13px] font-medium transition-colors hover:bg-[oklch(0.55_0.135_45)] disabled:opacity-60"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent text-accent-foreground text-[13px] font-medium transition-colors hover:bg-[oklch(0.55_0.135_45)] disabled:opacity-60 btn-press shadow-warm-sm"
               >
-                {approving ? "Approving…" : "✓ Approve & build"}
+                {approving ? (
+                  <>
+                    <div className="w-3.5 h-3.5 rounded-full border-2 border-accent-foreground/40 border-t-accent-foreground animate-spin" />
+                    Approving…
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Approve &amp; build
+                  </>
+                )}
               </button>
             )}
             {blueprint.approved && (
-              <span className="text-[13px] font-medium text-[oklch(0.45_0.18_145)]">✓ Approved</span>
+              <span className="flex items-center gap-1.5 text-[13px] font-medium text-[oklch(0.45_0.18_145)] px-3 py-2 bg-[oklch(0.55_0.18_145)]/10 rounded-xl">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Approved
+              </span>
             )}
           </div>
         </div>
       )}
 
       {editing ? (
-        <div className="space-y-5 rounded-xl border border-border bg-warm-white p-6">
-          <div>
-            <label className="label-eyebrow block mb-1.5">App name</label>
+        <div className="space-y-5 rounded-2xl border border-border bg-card p-6 shadow-warm-xs">
+          <div className="space-y-1.5">
+            <label className="label-eyebrow block">App name</label>
             <input
               value={editAppName}
               onChange={(e) => setEditAppName(e.target.value)}
-              className="w-full h-10 px-3 rounded-xl bg-background border border-border text-[14px] text-ink outline-none focus:border-accent transition-colors"
+              className="w-full h-10 px-3 rounded-xl bg-background border border-border text-[14px] text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/15 transition-all"
             />
           </div>
-          <div>
-            <label className="label-eyebrow block mb-1.5">Template</label>
+          <div className="space-y-1.5">
+            <label className="label-eyebrow block">Template</label>
             <select
               value={editTemplate}
               onChange={(e) => setEditTemplate(e.target.value)}
@@ -353,14 +357,16 @@ function SingleBlueprintPanel({
               ))}
             </select>
           </div>
-          <div>
-            <div className="flex items-center justify-between mb-2">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
               <label className="label-eyebrow">Features</label>
               <button
+                type="button"
                 onClick={() => setEditFeatures((f) => [...f, { title: "", description: "" }])}
-                className="text-[12px] text-accent hover:underline"
+                className="flex items-center gap-1 text-[12px] text-accent hover:text-accent/80 transition-colors"
               >
-                + Add feature
+                <Plus className="h-3 w-3" />
+                Add feature
               </button>
             </div>
             <div className="space-y-3">
@@ -381,10 +387,11 @@ function SingleBlueprintPanel({
                     />
                   </div>
                   <button
+                    type="button"
                     onClick={() => setEditFeatures((f) => f.filter((_, j) => j !== i))}
-                    className="mt-1 text-[12px] text-text-muted hover:text-destructive transition-colors"
+                    className="mt-1 flex items-center justify-center w-7 h-7 rounded-lg text-text-muted hover:text-destructive hover:bg-destructive/10 transition-colors"
                   >
-                    ✕
+                    <X className="h-3.5 w-3.5" />
                   </button>
                 </div>
               ))}
@@ -392,13 +399,15 @@ function SingleBlueprintPanel({
           </div>
           <div className="flex gap-2 pt-1">
             <button
+              type="button"
               onClick={saveEdit}
               disabled={saving}
-              className="px-4 py-2 rounded-xl bg-accent text-accent-foreground text-[13px] font-medium hover:bg-[oklch(0.55_0.135_45)] disabled:opacity-60 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent text-accent-foreground text-[13px] font-medium hover:bg-[oklch(0.55_0.135_45)] disabled:opacity-60 transition-colors btn-press"
             >
               {saving ? "Saving…" : "Save changes"}
             </button>
             <button
+              type="button"
               onClick={() => setEditing(false)}
               disabled={saving}
               className="px-4 py-2 rounded-xl border border-border text-[13px] text-text-secondary hover:border-accent transition-colors"
@@ -412,22 +421,24 @@ function SingleBlueprintPanel({
           {!showHeader && !blueprint.approved && (
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={startEdit}
-                className="px-3 py-1.5 rounded-lg border border-border text-[13px] text-text-secondary hover:border-accent hover:text-ink transition-colors"
+                className="px-3.5 py-2 rounded-xl border border-border text-[13px] text-text-secondary hover:border-accent hover:text-ink transition-colors btn-press"
               >
                 Edit
               </button>
               <button
+                type="button"
                 onClick={handleApprove}
                 disabled={approving}
-                className="flex-1 px-4 py-2 rounded-xl bg-accent text-accent-foreground text-[13px] font-medium transition-colors hover:bg-[oklch(0.55_0.135_45)] disabled:opacity-60"
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-accent text-accent-foreground text-[13px] font-medium transition-colors hover:bg-[oklch(0.55_0.135_45)] disabled:opacity-60 btn-press"
               >
                 {approving ? "Building…" : "Build this first →"}
               </button>
             </div>
           )}
-          <div className="rounded-lg border border-border bg-[#0f0d0b] overflow-hidden">
-            <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-[#222]">
+          <div className="rounded-xl border border-[#2a2522] bg-[#0f0d0b] overflow-hidden shadow-warm-md">
+            <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-[#1e1c1a]">
               <span className="h-2.5 w-2.5 rounded-full bg-[#3a3633]" />
               <span className="h-2.5 w-2.5 rounded-full bg-[#3a3633]" />
               <span className="h-2.5 w-2.5 rounded-full bg-[#3a3633]" />
@@ -443,7 +454,6 @@ function SingleBlueprintPanel({
   );
 }
 
-// Dual-blueprint chooser — shown when the app needs both web + mobile
 function DualBlueprintChooser({
   blueprints,
   onBlueprintUpdated,
@@ -455,7 +465,6 @@ function DualBlueprintChooser({
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // Sort: mobile first, web second
   const sorted = [...blueprints].sort((a, b) => {
     const va = (a.json_output?.platform_variant as string) ?? "";
     const vb = (b.json_output?.platform_variant as string) ?? "";
@@ -466,7 +475,7 @@ function DualBlueprintChooser({
     <div className="space-y-6">
       <div>
         <h3 className="font-display text-[22px] text-ink">App Blueprint</h3>
-        <p className="mt-1 text-[13px] text-text-muted">
+        <p className="mt-1 text-[13px] text-text-muted max-w-md">
           Your app needs both a mobile app and a web experience. Choose which to build first — you can build the other later.
         </p>
       </div>
@@ -484,40 +493,36 @@ function DualBlueprintChooser({
           return (
             <div
               key={bp.id}
-              className="rounded-xl border border-border bg-warm-white overflow-hidden flex flex-col"
+              className="rounded-2xl border border-border bg-card overflow-hidden flex flex-col shadow-warm-xs card-hover"
             >
-              {/* Card header */}
               <div className="px-5 pt-5 pb-4 space-y-3 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-accent/10 text-accent text-[11px] font-medium uppercase tracking-wide">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-accent/10 text-accent text-[11px] font-medium uppercase tracking-wide">
                     {TEMPLATE_LABEL[template] ?? template}
                   </span>
                   {variant && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface text-text-muted text-[11px] font-medium capitalize">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-surface text-text-muted text-[11px] font-medium capitalize border border-border">
                       {variant}
                     </span>
                   )}
                 </div>
-                {appName && (
-                  <p className="text-[15px] font-semibold text-ink">{appName}</p>
-                )}
+                {appName && <p className="text-[15px] font-semibold text-ink">{appName}</p>}
                 {description && (
-                  <p className="text-[12px] text-text-secondary leading-[1.6] line-clamp-3">
-                    {description}
-                  </p>
+                  <p className="text-[12px] text-text-secondary leading-[1.6] line-clamp-3">{description}</p>
                 )}
                 {featureCount > 0 && (
                   <p className="text-[11px] text-text-muted">{featureCount} feature{featureCount !== 1 ? "s" : ""} detected</p>
                 )}
               </div>
 
-              {/* Actions */}
               <div className="px-5 pb-5 pt-2 space-y-2 border-t border-border">
                 <button
+                  type="button"
                   onClick={() => setExpandedId(isExpanded ? null : bp.id)}
-                  className="w-full text-[12px] text-text-muted hover:text-ink transition-colors py-1"
+                  className="w-full flex items-center justify-center gap-1 text-[12px] text-text-muted hover:text-ink transition-colors py-1"
                 >
-                  {isExpanded ? "Hide details ↑" : "View full blueprint ↓"}
+                  {isExpanded ? "Hide details" : "View full blueprint"}
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} />
                 </button>
                 {isExpanded && (
                   <SingleBlueprintPanel
@@ -531,7 +536,10 @@ function DualBlueprintChooser({
                   <_ApproveButton blueprintId={bp.id} onApproved={onApproved} onUpdated={onBlueprintUpdated} />
                 )}
                 {bp.approved && (
-                  <p className="text-center text-[13px] font-medium text-[oklch(0.45_0.18_145)]">✓ Building…</p>
+                  <p className="text-center text-[13px] font-medium text-[oklch(0.45_0.18_145)] flex items-center justify-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Building…
+                  </p>
                 )}
               </div>
             </div>
@@ -542,7 +550,6 @@ function DualBlueprintChooser({
   );
 }
 
-// Inline approve button used inside DualBlueprintChooser cards
 function _ApproveButton({
   blueprintId,
   onApproved,
@@ -576,22 +583,22 @@ function _ApproveButton({
 
   return (
     <button
+      type="button"
       onClick={handleApprove}
       disabled={approving}
-      className="w-full px-4 py-2 rounded-xl bg-accent text-accent-foreground text-[13px] font-medium transition-colors hover:bg-[oklch(0.55_0.135_45)] disabled:opacity-60"
+      className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-accent text-accent-foreground text-[13px] font-medium transition-colors hover:bg-[oklch(0.55_0.135_45)] disabled:opacity-60 btn-press"
     >
-      {approving ? "Building…" : "Build this first →"}
+      {approving ? (
+        <>
+          <div className="w-3.5 h-3.5 rounded-full border-2 border-accent-foreground/40 border-t-accent-foreground animate-spin" />
+          Building…
+        </>
+      ) : "Build this first →"}
     </button>
   );
 }
 
-function BlueprintSection({
-  sessionId,
-  onApproved,
-}: {
-  sessionId: string;
-  onApproved: () => void;
-}) {
+function BlueprintSection({ sessionId, onApproved }: { sessionId: string; onApproved: () => void }) {
   const [blueprints, setBlueprints] = useState<Blueprint[]>([]);
   const [bpLoading, setBpLoading] = useState(true);
   const [error, setError] = useState("");
@@ -599,11 +606,8 @@ function BlueprintSection({
   useEffect(() => {
     apiFetch(`/api/v1/voxa/blueprint/session/${sessionId}/all`)
       .then(async (res) => {
-        if (res.ok) {
-          setBlueprints(await res.json());
-        } else {
-          setError("Blueprint not ready yet.");
-        }
+        if (res.ok) setBlueprints(await res.json());
+        else setError("Blueprint not ready yet.");
         setBpLoading(false);
       })
       .catch(() => { setBpLoading(false); setError("Failed to load blueprint."); });
@@ -614,21 +618,28 @@ function BlueprintSection({
   }
 
   if (bpLoading) return (
-    <div className="flex items-center gap-2 text-[14px] text-text-muted py-8">
-      <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
-      Loading blueprint…
+    <div className="rounded-2xl border border-border bg-card p-8 shadow-warm-xs">
+      <div className="space-y-3">
+        <div className="skeleton h-5 w-40 rounded" />
+        <div className="skeleton h-3 w-64 rounded" />
+        <div className="skeleton h-3 w-52 rounded" />
+        <div className="mt-4 skeleton h-48 w-full rounded-xl" />
+      </div>
     </div>
   );
 
   if (error && blueprints.length === 0) return (
-    <p className="text-[13px] text-amber-600 dark:text-amber-400 py-4">{error}</p>
+    <div className="rounded-2xl border border-border bg-card p-6 shadow-warm-xs">
+      <p className="text-[13px] text-amber-600 dark:text-amber-400">{error}</p>
+    </div>
   );
 
   if (blueprints.length === 0) return (
-    <p className="text-[14px] text-text-muted py-4">Blueprint is empty. The AI may still be generating it.</p>
+    <div className="rounded-2xl border border-border bg-card p-6 shadow-warm-xs">
+      <p className="text-[14px] text-text-muted">Blueprint is empty. The AI may still be generating it.</p>
+    </div>
   );
 
-  // Dual-blueprint path (app requires both web + mobile)
   if (blueprints.length >= 2) {
     return (
       <DualBlueprintChooser
@@ -639,7 +650,6 @@ function BlueprintSection({
     );
   }
 
-  // Single-blueprint path
   return (
     <SingleBlueprintPanel
       blueprint={blueprints[0]}
@@ -651,15 +661,9 @@ function BlueprintSection({
 }
 
 // ---------------------------------------------------------------------------
-// UploadForm  (physical — file upload path)
+// UploadForm
 // ---------------------------------------------------------------------------
-function UploadForm({
-  sessionId,
-  onUploaded,
-}: {
-  sessionId: string;
-  onUploaded: () => void;
-}) {
+function UploadForm({ sessionId, onUploaded }: { sessionId: string; onUploaded: () => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -707,13 +711,16 @@ function UploadForm({
       <p className="text-[12px] text-text-muted">
         Supported: MP3, MP4, M4A, WAV, WEBM, OGG · max 500 MB
       </p>
-      <label className="block">
+      <label className="block cursor-pointer">
         <div className={[
-          "flex flex-col items-center justify-center gap-2 h-28 rounded-xl border-2 border-dashed cursor-pointer transition-colors",
-          file ? "border-accent bg-accent/5" : "border-border hover:border-accent/50",
+          "flex flex-col items-center justify-center gap-2.5 h-32 rounded-2xl border-2 border-dashed transition-colors",
+          file ? "border-accent bg-accent/5" : "border-border hover:border-accent/50 hover:bg-surface",
         ].join(" ")}>
-          <span className="text-[13px] text-text-muted">{file ? file.name : "Click to choose a file"}</span>
-          {file && <span className="text-[11px] text-text-muted">{(file.size / 1024 / 1024).toFixed(1)} MB</span>}
+          <Upload className={`h-6 w-6 ${file ? "text-accent" : "text-text-muted"}`} />
+          <div className="text-center">
+            <span className="text-[13px] text-text-secondary">{file ? file.name : "Click to choose a file"}</span>
+            {file && <p className="text-[11px] text-text-muted mt-0.5">{(file.size / 1024 / 1024).toFixed(1)} MB</p>}
+          </div>
           <input
             type="file"
             accept="audio/*,video/mp4,video/webm"
@@ -724,18 +731,18 @@ function UploadForm({
         </div>
       </label>
       {uploading && (
-        <div className="space-y-1">
-          <div className="h-1.5 rounded-full bg-surface overflow-hidden">
+        <div className="space-y-1.5">
+          <div className="h-2 rounded-full bg-surface overflow-hidden shadow-warm-xs">
             <div className="h-full bg-accent transition-all duration-300 rounded-full" style={{ width: `${progress}%` }} />
           </div>
           <p className="text-[11px] text-text-muted text-right">{progress}%</p>
         </div>
       )}
-      {error && <p role="alert" className="text-[13px] text-amber-600 dark:text-amber-400">{error}</p>}
+      {error && <p role="alert" className="text-[13px] text-destructive">{error}</p>}
       <button
         type="submit"
         disabled={!file || uploading}
-        className="w-full h-[42px] rounded-xl bg-accent text-accent-foreground text-[14px] font-medium transition-colors hover:bg-[oklch(0.55_0.135_45)] disabled:opacity-60"
+        className="w-full h-11 rounded-xl bg-accent text-accent-foreground text-[14px] font-medium transition-colors hover:bg-[oklch(0.55_0.135_45)] disabled:opacity-60 btn-press shadow-warm-xs"
       >
         {uploading ? "Uploading…" : "Upload & analyse →"}
       </button>
@@ -744,9 +751,7 @@ function UploadForm({
 }
 
 // ---------------------------------------------------------------------------
-// MicCapture  (physical — live microphone path)
-// Captures mic audio as PCM16 @ 16 kHz via Web Audio API and streams
-// base64-encoded chunks through the WebSocket as `streamAudio` events.
+// MicCapture
 // ---------------------------------------------------------------------------
 function MicCapture({
   sessionId,
@@ -759,7 +764,6 @@ function MicCapture({
 }) {
   const [phase, setPhase] = useState<"idle" | "recording" | "stopping">("idle");
   const [elapsed, setElapsed] = useState(0);
-  // audioLevel: 0–100, updated via rAF from the AnalyserNode
   const [audioLevel, setAudioLevel] = useState(0);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -784,18 +788,14 @@ function MicCapture({
     const data = new Uint8Array(analyser.frequencyBinCount);
     function poll() {
       analyser.getByteFrequencyData(data);
-      // RMS across frequency bins, normalised to 0–100
       const rms = Math.sqrt(data.reduce((s, v) => s + v * v, 0) / data.length);
       const level = Math.min(100, Math.round((rms / 40) * 100));
       setAudioLevel(level);
 
-      // Warn once if audio stays silent for 5 s
       if (level < 5) {
         if (silenceStartRef.current === null) silenceStartRef.current = Date.now();
         else if (!lowVolWarnedRef.current && Date.now() - silenceStartRef.current > 5000) {
-          toast.warning("Your mic seems very quiet — try speaking louder or moving closer.", {
-            duration: 6000,
-          });
+          toast.warning("Your mic seems very quiet — try speaking louder or moving closer.", { duration: 6000 });
           lowVolWarnedRef.current = true;
         }
       } else {
@@ -818,7 +818,6 @@ function MicCapture({
 
       const source = ctx.createMediaStreamSource(stream);
 
-      // Analyser for level metering (does not affect the audio path)
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 512;
       analyser.smoothingTimeConstant = 0.75;
@@ -826,7 +825,6 @@ function MicCapture({
       source.connect(analyser);
       startLevelPolling(analyser);
 
-      // ScriptProcessor for PCM capture → WebSocket
       const processor = ctx.createScriptProcessor(2048, 1, 1);
       processorRef.current = processor;
       processor.onaudioprocess = (ev) => {
@@ -891,19 +889,17 @@ function MicCapture({
   return (
     <div className="space-y-4">
       {phase === "idle" && (
-        <div className="flex flex-col items-center gap-4 py-6">
+        <div className="flex flex-col items-center gap-5 py-8">
           <p className="text-[14px] text-text-secondary text-center">
             Click the button below to start capturing your meeting audio.
           </p>
           <button
+            type="button"
             onClick={startRecording}
-            className="flex h-16 w-16 items-center justify-center rounded-full bg-accent text-accent-foreground hover:bg-[oklch(0.55_0.135_45)] transition-colors shadow-lg"
+            className="flex h-16 w-16 items-center justify-center rounded-full bg-accent text-accent-foreground hover:bg-[oklch(0.55_0.135_45)] transition-colors shadow-warm-lg pulse-ring btn-press"
             aria-label="Start recording"
           >
-            <svg className="h-7 w-7" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2H3v2a9 9 0 0 0 8 8.94V23h2v-2.06A9 9 0 0 0 21 12v-2h-2z" />
-            </svg>
+            <Mic className="h-7 w-7" />
           </button>
         </div>
       )}
@@ -913,19 +909,19 @@ function MicCapture({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
-              <span className="text-[13px] font-medium text-ink">Recording</span>
+              <span className="text-[13px] font-semibold text-ink">Recording</span>
               <span className="text-[13px] font-mono-ui text-text-muted">{fmt(elapsed)}</span>
             </div>
             <button
+              type="button"
               onClick={stopRecording}
-              className="px-3 py-1.5 rounded-lg border border-border text-[13px] text-text-secondary hover:border-destructive hover:text-destructive transition-colors"
+              className="px-3 py-1.5 rounded-xl border border-border text-[13px] text-text-secondary hover:border-destructive hover:text-destructive transition-colors btn-press"
             >
               Stop & analyse →
             </button>
           </div>
 
-          {/* Waveform — bar heights driven by live audio level */}
-          <div className="flex gap-0.5 h-10 items-end overflow-hidden rounded-lg">
+          <div className="flex gap-0.5 h-10 items-end overflow-hidden rounded-xl bg-surface p-1">
             {Array.from({ length: 40 }, (_, i) => (
               <div
                 key={i}
@@ -939,13 +935,9 @@ function MicCapture({
             ))}
           </div>
 
-          {/* VU meter */}
           <div className="flex items-center gap-2">
-            <svg className="h-3 w-3 text-text-muted shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <div className="flex-1 h-1.5 rounded-full bg-surface overflow-hidden">
+            <Mic className="h-3 w-3 text-text-muted shrink-0" />
+            <div className="flex-1 h-1.5 rounded-full bg-surface overflow-hidden shadow-warm-xs">
               <div
                 className={`h-full rounded-full transition-all duration-75 ${levelColor}`}
                 style={{ width: `${audioLevel}%` }}
@@ -959,8 +951,8 @@ function MicCapture({
       )}
 
       {phase === "stopping" && (
-        <div className="flex items-center gap-2 py-4 text-[14px] text-text-muted">
-          <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+        <div className="flex items-center gap-2 py-6 text-[14px] text-text-muted justify-center">
+          <div className="w-4 h-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
           Finalising transcript…
         </div>
       )}
@@ -982,7 +974,6 @@ function SessionPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [transcript, setTranscript] = useState<TranscriptLine[]>([]);
   const [features, setFeatures] = useState<string[]>([]);
-  // For physical WAITING: which sub-panel to show
   const [physicalMode, setPhysicalMode] = useState<"choose" | "upload" | "live">("choose");
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -1010,7 +1001,6 @@ function SessionPage() {
 
   useEffect(() => { fetchSession(); }, [fetchSession]);
 
-  // WebSocket — connect when JOINING, LISTENING, or PROCESSING
   useEffect(() => {
     if (!session) return;
     const liveStatuses: SessionStatus[] = ["JOINING", "LISTENING", "PROCESSING"];
@@ -1078,7 +1068,6 @@ function SessionPage() {
     return () => { ws.close(); };
   }, [session?.status, sessionId, fetchSession]);
 
-  // Poll every 5 s when PROCESSING (catches blueprint completion)
   useEffect(() => {
     if (session?.status !== "PROCESSING") {
       if (pollRef.current) clearInterval(pollRef.current);
@@ -1088,10 +1077,6 @@ function SessionPage() {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [session?.status, fetchSession]);
 
-  // For upload sessions the Redis pub/sub message is often published before the
-  // WS subscriber is ready (race condition).  When the session reaches a
-  // post-live state and we have no live transcript, pull it from the DB so the
-  // UI can still show it.
   useEffect(() => {
     if (!session) return;
     const postLiveStates: SessionStatus[] = ["BLUEPRINT_READY", "APPROVED", "BUILDING"];
@@ -1152,9 +1137,11 @@ function SessionPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh] text-text-muted text-[14px]">
-        <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse mr-2" />
-        Loading session…
+      <div className="px-6 md:px-[8vw] py-12 max-w-4xl mx-auto space-y-6">
+        <div className="skeleton h-4 w-24 rounded" />
+        <div className="skeleton h-10 w-56 rounded-xl" />
+        <div className="skeleton h-48 w-full rounded-2xl" />
+        <div className="skeleton h-32 w-full rounded-2xl" />
       </div>
     );
   }
@@ -1162,8 +1149,11 @@ function SessionPage() {
   if (error || !session) {
     return (
       <div className="px-6 md:px-[8vw] py-12 max-w-3xl mx-auto">
-        <p className="text-amber-600 dark:text-amber-400 text-[14px]">{error || "Session not found."}</p>
-        <Link to="/dashboard" className="mt-4 inline-block text-[13px] text-accent underline">← Back to dashboard</Link>
+        <p className="text-destructive text-[14px] mb-4">{error || "Session not found."}</p>
+        <Link to="/dashboard" className="inline-flex items-center gap-1.5 text-[13px] text-accent hover:text-accent/80 transition-colors">
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Back to dashboard
+        </Link>
       </div>
     );
   }
@@ -1175,11 +1165,17 @@ function SessionPage() {
   const isBuilding = session.status === "BUILDING";
 
   return (
-    <div className="px-6 md:px-[8vw] py-12 max-w-4xl mx-auto">
+    <div className="px-6 md:px-[8vw] py-10 max-w-4xl mx-auto page-enter">
       {/* Header */}
       <div className="mb-8">
-        <Link to="/dashboard" className="text-[13px] text-text-muted hover:text-ink transition-colors">← Dashboard</Link>
-        <div className="mt-4 flex items-start justify-between flex-wrap gap-4">
+        <Link
+          to="/sessions"
+          className="inline-flex items-center gap-1.5 text-[13px] text-text-muted hover:text-ink transition-colors mb-4"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Sessions
+        </Link>
+        <div className="flex items-start justify-between flex-wrap gap-4">
           <div>
             <h1 className="font-display text-[32px] md:text-[40px] text-ink leading-[1.1]">
               {PLATFORM_LABEL[session.platform] ?? session.platform} session
@@ -1192,64 +1188,71 @@ function SessionPage() {
         </div>
       </div>
 
-      {/* ── WAITING ── */}
+      {/* ── WAITING (non-physical) ── */}
       {session.status === "WAITING" && !isPhysical && (
-        <div className="rounded-xl border border-border bg-warm-white p-8 text-center space-y-4">
-          <p className="text-[15px] text-text-secondary">
-            Forgefy is ready. Click below to dispatch the bot into your call.
-          </p>
+        <div className="rounded-2xl border border-border bg-card p-8 text-center space-y-5 shadow-warm-xs slide-up">
+          <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-accent/10 mx-auto">
+            <svg className="h-7 w-7 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 10l4.553-2.069A1 1 0 0 1 21 8.87v6.26a1 1 0 0 1-1.447.9L15 14M5 18h8a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2z"/>
+            </svg>
+          </div>
+          <div>
+            <p className="text-[16px] font-semibold text-ink mb-1">Ready to join</p>
+            <p className="text-[14px] text-text-secondary max-w-sm mx-auto">
+              Forgefy will join your call, listen silently, and extract your product blueprint.
+            </p>
+          </div>
           <button
+            type="button"
             onClick={handleJoin}
             disabled={actionLoading}
-            className="px-6 py-2.5 rounded-xl bg-accent text-accent-foreground text-[14px] font-medium transition-colors hover:bg-[oklch(0.55_0.135_45)] disabled:opacity-60"
+            className="px-7 py-3 rounded-xl bg-accent text-accent-foreground text-[14px] font-medium transition-colors hover:bg-[oklch(0.55_0.135_45)] disabled:opacity-60 btn-press shadow-warm-sm"
           >
-            {actionLoading ? "Joining…" : "Join meeting →"}
+            {actionLoading ? (
+              <span className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded-full border-2 border-accent-foreground/40 border-t-accent-foreground animate-spin" />
+                Joining…
+              </span>
+            ) : "Join meeting →"}
           </button>
         </div>
       )}
 
-      {/* ── WAITING (physical) — choose between upload or live mic ── */}
+      {/* ── WAITING (physical) ── */}
       {session.status === "WAITING" && isPhysical && (
-        <div className="rounded-xl border border-border bg-warm-white p-8 space-y-6">
+        <div className="rounded-2xl border border-border bg-card p-8 space-y-6 shadow-warm-xs slide-up">
           {physicalMode === "choose" && (
             <>
               <div>
-                <p className="label-eyebrow mb-1">How do you want to capture this meeting?</p>
-                <p className="text-[13px] text-text-muted">Choose to upload a recording you already have, or transcribe live using your microphone.</p>
+                <p className="text-[15px] font-semibold text-ink mb-1">How do you want to capture this meeting?</p>
+                <p className="text-[13px] text-text-muted">Upload a recording you already have, or transcribe live using your microphone.</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <button
+                  type="button"
                   onClick={() => setPhysicalMode("upload")}
-                  className="flex flex-col items-start gap-2 rounded-xl border border-border p-5 text-left hover:border-accent transition-colors group"
+                  className="flex flex-col items-start gap-3 rounded-2xl border border-border p-5 text-left hover:border-accent transition-all card-hover group"
                 >
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface text-text-secondary group-hover:bg-accent/10 group-hover:text-accent transition-colors">
-                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
-                      <polyline points="17 8 12 3 7 8" strokeLinecap="round" strokeLinejoin="round" />
-                      <line x1="12" y1="3" x2="12" y2="15" strokeLinecap="round" />
-                    </svg>
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface text-text-secondary group-hover:bg-accent/10 group-hover:text-accent transition-colors">
+                    <Upload className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="text-[14px] font-medium text-ink">Upload recording</p>
+                    <p className="text-[14px] font-semibold text-ink">Upload recording</p>
                     <p className="text-[12px] text-text-muted mt-0.5">MP3, MP4, WAV, WEBM — up to 500 MB</p>
                   </div>
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => { setPhysicalMode("live"); handleStartLive(); }}
                   disabled={actionLoading}
-                  className="flex flex-col items-start gap-2 rounded-xl border border-border p-5 text-left hover:border-accent transition-colors group disabled:opacity-60"
+                  className="flex flex-col items-start gap-3 rounded-2xl border border-border p-5 text-left hover:border-accent transition-all card-hover group disabled:opacity-60"
                 >
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface text-text-secondary group-hover:bg-accent/10 group-hover:text-accent transition-colors">
-                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" strokeLinecap="round" strokeLinejoin="round" />
-                      <line x1="12" y1="19" x2="12" y2="23" strokeLinecap="round" />
-                      <line x1="8" y1="23" x2="16" y2="23" strokeLinecap="round" />
-                    </svg>
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface text-text-secondary group-hover:bg-accent/10 group-hover:text-accent transition-colors">
+                    <Mic className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="text-[14px] font-medium text-ink">Live transcription</p>
+                    <p className="text-[14px] font-semibold text-ink">Live transcription</p>
                     <p className="text-[12px] text-text-muted mt-0.5">Use your microphone in real time</p>
                   </div>
                 </button>
@@ -1260,16 +1263,23 @@ function SessionPage() {
           {physicalMode === "upload" && (
             <>
               <div className="flex items-center gap-3">
-                <button onClick={() => setPhysicalMode("choose")} className="text-[13px] text-text-muted hover:text-ink transition-colors">← Back</button>
-                <p className="label-eyebrow">Upload recording</p>
+                <button
+                  type="button"
+                  onClick={() => setPhysicalMode("choose")}
+                  className="inline-flex items-center gap-1.5 text-[13px] text-text-muted hover:text-ink transition-colors"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  Back
+                </button>
+                <span className="text-[14px] font-semibold text-ink">Upload recording</span>
               </div>
               <UploadForm sessionId={sessionId} onUploaded={fetchSession} />
             </>
           )}
 
           {physicalMode === "live" && actionLoading && (
-            <div className="flex items-center gap-2 py-4 text-[14px] text-text-muted">
-              <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+            <div className="flex items-center justify-center gap-2 py-8 text-[14px] text-text-muted">
+              <div className="w-4 h-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
               Starting live transcription…
             </div>
           )}
@@ -1278,17 +1288,18 @@ function SessionPage() {
 
       {/* ── LIVE (non-physical bot sessions) ── */}
       {isLive && !isPhysical && (
-        <div className="space-y-6">
-          <div className="rounded-xl border border-border bg-warm-white p-6 space-y-4">
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-border bg-card p-6 space-y-4 shadow-warm-xs">
             <div className="flex items-center justify-between">
-              <p className="text-[14px] font-medium text-ink flex items-center gap-2">
+              <p className="text-[14px] font-semibold text-ink flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-accent animate-pulse" />
                 Live transcript
               </p>
               <button
+                type="button"
                 onClick={handleEnd}
                 disabled={actionLoading}
-                className="px-3 py-1.5 rounded-lg border border-border text-[13px] text-text-secondary hover:border-destructive hover:text-destructive transition-colors disabled:opacity-60"
+                className="px-3.5 py-1.5 rounded-xl border border-border text-[13px] text-text-secondary hover:border-destructive hover:text-destructive transition-colors disabled:opacity-60 btn-press"
               >
                 {actionLoading ? "Ending…" : "End meeting"}
               </button>
@@ -1296,11 +1307,11 @@ function SessionPage() {
             <TranscriptPanel lines={transcript} />
           </div>
           {features.length > 0 && (
-            <div className="rounded-xl border border-border bg-warm-white p-6">
+            <div className="rounded-2xl border border-border bg-card p-5 shadow-warm-xs">
               <p className="label-eyebrow mb-3">Detected features</p>
               <div className="flex flex-wrap gap-2">
                 {features.map((f, i) => (
-                  <span key={i} className="px-2.5 py-1 rounded-full bg-accent/10 text-accent text-[12px] font-medium">{f}</span>
+                  <span key={i} className="px-2.5 py-1 rounded-full bg-accent/10 text-accent text-[12px] font-medium badge-pop" style={{ animationDelay: `${i * 60}ms` }}>{f}</span>
                 ))}
               </div>
             </div>
@@ -1310,20 +1321,14 @@ function SessionPage() {
 
       {/* ── LISTENING (physical — mic capture UI) ── */}
       {isLive && isPhysical && (
-        <div className="space-y-6">
-          <div className="rounded-xl border border-border bg-warm-white p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <p className="text-[14px] font-medium text-ink">Live transcription</p>
-            </div>
-            <MicCapture
-              sessionId={sessionId}
-              wsRef={wsRef}
-              onStop={handleEnd}
-            />
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-border bg-card p-6 space-y-4 shadow-warm-xs">
+            <p className="text-[14px] font-semibold text-ink">Live transcription</p>
+            <MicCapture sessionId={sessionId} wsRef={wsRef} onStop={handleEnd} />
           </div>
           {transcript.length > 0 && (
-            <div className="rounded-xl border border-border bg-warm-white p-6 space-y-3">
-              <p className="text-[13px] font-medium text-ink flex items-center gap-2">
+            <div className="rounded-2xl border border-border bg-card p-5 space-y-3 shadow-warm-xs">
+              <p className="text-[13px] font-semibold text-ink flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
                 Live transcript
               </p>
@@ -1331,7 +1336,7 @@ function SessionPage() {
             </div>
           )}
           {features.length > 0 && (
-            <div className="rounded-xl border border-border bg-warm-white p-6">
+            <div className="rounded-2xl border border-border bg-card p-5 shadow-warm-xs">
               <p className="label-eyebrow mb-3">Detected features</p>
               <div className="flex flex-wrap gap-2">
                 {features.map((f, i) => (
@@ -1345,26 +1350,31 @@ function SessionPage() {
 
       {/* ── PROCESSING ── */}
       {isProcessing && (
-        <div className="space-y-4">
-          <div className="rounded-xl border border-border bg-warm-white p-8 text-center space-y-3">
-            <div className="flex justify-center gap-1">
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-border bg-card p-10 text-center space-y-4 shadow-warm-xs">
+            <div className="flex justify-center gap-1.5">
               {[0, 1, 2].map((i) => (
-                <span key={i} className="h-2 w-2 rounded-full bg-accent animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
+                <span key={i} className="h-2.5 w-2.5 rounded-full bg-accent animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
               ))}
             </div>
-            <p className="text-[15px] text-text-secondary">
-              {isPhysical ? "Transcribing and analysing your recording…" : "Analysing the transcript and generating your app blueprint…"}
-            </p>
+            <div>
+              <p className="text-[16px] font-semibold text-ink mb-1">
+                {isPhysical ? "Transcribing your recording…" : "Analysing transcript…"}
+              </p>
+              <p className="text-[14px] text-text-secondary">
+                {isPhysical ? "Extracting features and building your product blueprint." : "Generating your app blueprint from the meeting."}
+              </p>
+            </div>
             <p className="text-[12px] text-text-muted">Usually takes 30–120 seconds.</p>
           </div>
           {transcript.length > 0 && (
-            <div className="rounded-xl border border-border bg-warm-white p-6 space-y-3">
-              <p className="text-[13px] font-medium text-ink">Transcript</p>
+            <div className="rounded-2xl border border-border bg-card p-5 space-y-3 shadow-warm-xs">
+              <p className="text-[13px] font-semibold text-ink">Transcript</p>
               <TranscriptPanel lines={transcript} />
             </div>
           )}
           {features.length > 0 && (
-            <div className="rounded-xl border border-border bg-warm-white p-6">
+            <div className="rounded-2xl border border-border bg-card p-5 shadow-warm-xs">
               <p className="label-eyebrow mb-3">Detected features</p>
               <div className="flex flex-wrap gap-2">
                 {features.map((f, i) => (
@@ -1381,8 +1391,8 @@ function SessionPage() {
         <>
           <BlueprintSection sessionId={sessionId} onApproved={fetchSession} />
           {transcript.length > 0 && (
-            <div className="mt-6 rounded-xl border border-border bg-warm-white p-6 space-y-3">
-              <p className="text-[13px] font-medium text-ink">Meeting transcript</p>
+            <div className="mt-6 rounded-2xl border border-border bg-card p-5 space-y-3 shadow-warm-xs">
+              <p className="text-[13px] font-semibold text-ink">Meeting transcript</p>
               <TranscriptPanel lines={transcript} />
             </div>
           )}
@@ -1391,29 +1401,34 @@ function SessionPage() {
 
       {/* ── BUILDING ── */}
       {isBuilding && (
-        <div className="rounded-xl border border-border bg-warm-white p-8 text-center space-y-3">
-          <div className="flex justify-center gap-1">
+        <div className="rounded-2xl border border-border bg-card p-10 text-center space-y-4 shadow-warm-xs">
+          <div className="flex justify-center gap-1.5">
             {[0, 1, 2].map((i) => (
-              <span key={i} className="h-2 w-2 rounded-full bg-[oklch(0.55_0.18_145)] animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
+              <span key={i} className="h-2.5 w-2.5 rounded-full bg-[oklch(0.55_0.18_145)] animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
             ))}
           </div>
-          <p className="text-[15px] text-text-secondary">Building your Flutter, React Native, and Next.js apps…</p>
+          <div>
+            <p className="text-[16px] font-semibold text-ink mb-1">Building your apps</p>
+            <p className="text-[14px] text-text-secondary">Flutter, React Native, and Next.js — all from your blueprint.</p>
+          </div>
         </div>
       )}
 
-      {/* ── Raw transcript (test) ── */}
+      {/* ── Raw transcript (debug) ── */}
       <TranscriptDebugSection sessionId={sessionId} liveLines={transcript} />
 
       {/* ── Event log ── */}
       {session.recent_events.length > 0 && (
         <div className="mt-10 border-t border-border pt-8">
           <p className="label-eyebrow mb-4">Event log</p>
-          <div className="space-y-2">
+          <div className="space-y-2 rounded-2xl border border-border bg-card p-4 shadow-warm-xs">
             {session.recent_events.map((ev) => (
-              <div key={ev.id} className="flex items-start gap-3 text-[12px] text-text-muted font-mono-ui">
-                <span className="shrink-0 text-text-muted/60">{new Date(ev.timestamp).toLocaleTimeString()}</span>
-                <span className="text-accent">{ev.event_type}</span>
-                {ev.payload && <span className="text-text-muted/80 truncate">{JSON.stringify(ev.payload).slice(0, 80)}</span>}
+              <div key={ev.id} className="flex items-start gap-3 text-[12px] font-mono-ui">
+                <span className="shrink-0 text-text-muted/60 w-20">{new Date(ev.timestamp).toLocaleTimeString()}</span>
+                <span className="text-accent shrink-0">{ev.event_type}</span>
+                {ev.payload && (
+                  <span className="text-text-muted/80 truncate">{JSON.stringify(ev.payload).slice(0, 80)}</span>
+                )}
               </div>
             ))}
           </div>

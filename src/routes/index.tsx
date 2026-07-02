@@ -14,7 +14,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Forgefy joins your planning calls, extracts what your team decided, and builds Flutter, React Native, and Next.js apps automatically.",
+          "Forgefy joins your planning calls, extracts what your team decided, and builds your app in Flutter, React Native, or Next.js automatically.",
       },
       { property: "og:title", content: "Forgefy — Your meeting just became an app." },
       { property: "og:type", content: "website" },
@@ -303,7 +303,7 @@ const STEPS = [
   { n: "01", title: "Invite Forgefy to your meeting", body: "Add Forgefy to your Zoom, Google Meet, or Teams call. It joins silently, listens, and builds a structured picture of what your team is deciding." },
   { n: "02", title: "It extracts what matters", body: "Features, entities, constraints, and conflicts — extracted in real time. Not a transcript. A proper product blueprint a senior PM would be proud of." },
   { n: "03", title: "Review and approve", body: "Before anything is built you see exactly what Forgefy understood. Edit, approve, or send it back. You stay in control at every step." },
-  { n: "04", title: "Your app ships", body: "Flutter for iOS and Android. React Native for cross-platform. Next.js for web. All generated from the same blueprint, pushed to GitHub automatically." },
+  { n: "04", title: "Your app ships", body: "Flutter for iOS and Android, React Native for cross-platform, or Next.js for web — built from your blueprint in the stack you choose, pushed to GitHub automatically." },
 ];
 
 const PLANS = [
@@ -429,7 +429,7 @@ function Index() {
               className="mt-8 text-[17px] md:text-[18px] leading-[1.7] text-text-secondary max-w-[520px]"
               style={{ animation: "hero-rise 500ms ease-out forwards 420ms", opacity: 0 }}
             >
-              Forgefy joins your planning calls, extracts what your team decided, and ships Flutter, React Native, and Next.js apps — automatically.
+              Forgefy joins your planning calls, extracts what your team decided, and ships your app in Flutter, React Native, or Next.js — automatically.
             </p>
 
             {/* CTAs */}
@@ -566,7 +566,7 @@ function Index() {
               style={{ fontSize: "clamp(56px, 8vw, 88px)" }}>
               43min
               <br />
-              <span className="text-accent">→</span> 3 apps
+              <span className="text-accent">→</span> 1 app
             </p>
             <p className="mt-5 text-[14px] text-[#A89F94] max-w-[260px]">
               Average time from meeting end to build-ready code on GitHub.
