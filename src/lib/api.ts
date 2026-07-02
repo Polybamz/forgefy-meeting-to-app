@@ -34,9 +34,7 @@ export function getWsUrl(path: string): string {
 
 async function attemptRefresh(): Promise<boolean> {
   const refreshToken =
-    typeof window !== "undefined"
-      ? localStorage.getItem("forgefy_refresh_token")
-      : null;
+    typeof window !== "undefined" ? localStorage.getItem("forgefy_refresh_token") : null;
   if (!refreshToken) return false;
   try {
     const res = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
@@ -53,11 +51,7 @@ async function attemptRefresh(): Promise<boolean> {
   }
 }
 
-export async function apiFetch(
-  path: string,
-  init?: RequestInit,
-  _retry = true,
-): Promise<Response> {
+export async function apiFetch(path: string, init?: RequestInit, _retry = true): Promise<Response> {
   const token = getToken();
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -124,17 +118,11 @@ export interface StoredSession {
 
 export function storeSession(session: StoredSession): void {
   const existing = listStoredSessions();
-  const updated = [
-    session,
-    ...existing.filter((s) => s.id !== session.id),
-  ].slice(0, 20);
+  const updated = [session, ...existing.filter((s) => s.id !== session.id)].slice(0, 20);
   localStorage.setItem("forgefy_sessions", JSON.stringify(updated));
 }
 
-export function updateStoredSession(
-  id: string,
-  patch: Partial<StoredSession>,
-): void {
+export function updateStoredSession(id: string, patch: Partial<StoredSession>): void {
   const existing = listStoredSessions();
   const updated = existing.map((s) => (s.id === id ? { ...s, ...patch } : s));
   localStorage.setItem("forgefy_sessions", JSON.stringify(updated));

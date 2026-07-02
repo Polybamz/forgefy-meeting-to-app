@@ -15,10 +15,10 @@ const TEMPLATE_LABELS: Record<string, string> = {
 };
 
 const BUILD_MODEL_OPTIONS = [
-  { value: "gemini", label: "Gemini",  sub: "Google — fast & capable" },
-  { value: "claude", label: "Claude",  sub: "Anthropic — precise reasoning" },
-  { value: "gpt",    label: "GPT-4o",  sub: "OpenAI" },
-  { value: "Qwen3",  label: "Qwen3",   sub: "Local / Ollama" },
+  { value: "gemini", label: "Gemini", sub: "Google — fast & capable" },
+  { value: "claude", label: "Claude", sub: "Anthropic — precise reasoning" },
+  { value: "gpt", label: "GPT-4o", sub: "OpenAI" },
+  { value: "Qwen3", label: "Qwen3", sub: "Local / Ollama" },
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -45,16 +45,22 @@ function Section({
         <h2 className={`text-[15px] font-semibold ${danger ? "text-destructive" : "text-ink"}`}>
           {title}
         </h2>
-        {description && (
-          <p className="text-[12px] text-text-muted mt-1">{description}</p>
-        )}
+        {description && <p className="text-[12px] text-text-muted mt-1">{description}</p>}
       </div>
       {children}
     </section>
   );
 }
 
-function Row({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+function Row({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="flex items-start justify-between gap-6 py-3 border-b border-border/60 last:border-0">
       <div className="min-w-0">
@@ -76,7 +82,9 @@ function GeneralSection({ project }: { project: Project }) {
         <span className="text-[13px] font-medium text-ink">{project.app_name}</span>
       </Row>
       <Row label="Framework">
-        <span className="text-[13px] text-ink">{TEMPLATE_LABELS[project.template_key] ?? project.template_key}</span>
+        <span className="text-[13px] text-ink">
+          {TEMPLATE_LABELS[project.template_key] ?? project.template_key}
+        </span>
       </Row>
       <Row label="Project ID">
         <span className="text-[11px] font-mono-ui text-text-muted">{project.id}</span>
@@ -98,7 +106,10 @@ function GeneralSection({ project }: { project: Project }) {
 function RepositorySection({ project }: { project: Project }) {
   if (!project.repo_full_name) return null;
   return (
-    <Section title="Repository" description="The GitHub repository where your app's source code lives.">
+    <Section
+      title="Repository"
+      description="The GitHub repository where your app's source code lives."
+    >
       <Row label="Repository">
         <a
           href={project.github_url ?? "#"}
@@ -161,7 +172,9 @@ function BuildModelSection({ projectId }: { projectId: string }) {
       if (res.ok) {
         const d = await res.json();
         setCurrent(d.model);
-        toast.success(`Build model set to ${BUILD_MODEL_OPTIONS.find((o) => o.value === d.model)?.label ?? d.model}.`);
+        toast.success(
+          `Build model set to ${BUILD_MODEL_OPTIONS.find((o) => o.value === d.model)?.label ?? d.model}.`,
+        );
       } else {
         toast.error("Failed to update build model.");
       }
@@ -173,7 +186,10 @@ function BuildModelSection({ projectId }: { projectId: string }) {
   }
 
   return (
-    <Section title="Build Model" description="The AI model used to generate and update your app code. Takes effect on the next build or update.">
+    <Section
+      title="Build Model"
+      description="The AI model used to generate and update your app code. Takes effect on the next build or update."
+    >
       {current === null ? (
         <p className="text-[12px] text-text-muted">Loading…</p>
       ) : (
@@ -243,21 +259,24 @@ function DangerZone({ project, onDeleted }: { project: Project; onDeleted: () =>
           <div>
             <p className="text-[13px] font-medium text-ink">Delete this project</p>
             <p className="text-[12px] text-text-muted mt-0.5">
-              Permanently removes the project from Forgefy and attempts to delete the GitHub repository.
+              Permanently removes the project from Forgefy and attempts to delete the GitHub
+              repository.
             </p>
           </div>
         </div>
 
         <div className="space-y-2">
           <label className="text-[12px] text-text-secondary block">
-            Type{" "}
-            <span className="font-mono-ui font-semibold text-ink">{project.app_name}</span>{" "}
-            to confirm
+            Type <span className="font-mono-ui font-semibold text-ink">{project.app_name}</span> to
+            confirm
           </label>
           <input
             type="text"
             value={confirmName}
-            onChange={(e) => { setConfirmName(e.target.value); setDeleteError(""); }}
+            onChange={(e) => {
+              setConfirmName(e.target.value);
+              setDeleteError("");
+            }}
             placeholder={project.app_name}
             className="w-full px-3 py-2 rounded-lg border border-border bg-white text-[13px] text-ink placeholder:text-text-muted outline-none focus:border-destructive transition-colors font-mono-ui"
           />
@@ -272,18 +291,32 @@ function DangerZone({ project, onDeleted }: { project: Project; onDeleted: () =>
         >
           {deleting ? (
             <>
-              <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+              <svg
+                className="w-3.5 h-3.5 animate-spin"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+              >
+                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
               </svg>
               Deleting…
             </>
           ) : (
             <>
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <polyline points="3 6 5 6 21 6"/>
-                <path d="M19 6l-1 14H6L5 6"/>
-                <path d="M10 11v6"/><path d="M14 11v6"/>
-                <path d="M9 6V4h6v2"/>
+              <svg
+                className="w-3.5 h-3.5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              >
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6l-1 14H6L5 6" />
+                <path d="M10 11v6" />
+                <path d="M14 11v6" />
+                <path d="M9 6V4h6v2" />
               </svg>
               Delete Project
             </>
@@ -325,7 +358,9 @@ function ProjectSettingsPage() {
     return (
       <div className="px-6 py-12 max-w-2xl mx-auto">
         <p className="text-destructive text-[14px]">{error || "Project not found."}</p>
-        <Link to="/dashboard" className="mt-4 inline-block text-[13px] text-accent underline">← Back to dashboard</Link>
+        <Link to="/dashboard" className="mt-4 inline-block text-[13px] text-accent underline">
+          ← Back to dashboard
+        </Link>
       </div>
     );
   }
@@ -355,10 +390,7 @@ function ProjectSettingsPage() {
         <GeneralSection project={project} />
         <RepositorySection project={project} />
         <BuildModelSection projectId={projectId} />
-        <DangerZone
-          project={project}
-          onDeleted={() => navigate({ to: "/dashboard" })}
-        />
+        <DangerZone project={project} onDeleted={() => navigate({ to: "/dashboard" })} />
       </div>
     </div>
   );

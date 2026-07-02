@@ -55,8 +55,15 @@ const LOG_COLORS: Record<string, string> = {
   validating: "text-[oklch(0.65_0.15_280)]",
 };
 
-interface PlanFile { path: string; purpose?: string; changes?: string }
-interface PlanDep  { package: string; reason?: string }
+interface PlanFile {
+  path: string;
+  purpose?: string;
+  changes?: string;
+}
+interface PlanDep {
+  package: string;
+  reason?: string;
+}
 interface PlanData {
   summary: string;
   files_to_create: PlanFile[];
@@ -89,24 +96,33 @@ function AgentActivityBlock({
 
   if (logs.length === 0 && !isActive && !plan) return null;
 
-  const fileItems = plan ? [
-    ...plan.files_to_create.map((f: PlanFile) => ({ path: f.path, badge: "+", done: !isActive || writtenFiles.has(f.path) })),
-    ...plan.files_to_modify.map((f: PlanFile) => ({ path: f.path, badge: "~", done: !isActive || writtenFiles.has(f.path) })),
-  ] : [];
+  const fileItems = plan
+    ? [
+        ...plan.files_to_create.map((f: PlanFile) => ({
+          path: f.path,
+          badge: "+",
+          done: !isActive || writtenFiles.has(f.path),
+        })),
+        ...plan.files_to_modify.map((f: PlanFile) => ({
+          path: f.path,
+          badge: "~",
+          done: !isActive || writtenFiles.has(f.path),
+        })),
+      ]
+    : [];
 
   return (
     <div className="flex justify-start">
       <div className="w-full text-[11px] font-mono-ui border border-[#2a2522] rounded-xl bg-[#100e0c] overflow-hidden">
         {/* Header */}
         <div className="flex items-center gap-2 px-3 py-2 border-b border-[#2a2522]">
-          {isActive
-            ? <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse shrink-0" />
-            : <span className="text-[oklch(0.6_0.18_145)]">✓</span>
-          }
-          <span className="text-[#7A6F65]">forgefy agent</span>
-          {isActive && (
-            <span className="ml-auto text-[10px] text-[#5a5249]">running</span>
+          {isActive ? (
+            <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse shrink-0" />
+          ) : (
+            <span className="text-[oklch(0.6_0.18_145)]">✓</span>
           )}
+          <span className="text-[#7A6F65]">forgefy agent</span>
+          {isActive && <span className="ml-auto text-[10px] text-[#5a5249]">running</span>}
         </div>
 
         {/* Plan section */}
@@ -129,10 +145,14 @@ function AgentActivityBlock({
                     <span className={f.done ? "text-[oklch(0.6_0.18_145)]" : "text-[#5a5249]"}>
                       {f.done ? "✓" : "○"}
                     </span>
-                    <span className={`break-all ${f.done ? "text-[#5a5249] line-through" : "text-[#C8BFB5]"}`}>
+                    <span
+                      className={`break-all ${f.done ? "text-[#5a5249] line-through" : "text-[#C8BFB5]"}`}
+                    >
                       {f.path}
                     </span>
-                    <span className={`shrink-0 text-[9px] ${f.badge === "+" ? "text-[oklch(0.6_0.18_145)]" : "text-[oklch(0.65_0.18_60)]"}`}>
+                    <span
+                      className={`shrink-0 text-[9px] ${f.badge === "+" ? "text-[oklch(0.6_0.18_145)]" : "text-[oklch(0.65_0.18_60)]"}`}
+                    >
                       {f.badge}
                     </span>
                   </div>
@@ -153,7 +173,9 @@ function AgentActivityBlock({
                 {LOG_ICONS[entry.type] ?? "·"}
               </span>
               {entry.type === "text" || entry.type === "done" ? (
-                <Md className={`${LOG_COLORS[entry.type] ?? "text-[#7A6F65]"} text-[11px] break-words`}>
+                <Md
+                  className={`${LOG_COLORS[entry.type] ?? "text-[#7A6F65]"} text-[11px] break-words`}
+                >
                   {entry.message}
                 </Md>
               ) : (
@@ -190,7 +212,13 @@ function PreviewPanel({
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 text-text-muted">
         <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-surface border border-border">
-          <svg className="h-7 w-7 opacity-40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <svg
+            className="h-7 w-7 opacity-40"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+          >
             <rect x="2" y="3" width="20" height="14" rx="2" />
             <line x1="8" y1="21" x2="16" y2="21" />
             <line x1="12" y1="17" x2="12" y2="21" />
@@ -198,7 +226,9 @@ function PreviewPanel({
         </div>
         <div className="text-center">
           <p className="text-[14px] font-semibold text-ink mb-1">No preview yet</p>
-          <p className="text-[12px] text-text-muted max-w-[200px]">A preview URL will appear once the app is deployed.</p>
+          <p className="text-[12px] text-text-muted max-w-[200px]">
+            A preview URL will appear once the app is deployed.
+          </p>
         </div>
         {canBuildPreview && (
           <button
@@ -211,7 +241,9 @@ function PreviewPanel({
                 <span className="h-3.5 w-3.5 rounded-full border-2 border-accent-foreground/30 border-t-accent-foreground animate-spin" />
                 Building…
               </>
-            ) : "Build Preview"}
+            ) : (
+              "Build Preview"
+            )}
           </button>
         )}
       </div>
@@ -232,7 +264,9 @@ function PreviewPanel({
           <span className="h-2.5 w-2.5 rounded-full bg-[#3a3633]" />
           <span className="h-2.5 w-2.5 rounded-full bg-[#3a3633]" />
         </div>
-        <p className="text-[11px] font-mono-ui text-text-muted truncate max-w-[200px]">{previewUrl}</p>
+        <p className="text-[11px] font-mono-ui text-text-muted truncate max-w-[200px]">
+          {previewUrl}
+        </p>
         <div className="flex items-center gap-2">
           {!isAppetize && (
             <button
@@ -240,7 +274,13 @@ function PreviewPanel({
               title="Refresh"
               className="flex items-center justify-center w-6 h-6 rounded-lg text-text-muted hover:text-ink hover:bg-surface transition-colors"
             >
-              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                className="h-3.5 w-3.5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <polyline points="23 4 23 10 17 10" />
                 <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
               </svg>
@@ -253,7 +293,13 @@ function PreviewPanel({
             title="Open in new tab"
             className="flex items-center justify-center w-6 h-6 rounded-lg text-text-muted hover:text-ink hover:bg-surface transition-colors"
           >
-            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg
+              className="h-3.5 w-3.5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
               <polyline points="15 3 21 3 21 9" />
               <line x1="10" y1="14" x2="21" y2="3" />
@@ -268,7 +314,11 @@ function PreviewPanel({
           className="flex justify-center item-center w-[50%] h-full border-0"
           title="App preview"
           allow="camera; microphone"
-          sandbox={isAppetize ? "allow-scripts allow-same-origin allow-forms allow-popups allow-modals" : "allow-scripts allow-same-origin allow-forms allow-popups"}
+          sandbox={
+            isAppetize
+              ? "allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+              : "allow-scripts allow-same-origin allow-forms allow-popups"
+          }
         />
       </div>
     </div>
@@ -279,19 +329,47 @@ function PreviewPanel({
 // CodePanel — file tree + syntax-highlighted viewer
 // ---------------------------------------------------------------------------
 const LANG_MAP: Record<string, string> = {
-  ts: "typescript", tsx: "typescript", js: "javascript", jsx: "javascript",
-  dart: "dart", py: "python", json: "json", yaml: "yaml", yml: "yaml",
-  md: "markdown", css: "css", html: "html", sh: "bash", gradle: "gradle",
-  xml: "xml", kt: "kotlin", swift: "swift", toml: "toml",
+  ts: "typescript",
+  tsx: "typescript",
+  js: "javascript",
+  jsx: "javascript",
+  dart: "dart",
+  py: "python",
+  json: "json",
+  yaml: "yaml",
+  yml: "yaml",
+  md: "markdown",
+  css: "css",
+  html: "html",
+  sh: "bash",
+  gradle: "gradle",
+  xml: "xml",
+  kt: "kotlin",
+  swift: "swift",
+  toml: "toml",
 };
 
 function fileIcon(path: string): string {
   const ext = path.split(".").pop()?.toLowerCase() ?? "";
   const icons: Record<string, string> = {
-    ts: "📘", tsx: "⚛", js: "📒", jsx: "⚛", dart: "🎯",
-    json: "📋", yaml: "📋", yml: "📋", md: "📝", css: "🎨",
-    html: "🌐", sh: "⚙", gradle: "🐘", xml: "📄", py: "🐍",
-    kt: "📗", swift: "🍎", toml: "⚙",
+    ts: "📘",
+    tsx: "⚛",
+    js: "📒",
+    jsx: "⚛",
+    dart: "🎯",
+    json: "📋",
+    yaml: "📋",
+    yml: "📋",
+    md: "📝",
+    css: "🎨",
+    html: "🌐",
+    sh: "⚙",
+    gradle: "🐘",
+    xml: "📄",
+    py: "🐍",
+    kt: "📗",
+    swift: "🍎",
+    toml: "⚙",
   };
   return icons[ext] ?? "📄";
 }
@@ -332,7 +410,9 @@ function TreeNode({
       <button
         onClick={() => onSelect(node as string)}
         className={`w-full flex items-center gap-1.5 py-[3px] rounded text-left text-[11px] font-mono-ui transition-colors ${
-          active ? "bg-accent/20 text-accent font-medium" : "text-[#9A9A9A] hover:bg-[#2a2a2a] hover:text-[#D4D4D4]"
+          active
+            ? "bg-accent/20 text-accent font-medium"
+            : "text-[#9A9A9A] hover:bg-[#2a2a2a] hover:text-[#D4D4D4]"
         }`}
         style={{ paddingLeft: `${depth * 12 + 8}px`, paddingRight: "8px" }}
       >
@@ -363,7 +443,14 @@ function TreeNode({
               return 0;
             })
             .map(([k, v]) => (
-              <TreeNode key={k} name={k} node={v} depth={depth + 1} selected={selected} onSelect={onSelect} />
+              <TreeNode
+                key={k}
+                name={k}
+                node={v}
+                depth={depth + 1}
+                selected={selected}
+                onSelect={onSelect}
+              />
             ))}
         </div>
       )}
@@ -393,7 +480,9 @@ function CodePanel({ projectId }: { projectId: string }) {
     setContent(null);
     setLoadingFile(true);
     try {
-      const r = await apiFetch(`/api/v1/projects/${projectId}/code/file?path=${encodeURIComponent(path)}`);
+      const r = await apiFetch(
+        `/api/v1/projects/${projectId}/code/file?path=${encodeURIComponent(path)}`,
+      );
       const d = await r.json();
       setContent(r.ok ? (d.content ?? "") : `Error: ${d.detail ?? "Could not load file"}`);
     } catch {
@@ -412,7 +501,9 @@ function CodePanel({ projectId }: { projectId: string }) {
       {/* File tree */}
       <div className="w-56 shrink-0 flex flex-col border-r border-[#252526] bg-[#1e1e1e] overflow-y-auto">
         <div className="px-3 py-2.5 border-b border-[#252526]">
-          <p className="text-[10px] font-mono-ui text-[#858585] uppercase tracking-wider">Explorer</p>
+          <p className="text-[10px] font-mono-ui text-[#858585] uppercase tracking-wider">
+            Explorer
+          </p>
         </div>
         {loadingTree ? (
           <div className="flex items-center justify-center flex-1 text-[11px] text-[#858585] gap-2">
@@ -420,7 +511,9 @@ function CodePanel({ projectId }: { projectId: string }) {
             Loading…
           </div>
         ) : files.length === 0 ? (
-          <div className="flex items-center justify-center flex-1 text-[11px] text-[#858585]">No files yet</div>
+          <div className="flex items-center justify-center flex-1 text-[11px] text-[#858585]">
+            No files yet
+          </div>
         ) : (
           <div className="py-1 overflow-y-auto">
             {Object.entries(tree)
@@ -431,7 +524,14 @@ function CodePanel({ projectId }: { projectId: string }) {
                 return 0;
               })
               .map(([k, v]) => (
-                <TreeNode key={k} name={k} node={v} depth={0} selected={selected} onSelect={openFile} />
+                <TreeNode
+                  key={k}
+                  name={k}
+                  node={v}
+                  depth={0}
+                  selected={selected}
+                  onSelect={openFile}
+                />
               ))}
           </div>
         )}
@@ -447,7 +547,9 @@ function CodePanel({ projectId }: { projectId: string }) {
               <span>{selected.split("/").pop()}</span>
             </div>
           ) : (
-            <span className="px-4 py-1.5 text-[11px] font-mono-ui text-[#858585]">No file open</span>
+            <span className="px-4 py-1.5 text-[11px] font-mono-ui text-[#858585]">
+              No file open
+            </span>
           )}
         </div>
 
@@ -455,8 +557,15 @@ function CodePanel({ projectId }: { projectId: string }) {
         <div className="flex-1 overflow-auto">
           {!selected && (
             <div className="flex flex-col items-center justify-center h-full gap-2 text-[#858585]">
-              <svg className="w-8 h-8 opacity-30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+              <svg
+                className="w-8 h-8 opacity-30"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <polyline points="16 18 22 12 16 6" />
+                <polyline points="8 6 2 12 8 18" />
               </svg>
               <p className="text-[12px]">Select a file to view</p>
             </div>
@@ -496,25 +605,46 @@ function Md({ children, className = "" }: { children: string; className?: string
       remarkPlugins={[remarkGfm]}
       className={className}
       components={{
-        p:      ({ children }) => <p className="mb-1.5 last:mb-0 leading-relaxed">{children}</p>,
-        ul:     ({ children }) => <ul className="list-disc pl-4 mb-1.5 space-y-0.5">{children}</ul>,
-        ol:     ({ children }) => <ol className="list-decimal pl-4 mb-1.5 space-y-0.5">{children}</ol>,
-        li:     ({ children }) => <li className="leading-relaxed">{children}</li>,
-        strong: ({ children }) => <strong className="font-semibold text-inherit">{children}</strong>,
-        em:     ({ children }) => <em className="italic text-inherit">{children}</em>,
-        code:   ({ children, className: cls }) => {
+        p: ({ children }) => <p className="mb-1.5 last:mb-0 leading-relaxed">{children}</p>,
+        ul: ({ children }) => <ul className="list-disc pl-4 mb-1.5 space-y-0.5">{children}</ul>,
+        ol: ({ children }) => <ol className="list-decimal pl-4 mb-1.5 space-y-0.5">{children}</ol>,
+        li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+        strong: ({ children }) => (
+          <strong className="font-semibold text-inherit">{children}</strong>
+        ),
+        em: ({ children }) => <em className="italic text-inherit">{children}</em>,
+        code: ({ children, className: cls }) => {
           const isBlock = cls?.includes("language-");
-          return isBlock
-            ? <code className="block bg-black/20 rounded px-2 py-1.5 text-[10px] font-mono overflow-x-auto my-1">{children}</code>
-            : <code className="bg-black/20 rounded px-1 py-0.5 text-[10px] font-mono">{children}</code>;
+          return isBlock ? (
+            <code className="block bg-black/20 rounded px-2 py-1.5 text-[10px] font-mono overflow-x-auto my-1">
+              {children}
+            </code>
+          ) : (
+            <code className="bg-black/20 rounded px-1 py-0.5 text-[10px] font-mono">
+              {children}
+            </code>
+          );
         },
-        pre:    ({ children }) => <pre className="overflow-x-auto my-1">{children}</pre>,
-        h1:     ({ children }) => <h1 className="font-semibold text-[14px] mb-1">{children}</h1>,
-        h2:     ({ children }) => <h2 className="font-semibold text-[13px] mb-1">{children}</h2>,
-        h3:     ({ children }) => <h3 className="font-medium text-[12px] mb-0.5">{children}</h3>,
-        a:      ({ href, children }) => <a href={href} target="_blank" rel="noreferrer" className="underline underline-offset-2 opacity-80 hover:opacity-100">{children}</a>,
-        hr:     () => <hr className="border-current opacity-20 my-2" />,
-        blockquote: ({ children }) => <blockquote className="border-l-2 border-current opacity-70 pl-2 my-1">{children}</blockquote>,
+        pre: ({ children }) => <pre className="overflow-x-auto my-1">{children}</pre>,
+        h1: ({ children }) => <h1 className="font-semibold text-[14px] mb-1">{children}</h1>,
+        h2: ({ children }) => <h2 className="font-semibold text-[13px] mb-1">{children}</h2>,
+        h3: ({ children }) => <h3 className="font-medium text-[12px] mb-0.5">{children}</h3>,
+        a: ({ href, children }) => (
+          <a
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            className="underline underline-offset-2 opacity-80 hover:opacity-100"
+          >
+            {children}
+          </a>
+        ),
+        hr: () => <hr className="border-current opacity-20 my-2" />,
+        blockquote: ({ children }) => (
+          <blockquote className="border-l-2 border-current opacity-70 pl-2 my-1">
+            {children}
+          </blockquote>
+        ),
       }}
     >
       {children}
@@ -530,19 +660,24 @@ function ChatBubble({ message }: { message: ChatMessage }) {
   const isError = message.role === "error";
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-      <div className={[
-        "max-w-[88%] px-4 py-3 text-[13px] leading-[1.65]",
-        isUser
-          ? "bg-accent text-accent-foreground rounded-2xl rounded-br-sm shadow-warm-xs"
-          : isError
-            ? "bg-amber-500/[0.07] border border-amber-400/20 text-amber-700 dark:text-amber-400 rounded-2xl rounded-bl-sm"
-            : "bg-card border border-border text-text-secondary rounded-2xl rounded-bl-sm shadow-warm-xs",
-      ].join(" ")}>
-        {isUser
-          ? <p className="whitespace-pre-wrap">{message.text}</p>
-          : <Md className="text-[13px]">{message.text}</Md>
-        }
-        <p className={`text-[10px] mt-2 ${isUser ? "text-accent-foreground/50" : "text-text-muted"}`}>
+      <div
+        className={[
+          "max-w-[88%] px-4 py-3 text-[13px] leading-[1.65]",
+          isUser
+            ? "bg-accent text-accent-foreground rounded-2xl rounded-br-sm shadow-warm-xs"
+            : isError
+              ? "bg-amber-500/[0.07] border border-amber-400/20 text-amber-700 dark:text-amber-400 rounded-2xl rounded-bl-sm"
+              : "bg-card border border-border text-text-secondary rounded-2xl rounded-bl-sm shadow-warm-xs",
+        ].join(" ")}
+      >
+        {isUser ? (
+          <p className="whitespace-pre-wrap">{message.text}</p>
+        ) : (
+          <Md className="text-[13px]">{message.text}</Md>
+        )}
+        <p
+          className={`text-[10px] mt-2 ${isUser ? "text-accent-foreground/50" : "text-text-muted"}`}
+        >
           {message.timestamp.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
         </p>
       </div>
@@ -625,7 +760,9 @@ function GitHubSyncButton({
         {transferring ? "Syncing…" : "Sync to GitHub"}
       </button>
       {transferError && (
-        <p className="text-[10px] text-amber-600 dark:text-amber-400 max-w-[180px] text-right leading-tight">{transferError}</p>
+        <p className="text-[10px] text-amber-600 dark:text-amber-400 max-w-[180px] text-right leading-tight">
+          {transferError}
+        </p>
       )}
     </div>
   );
@@ -642,10 +779,21 @@ function StopButton({ stopping, onClick }: { stopping: boolean; onClick: () => v
       title="Stop agent"
       className="flex items-center justify-center w-5 h-5 rounded-lg bg-destructive text-white hover:bg-[oklch(0.5_0.2_25)] transition-colors disabled:opacity-50"
     >
-      {stopping
-        ? <svg className="w-2.5 h-2.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-        : <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
-      }
+      {stopping ? (
+        <svg
+          className="w-2.5 h-2.5 animate-spin"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+        >
+          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+        </svg>
+      ) : (
+        <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor">
+          <rect x="5" y="5" width="14" height="14" rx="2" />
+        </svg>
+      )}
     </button>
   );
 }
@@ -664,10 +812,17 @@ function ProjectEditorPage() {
     try {
       const raw = localStorage.getItem(chatStorageKey);
       if (raw) {
-        const arr = JSON.parse(raw) as Array<{ id: string; role: string; text: string; timestamp: string }>;
+        const arr = JSON.parse(raw) as Array<{
+          id: string;
+          role: string;
+          text: string;
+          timestamp: string;
+        }>;
         return arr.map((m) => ({ ...m, timestamp: new Date(m.timestamp) })) as ChatMessage[];
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     return [];
   });
   const [prompt, setPrompt] = useState("");
@@ -703,24 +858,34 @@ function ProjectEditorPage() {
   useEffect(() => {
     apiFetch(`/api/v1/projects/${projectId}/chat-history`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((data: { messages: Array<{ id: string; role: string; text: string; timestamp: string }> } | null) => {
-        if (data?.messages?.length) {
-          const serverMsgs = data.messages.map((m) => ({
-            ...m,
-            timestamp: new Date(m.timestamp),
-          })) as ChatMessage[];
-          setMessages(serverMsgs);
-          localStorage.setItem(chatStorageKey, JSON.stringify(serverMsgs));
-        }
-      })
-      .catch(() => { /* keep localStorage version */ });
+      .then(
+        (
+          data: {
+            messages: Array<{ id: string; role: string; text: string; timestamp: string }>;
+          } | null,
+        ) => {
+          if (data?.messages?.length) {
+            const serverMsgs = data.messages.map((m) => ({
+              ...m,
+              timestamp: new Date(m.timestamp),
+            })) as ChatMessage[];
+            setMessages(serverMsgs);
+            localStorage.setItem(chatStorageKey, JSON.stringify(serverMsgs));
+          }
+        },
+      )
+      .catch(() => {
+        /* keep localStorage version */
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   useEffect(() => {
     try {
       localStorage.setItem(chatStorageKey, JSON.stringify(messages.slice(-100)));
-    } catch { /* ignore quota errors */ }
+    } catch {
+      /* ignore quota errors */
+    }
   }, [messages, chatStorageKey]);
 
   useEffect(() => {
@@ -730,9 +895,11 @@ function ProjectEditorPage() {
       apiFetch(`/api/v1/projects/${projectId}/chat-history`, {
         method: "POST",
         body: JSON.stringify({ messages: messages.slice(-100) }),
-      }).catch(() => { });
+      }).catch(() => {});
     }, 1000);
-    return () => { if (dbSaveTimerRef.current) clearTimeout(dbSaveTimerRef.current); };
+    return () => {
+      if (dbSaveTimerRef.current) clearTimeout(dbSaveTimerRef.current);
+    };
   }, [messages, projectId]);
 
   const fetchProject = useCallback(async () => {
@@ -753,13 +920,15 @@ function ProjectEditorPage() {
     }
   }, [projectId]);
 
-  useEffect(() => { fetchProject(); }, [fetchProject]);
+  useEffect(() => {
+    fetchProject();
+  }, [fetchProject]);
 
   useEffect(() => {
     apiFetch("/api/v1/auth/github/status")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && setGithubLinked(d.linked))
-      .catch(() => { });
+      .catch(() => {});
 
     const params = new URLSearchParams(window.location.search);
     if (params.get("github") === "connected") {
@@ -781,7 +950,9 @@ function ProjectEditorPage() {
       try {
         const msg = JSON.parse(e.data);
         if (msg.type === "projects") {
-          const updated: Project | undefined = (msg.data as Project[]).find((p) => p.id === projectId);
+          const updated: Project | undefined = (msg.data as Project[]).find(
+            (p) => p.id === projectId,
+          );
           if (!updated) return;
 
           const wasUpdating = prevUpdatingRef.current;
@@ -796,26 +967,41 @@ function ProjectEditorPage() {
             setBuildingPreview(false);
           }
 
-          if (wasUpdating && !updated.is_updating && !updated.build_error && prevUpdatedAt !== updated.updated_at) {
-            setMessages((prev) => [...prev, {
-              id: `assistant-${Date.now()}`,
-              role: "assistant",
-              text: (updated as { last_summary?: string }).last_summary || "Your app has been updated successfully!",
-              timestamp: new Date(),
-            }]);
+          if (
+            wasUpdating &&
+            !updated.is_updating &&
+            !updated.build_error &&
+            prevUpdatedAt !== updated.updated_at
+          ) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `assistant-${Date.now()}`,
+                role: "assistant",
+                text:
+                  (updated as { last_summary?: string }).last_summary ||
+                  "Your app has been updated successfully!",
+                timestamp: new Date(),
+              },
+            ]);
           }
 
           if (wasUpdating && !updated.is_updating && updated.build_error) {
             setErrorDismissed(false);
-            setMessages((prev) => [...prev, {
-              id: `err-${Date.now()}`,
-              role: "error",
-              text: `Update failed: ${updated.build_error}`,
-              timestamp: new Date(),
-            }]);
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `err-${Date.now()}`,
+                role: "error",
+                text: `Update failed: ${updated.build_error}`,
+                timestamp: new Date(),
+              },
+            ]);
           }
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     };
     ws.onerror = () => ws.close();
     return () => ws.close();
@@ -839,39 +1025,55 @@ function ProjectEditorPage() {
             try {
               setCurrentPlan(JSON.parse(entry.message) as PlanData);
               setWrittenFiles(new Set());
-            } catch { /* ignore malformed plan */ }
+            } catch {
+              /* ignore malformed plan */
+            }
             return;
           }
 
           if (entry.type === "file_written") {
-            if (entry.message) setWrittenFiles((prev) => new Set([...prev, entry.message as string]));
+            if (entry.message)
+              setWrittenFiles((prev) => new Set([...prev, entry.message as string]));
             return;
           }
 
           const newEntry = { ...entry, ts: Date.now() + Math.random() };
           setLogs((prev) => {
             const sliced = prev.slice(-200);
-            if (entry.type === "thinking" && sliced.length > 0 && sliced[sliced.length - 1].type === "thinking") {
+            if (
+              entry.type === "thinking" &&
+              sliced.length > 0 &&
+              sliced[sliced.length - 1].type === "thinking"
+            ) {
               return [...sliced.slice(0, -1), newEntry];
             }
             return [...sliced, newEntry];
           });
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       };
 
-      ws.onclose = () => { if (!dead) setTimeout(connect, 2000); };
+      ws.onclose = () => {
+        if (!dead) setTimeout(connect, 2000);
+      };
       ws.onerror = () => ws.close();
     }
 
     connect();
-    return () => { dead = true; ws?.close(); };
+    return () => {
+      dead = true;
+      ws?.close();
+    };
   }, [projectId]);
 
   async function transferToGitHub() {
     setTransferring(true);
     setTransferError("");
     try {
-      const res = await apiFetch(`/api/v1/projects/${projectId}/transfer-github`, { method: "POST" });
+      const res = await apiFetch(`/api/v1/projects/${projectId}/transfer-github`, {
+        method: "POST",
+      });
       if (res.ok) {
         setProject(await res.json());
       } else {
@@ -886,7 +1088,10 @@ function ProjectEditorPage() {
   }
 
   async function connectGitHubForTransfer() {
-    localStorage.setItem("forgefy_github_pending_return", `${window.location.pathname}?pending_transfer=true`);
+    localStorage.setItem(
+      "forgefy_github_pending_return",
+      `${window.location.pathname}?pending_transfer=true`,
+    );
     const res = await apiFetch("/api/v1/auth/github/authorize");
     if (res.ok) {
       const { url } = await res.json();
@@ -911,11 +1116,22 @@ function ProjectEditorPage() {
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         const errText = (d as { detail?: string }).detail ?? "Preview build failed.";
-        setMessages((prev) => [...prev, { id: `err-${Date.now()}`, role: "error", text: errText, timestamp: new Date() }]);
+        setMessages((prev) => [
+          ...prev,
+          { id: `err-${Date.now()}`, role: "error", text: errText, timestamp: new Date() },
+        ]);
         setBuildingPreview(false);
       }
     } catch {
-      setMessages((prev) => [...prev, { id: `err-${Date.now()}`, role: "error", text: "Network error starting preview build.", timestamp: new Date() }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `err-${Date.now()}`,
+          role: "error",
+          text: "Network error starting preview build.",
+          timestamp: new Date(),
+        },
+      ]);
       setBuildingPreview(false);
     }
   }
@@ -930,7 +1146,12 @@ function ProjectEditorPage() {
     setCurrentPlan(null);
     setWrittenFiles(new Set());
 
-    const userMsg: ChatMessage = { id: `user-${Date.now()}`, role: "user", text, timestamp: new Date() };
+    const userMsg: ChatMessage = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      text,
+      timestamp: new Date(),
+    };
     setMessages((prev) => [...prev, userMsg]);
     setPrompt("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
@@ -944,26 +1165,39 @@ function ProjectEditorPage() {
         const d = await res.json().catch(() => ({}));
         const errText = (d as { detail?: string }).detail ?? "Request failed.";
         setSendError(errText);
-        setMessages((prev) => [...prev, { id: `err-${Date.now()}`, role: "error", text: errText, timestamp: new Date() }]);
+        setMessages((prev) => [
+          ...prev,
+          { id: `err-${Date.now()}`, role: "error", text: errText, timestamp: new Date() },
+        ]);
       } else {
-        const data = await res.json() as { type: string; response: string; update_queued: boolean };
+        const data = (await res.json()) as {
+          type: string;
+          response: string;
+          update_queued: boolean;
+        };
         if (data.response) {
-          setMessages((prev) => [...prev, {
-            id: `assistant-${Date.now()}`,
-            role: "assistant",
-            text: data.response,
-            timestamp: new Date(),
-          }]);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `assistant-${Date.now()}`,
+              role: "assistant",
+              text: data.response,
+              timestamp: new Date(),
+            },
+          ]);
         }
         if (data.update_queued) {
-          setProject((prev) => prev ? { ...prev, is_updating: true, build_error: null } : prev);
+          setProject((prev) => (prev ? { ...prev, is_updating: true, build_error: null } : prev));
           prevUpdatingRef.current = true;
         }
       }
     } catch {
       const errText = "Network error. Please try again.";
       setSendError(errText);
-      setMessages((prev) => [...prev, { id: `err-${Date.now()}`, role: "error", text: errText, timestamp: new Date() }]);
+      setMessages((prev) => [
+        ...prev,
+        { id: `err-${Date.now()}`, role: "error", text: errText, timestamp: new Date() },
+      ]);
     } finally {
       setSending(false);
     }
@@ -974,7 +1208,7 @@ function ProjectEditorPage() {
     setStopping(true);
     try {
       await apiFetch(`/api/v1/projects/${projectId}/stop`, { method: "POST" });
-      setProject((prev) => prev ? { ...prev, is_updating: false } : prev);
+      setProject((prev) => (prev ? { ...prev, is_updating: false } : prev));
     } catch {
       // swallow
     } finally {
@@ -1003,7 +1237,9 @@ function ProjectEditorPage() {
           <div className="skeleton h-3 w-48 rounded" />
           <div className="skeleton h-3 w-40 rounded" />
           <div className="mt-6 space-y-3">
-            {[...Array(5)].map((_, i) => <div key={i} className="skeleton h-10 w-full rounded-2xl" />)}
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="skeleton h-10 w-full rounded-2xl" />
+            ))}
           </div>
         </div>
         <div className="flex-1 bg-surface flex items-center justify-center">
@@ -1017,9 +1253,20 @@ function ProjectEditorPage() {
     return (
       <div className="px-6 md:px-[8vw] py-12 max-w-3xl mx-auto">
         <p className="text-destructive text-[14px] mb-4">{pageError || "Project not found."}</p>
-        <Link to="/dashboard" className="inline-flex items-center gap-1.5 text-[13px] text-accent hover:text-accent/80 transition-colors">
-          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M19 12H5M12 5l-7 7 7 7"/>
+        <Link
+          to="/dashboard"
+          className="inline-flex items-center gap-1.5 text-[13px] text-accent hover:text-accent/80 transition-colors"
+        >
+          <svg
+            className="h-3.5 w-3.5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M19 12H5M12 5l-7 7 7 7" />
           </svg>
           Back to dashboard
         </Link>
@@ -1049,8 +1296,16 @@ function ProjectEditorPage() {
             to="/projects"
             className="flex items-center gap-1 text-[12px] text-text-muted hover:text-ink transition-colors shrink-0"
           >
-            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M19 12H5M12 5l-7 7 7 7"/>
+            <svg
+              className="h-3.5 w-3.5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M19 12H5M12 5l-7 7 7 7" />
             </svg>
             Projects
           </Link>
@@ -1122,9 +1377,17 @@ function ProjectEditorPage() {
             title="Project settings"
             className="flex items-center justify-center w-8 h-8 rounded-xl border border-border text-text-muted hover:text-ink hover:border-text-muted transition-colors btn-press"
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            <svg
+              className="w-4 h-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
           </button>
         </div>
@@ -1134,7 +1397,6 @@ function ProjectEditorPage() {
       <div className="flex flex-1 min-h-0">
         {/* ── Left: Chat ── */}
         <div className="flex flex-col w-full md:w-[380px] md:max-w-[380px] shrink-0 border-r border-border bg-background">
-
           {/* Error banner */}
           {hasBuildError && (
             <div className="shrink-0 mx-3 mt-3 px-4 py-3 rounded-xl bg-amber-500/[0.07] border border-amber-400/20 space-y-1.5">
@@ -1148,12 +1410,21 @@ function ProjectEditorPage() {
                   className="text-amber-600/40 hover:text-amber-600 dark:text-amber-400/40 dark:hover:text-amber-400 transition-colors shrink-0"
                   title="Dismiss"
                 >
-                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  <svg
+                    className="h-3.5 w-3.5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
                   </svg>
                 </button>
               </div>
-              <p className="text-[12px] text-amber-700/75 dark:text-amber-400/75 break-words">{project.build_error}</p>
+              <p className="text-[12px] text-amber-700/75 dark:text-amber-400/75 break-words">
+                {project.build_error}
+              </p>
 
               {project.build_error_action === "support" && (
                 <a
@@ -1165,7 +1436,10 @@ function ProjectEditorPage() {
               )}
               {project.build_error_action === "retry" && (
                 <button
-                  onClick={() => { setErrorDismissed(true); fetchProject(); }}
+                  onClick={() => {
+                    setErrorDismissed(true);
+                    fetchProject();
+                  }}
                   className="inline-flex items-center gap-1.5 mt-0.5 px-3 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-400 text-[12px] font-medium transition-colors"
                 >
                   Try Again
@@ -1198,7 +1472,9 @@ function ProjectEditorPage() {
                 <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
                 <p className="text-[12px] font-semibold text-accent">Building your app…</p>
               </div>
-              <p className="text-[12px] text-accent/70">The agent is writing your code. Usually takes 1–3 minutes.</p>
+              <p className="text-[12px] text-accent/70">
+                The agent is writing your code. Usually takes 1–3 minutes.
+              </p>
             </div>
           )}
 
@@ -1207,13 +1483,23 @@ function ProjectEditorPage() {
             {messages.length === 0 && !isBuilding && !isUpdating ? (
               <div className="flex flex-col items-center justify-center h-full gap-3 text-text-muted py-12">
                 <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-surface border border-border">
-                  <svg className="h-5 w-5 opacity-40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <svg
+                    className="h-5 w-5 opacity-40"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  >
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                   </svg>
                 </div>
                 <div className="text-center">
-                  <p className="text-[13px] font-medium text-ink mb-1">Ask Forgefy to make a change</p>
-                  <p className="text-[12px] text-text-muted max-w-[200px]">e.g. "Change the primary colour to blue"</p>
+                  <p className="text-[13px] font-medium text-ink mb-1">
+                    Ask Forgefy to make a change
+                  </p>
+                  <p className="text-[12px] text-text-muted max-w-[200px]">
+                    e.g. "Change the primary colour to blue"
+                  </p>
                 </div>
               </div>
             ) : (
@@ -1231,16 +1517,22 @@ function ProjectEditorPage() {
           </div>
 
           {sendError && (
-            <p role="alert" className="px-4 pb-1 text-[12px] text-amber-600 dark:text-amber-400">{sendError}</p>
+            <p role="alert" className="px-4 pb-1 text-[12px] text-amber-600 dark:text-amber-400">
+              {sendError}
+            </p>
           )}
 
           {/* Input */}
           {!isBuilding && (
             <div className="shrink-0 px-3 pb-3 pt-2 border-t border-border">
-              <div className={[
-                "flex flex-col gap-1 rounded-2xl border transition-all",
-                inputDisabled ? "border-border bg-surface/50" : "border-border bg-card focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/10",
-              ].join(" ")}>
+              <div
+                className={[
+                  "flex flex-col gap-1 rounded-2xl border transition-all",
+                  inputDisabled
+                    ? "border-border bg-surface/50"
+                    : "border-border bg-card focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/10",
+                ].join(" ")}
+              >
                 <textarea
                   ref={textareaRef}
                   value={prompt}
@@ -1261,9 +1553,19 @@ function ProjectEditorPage() {
                       title="Stop agent"
                     >
                       {stopping ? (
-                        <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                        <svg
+                          className="w-3.5 h-3.5 animate-spin"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                        >
+                          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                        </svg>
                       ) : (
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                          <rect x="5" y="5" width="14" height="14" rx="2" />
+                        </svg>
                       )}
                     </button>
                   ) : (
@@ -1274,9 +1576,28 @@ function ProjectEditorPage() {
                       title="Send (⌘↵)"
                     >
                       {sending ? (
-                        <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                        <svg
+                          className="w-3.5 h-3.5 animate-spin"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                        >
+                          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                        </svg>
                       ) : (
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                        <svg
+                          className="w-3.5 h-3.5"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <line x1="22" y1="2" x2="11" y2="13" />
+                          <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                        </svg>
                       )}
                     </button>
                   )}
@@ -1300,12 +1621,27 @@ function ProjectEditorPage() {
                 ].join(" ")}
               >
                 {tab === "preview" ? (
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+                  <svg
+                    className="w-3.5 h-3.5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <rect x="2" y="3" width="20" height="14" rx="2" />
+                    <line x1="8" y1="21" x2="16" y2="21" />
+                    <line x1="12" y1="17" x2="12" y2="21" />
                   </svg>
                 ) : (
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+                  <svg
+                    className="w-3.5 h-3.5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <polyline points="16 18 22 12 16 6" />
+                    <polyline points="8 6 2 12 8 18" />
                   </svg>
                 )}
                 {tab === "preview" ? "Preview" : "Code"}

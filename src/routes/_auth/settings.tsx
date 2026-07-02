@@ -21,7 +21,15 @@ function decodeJwtPayload(token: string): Record<string, unknown> {
 // ---------------------------------------------------------------------------
 // Layout helpers
 // ---------------------------------------------------------------------------
-function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
+function Section({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="rounded-2xl border border-border bg-card shadow-warm-xs overflow-hidden">
       <div className="px-6 pt-5 pb-4 border-b border-border">
@@ -33,7 +41,15 @@ function Section({ title, description, children }: { title: string; description?
   );
 }
 
-function Row({ label, sublabel, children }: { label: string; sublabel?: string; children: React.ReactNode }) {
+function Row({
+  label,
+  sublabel,
+  children,
+}: {
+  label: string;
+  sublabel?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="flex items-center justify-between gap-4 py-3.5 border-b border-border/60 last:border-0">
       <div>
@@ -93,16 +109,26 @@ function GitHubSection() {
     >
       <Row
         label="Connection status"
-        sublabel={status?.linked
-          ? "New apps will be created under your account."
-          : "Connect to use your own repositories."}
+        sublabel={
+          status?.linked
+            ? "New apps will be created under your account."
+            : "Connect to use your own repositories."
+        }
       >
         {status === null ? (
           <span className="text-[13px] text-text-muted">Checking…</span>
         ) : status.linked ? (
           <span className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[oklch(0.45_0.18_145)] bg-[oklch(0.55_0.18_145)]/10 px-3 py-1.5 rounded-xl">
-            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 6 9 17 4 12"/>
+            <svg
+              className="h-3.5 w-3.5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="20 6 9 17 4 12" />
             </svg>
             {status.username ? `@${status.username}` : "Connected"}
           </span>
@@ -138,8 +164,8 @@ function GitHubSection() {
 const BUILD_MODEL_OPTIONS = [
   { value: "gemini", label: "Gemini", sub: "Google · fast & capable" },
   { value: "claude", label: "Claude", sub: "Anthropic · precise reasoning" },
-  { value: "gpt",    label: "GPT-4o", sub: "OpenAI" },
-  { value: "Qwen3",  label: "Qwen3",  sub: "Local / Ollama" },
+  { value: "gpt", label: "GPT-4o", sub: "OpenAI" },
+  { value: "Qwen3", label: "Qwen3", sub: "Local / Ollama" },
 ] as const;
 
 function BuildModelSection() {
@@ -164,7 +190,9 @@ function BuildModelSection() {
       if (res.ok) {
         const d = await res.json();
         setCurrent(d.model);
-        toast.success(`Build model switched to ${BUILD_MODEL_OPTIONS.find((o) => o.value === d.model)?.label ?? d.model}.`);
+        toast.success(
+          `Build model switched to ${BUILD_MODEL_OPTIONS.find((o) => o.value === d.model)?.label ?? d.model}.`,
+        );
       } else {
         toast.error("Failed to update build model.");
       }
@@ -198,10 +226,20 @@ function BuildModelSection() {
                     : "border-border hover:border-accent/50 hover:bg-surface",
                 ].join(" ")}
               >
-                <span className={`flex items-center gap-1.5 text-[13px] font-semibold ${active ? "text-accent" : "text-ink"}`}>
+                <span
+                  className={`flex items-center gap-1.5 text-[13px] font-semibold ${active ? "text-accent" : "text-ink"}`}
+                >
                   {active && (
-                    <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12"/>
+                    <svg
+                      className="h-3 w-3"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
                     </svg>
                   )}
                   {opt.label}

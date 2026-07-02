@@ -1,8 +1,4 @@
-import {
-  createFileRoute,
-  Link,
-  useNavigate,
-} from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { apiFetch, getWsUrl, updateStoredSession } from "@/lib/api";
@@ -95,9 +91,7 @@ function StatusBadge({ status }: { status: SessionStatus }) {
             : "bg-surface text-text-muted border border-border",
       ].join(" ")}
     >
-      {isActive && (
-        <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
-      )}
+      {isActive && <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />}
       {STATUS_LABEL[status]}
     </span>
   );
@@ -124,9 +118,7 @@ function TranscriptPanel({ lines }: { lines: TranscriptLine[] }) {
     <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
       {lines.map((l, i) => (
         <div key={i} className="text-[13px] leading-[1.6]">
-          {l.speaker && (
-            <span className="font-semibold text-accent mr-2">{l.speaker}:</span>
-          )}
+          {l.speaker && <span className="font-semibold text-accent mr-2">{l.speaker}:</span>}
           <span className="text-text-secondary">{l.text}</span>
         </div>
       ))}
@@ -155,11 +147,14 @@ function TranscriptDebugSection({
     try {
       const res = await apiFetch(`/api/v1/voxa/session/${sessionId}/transcript`);
       if (res.ok) {
-        const data = await res.json() as { transcript: string };
+        const data = (await res.json()) as { transcript: string };
         setDbText(data.transcript);
       }
-    } catch { /* ignore */ }
-    finally { setLoading(false); }
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
+    }
   }
 
   function toggle() {
@@ -167,9 +162,10 @@ function TranscriptDebugSection({
     setOpen((v) => !v);
   }
 
-  const displayText = liveLines.length > 0
-    ? liveLines.map((l) => (l.speaker ? `${l.speaker}: ${l.text}` : l.text)).join("\n")
-    : (dbText ?? "");
+  const displayText =
+    liveLines.length > 0
+      ? liveLines.map((l) => (l.speaker ? `${l.speaker}: ${l.text}` : l.text)).join("\n")
+      : (dbText ?? "");
 
   return (
     <div className="mt-6 rounded-2xl border border-border bg-card overflow-hidden shadow-warm-xs">
@@ -178,19 +174,31 @@ function TranscriptDebugSection({
         className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-surface transition-colors"
       >
         <span className="text-[13px] font-medium text-text-secondary flex items-center gap-2">
-          <svg className="h-3.5 w-3.5 text-text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
+          <svg
+            className="h-3.5 w-3.5 text-text-muted"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" />
           </svg>
           Raw transcript
           <span className="text-[11px] text-text-muted font-normal">(debug)</span>
         </span>
-        <ChevronDown className={`h-4 w-4 text-text-muted transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+        <ChevronDown
+          className={`h-4 w-4 text-text-muted transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+        />
       </button>
 
       {open && (
         <div className="border-t border-border px-5 py-4">
           {loading && <p className="text-[12px] text-text-muted italic">Loading transcript…</p>}
-          {!loading && !displayText && <p className="text-[12px] text-text-muted italic">No transcript stored yet.</p>}
+          {!loading && !displayText && (
+            <p className="text-[12px] text-text-muted italic">No transcript stored yet.</p>
+          )}
           {!loading && displayText && (
             <pre className="text-[12px] leading-[1.7] font-mono-ui text-text-secondary whitespace-pre-wrap break-words max-h-[400px] overflow-y-auto">
               {displayText}
@@ -246,7 +254,7 @@ function SingleBlueprintPanel({
       ((j.features ?? []) as { title: string; description: string }[]).map((f) => ({
         title: f.title ?? "",
         description: f.description ?? "",
-      }))
+      })),
     );
     setEditing(true);
   }
@@ -256,7 +264,11 @@ function SingleBlueprintPanel({
     try {
       const res = await apiFetch(`/api/v1/voxa/blueprint/${blueprint.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ app_name: editAppName, template_key: editTemplate, features: editFeatures }),
+        body: JSON.stringify({
+          app_name: editAppName,
+          template_key: editTemplate,
+          features: editFeatures,
+        }),
       });
       if (res.ok) {
         onUpdated(await res.json());
@@ -265,14 +277,19 @@ function SingleBlueprintPanel({
         const d = await res.json().catch(() => ({}));
         toast.error((d as { detail?: string }).detail ?? "Failed to save changes.");
       }
-    } catch { toast.error("Network error — changes not saved."); }
-    finally { setSaving(false); }
+    } catch {
+      toast.error("Network error — changes not saved.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleApprove() {
     setApproving(true);
     try {
-      const res = await apiFetch(`/api/v1/voxa/blueprint/${blueprint.id}/approve`, { method: "POST" });
+      const res = await apiFetch(`/api/v1/voxa/blueprint/${blueprint.id}/approve`, {
+        method: "POST",
+      });
       if (res.ok) {
         const data = await res.json();
         onUpdated({ ...blueprint, approved: true });
@@ -284,13 +301,19 @@ function SingleBlueprintPanel({
         const d = await res.json().catch(() => ({}));
         toast.error((d as { detail?: string }).detail ?? "Approval failed.");
       }
-    } catch { toast.error("Network error — approval not sent."); }
-    finally { setApproving(false); }
+    } catch {
+      toast.error("Network error — approval not sent.");
+    } finally {
+      setApproving(false);
+    }
   }
 
-  if (!blueprint.json_output) return (
-    <p className="text-[14px] text-text-muted py-4">Blueprint is empty. The AI may still be generating it.</p>
-  );
+  if (!blueprint.json_output)
+    return (
+      <p className="text-[14px] text-text-muted py-4">
+        Blueprint is empty. The AI may still be generating it.
+      </p>
+    );
 
   return (
     <div className="space-y-5">
@@ -353,7 +376,9 @@ function SingleBlueprintPanel({
               className="w-full h-10 px-3 rounded-xl bg-background border border-border text-[14px] text-ink outline-none focus:border-accent transition-colors"
             >
               {TEMPLATE_OPTIONS.map((t) => (
-                <option key={t.value} value={t.value}>{t.label}</option>
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
               ))}
             </select>
           </div>
@@ -375,13 +400,21 @@ function SingleBlueprintPanel({
                   <div className="flex-1 space-y-1.5">
                     <input
                       value={feat.title}
-                      onChange={(e) => setEditFeatures((f) => f.map((x, j) => j === i ? { ...x, title: e.target.value } : x))}
+                      onChange={(e) =>
+                        setEditFeatures((f) =>
+                          f.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)),
+                        )
+                      }
                       placeholder="Feature title"
                       className="w-full h-9 px-3 rounded-lg bg-background border border-border text-[13px] text-ink outline-none focus:border-accent transition-colors"
                     />
                     <input
                       value={feat.description}
-                      onChange={(e) => setEditFeatures((f) => f.map((x, j) => j === i ? { ...x, description: e.target.value } : x))}
+                      onChange={(e) =>
+                        setEditFeatures((f) =>
+                          f.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)),
+                        )
+                      }
                       placeholder="Description"
                       className="w-full h-9 px-3 rounded-lg bg-background border border-border text-[13px] text-ink outline-none focus:border-accent transition-colors"
                     />
@@ -476,7 +509,8 @@ function DualBlueprintChooser({
       <div>
         <h3 className="font-display text-[22px] text-ink">App Blueprint</h3>
         <p className="mt-1 text-[13px] text-text-muted max-w-md">
-          Your app needs both a mobile app and a web experience. Choose which to build first — you can build the other later.
+          Your app needs both a mobile app and a web experience. Choose which to build first — you
+          can build the other later.
         </p>
       </div>
 
@@ -508,10 +542,14 @@ function DualBlueprintChooser({
                 </div>
                 {appName && <p className="text-[15px] font-semibold text-ink">{appName}</p>}
                 {description && (
-                  <p className="text-[12px] text-text-secondary leading-[1.6] line-clamp-3">{description}</p>
+                  <p className="text-[12px] text-text-secondary leading-[1.6] line-clamp-3">
+                    {description}
+                  </p>
                 )}
                 {featureCount > 0 && (
-                  <p className="text-[11px] text-text-muted">{featureCount} feature{featureCount !== 1 ? "s" : ""} detected</p>
+                  <p className="text-[11px] text-text-muted">
+                    {featureCount} feature{featureCount !== 1 ? "s" : ""} detected
+                  </p>
                 )}
               </div>
 
@@ -522,7 +560,9 @@ function DualBlueprintChooser({
                   className="w-full flex items-center justify-center gap-1 text-[12px] text-text-muted hover:text-ink transition-colors py-1"
                 >
                   {isExpanded ? "Hide details" : "View full blueprint"}
-                  <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} />
+                  <ChevronDown
+                    className={`h-3.5 w-3.5 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
+                  />
                 </button>
                 {isExpanded && (
                   <SingleBlueprintPanel
@@ -533,7 +573,11 @@ function DualBlueprintChooser({
                   />
                 )}
                 {!isExpanded && !bp.approved && (
-                  <_ApproveButton blueprintId={bp.id} onApproved={onApproved} onUpdated={onBlueprintUpdated} />
+                  <ApproveButton
+                    blueprintId={bp.id}
+                    onApproved={onApproved}
+                    onUpdated={onBlueprintUpdated}
+                  />
                 )}
                 {bp.approved && (
                   <p className="text-center text-[13px] font-medium text-[oklch(0.45_0.18_145)] flex items-center justify-center gap-1.5">
@@ -550,7 +594,7 @@ function DualBlueprintChooser({
   );
 }
 
-function _ApproveButton({
+function ApproveButton({
   blueprintId,
   onApproved,
   onUpdated,
@@ -565,7 +609,9 @@ function _ApproveButton({
   async function handleApprove() {
     setApproving(true);
     try {
-      const res = await apiFetch(`/api/v1/voxa/blueprint/${blueprintId}/approve`, { method: "POST" });
+      const res = await apiFetch(`/api/v1/voxa/blueprint/${blueprintId}/approve`, {
+        method: "POST",
+      });
       if (res.ok) {
         const data = await res.json();
         onUpdated({ ...data, approved: true });
@@ -577,8 +623,11 @@ function _ApproveButton({
         const d = await res.json().catch(() => ({}));
         toast.error((d as { detail?: string }).detail ?? "Approval failed.");
       }
-    } catch { toast.error("Network error — approval not sent."); }
-    finally { setApproving(false); }
+    } catch {
+      toast.error("Network error — approval not sent.");
+    } finally {
+      setApproving(false);
+    }
   }
 
   return (
@@ -593,12 +642,20 @@ function _ApproveButton({
           <div className="w-3.5 h-3.5 rounded-full border-2 border-accent-foreground/40 border-t-accent-foreground animate-spin" />
           Building…
         </>
-      ) : "Build this first →"}
+      ) : (
+        "Build this first →"
+      )}
     </button>
   );
 }
 
-function BlueprintSection({ sessionId, onApproved }: { sessionId: string; onApproved: () => void }) {
+function BlueprintSection({
+  sessionId,
+  onApproved,
+}: {
+  sessionId: string;
+  onApproved: () => void;
+}) {
   const [blueprints, setBlueprints] = useState<Blueprint[]>([]);
   const [bpLoading, setBpLoading] = useState(true);
   const [error, setError] = useState("");
@@ -610,35 +667,43 @@ function BlueprintSection({ sessionId, onApproved }: { sessionId: string; onAppr
         else setError("Blueprint not ready yet.");
         setBpLoading(false);
       })
-      .catch(() => { setBpLoading(false); setError("Failed to load blueprint."); });
+      .catch(() => {
+        setBpLoading(false);
+        setError("Failed to load blueprint.");
+      });
   }, [sessionId]);
 
   function handleUpdated(updated: Blueprint) {
-    setBlueprints((prev) => prev.map((bp) => bp.id === updated.id ? updated : bp));
+    setBlueprints((prev) => prev.map((bp) => (bp.id === updated.id ? updated : bp)));
   }
 
-  if (bpLoading) return (
-    <div className="rounded-2xl border border-border bg-card p-8 shadow-warm-xs">
-      <div className="space-y-3">
-        <div className="skeleton h-5 w-40 rounded" />
-        <div className="skeleton h-3 w-64 rounded" />
-        <div className="skeleton h-3 w-52 rounded" />
-        <div className="mt-4 skeleton h-48 w-full rounded-xl" />
+  if (bpLoading)
+    return (
+      <div className="rounded-2xl border border-border bg-card p-8 shadow-warm-xs">
+        <div className="space-y-3">
+          <div className="skeleton h-5 w-40 rounded" />
+          <div className="skeleton h-3 w-64 rounded" />
+          <div className="skeleton h-3 w-52 rounded" />
+          <div className="mt-4 skeleton h-48 w-full rounded-xl" />
+        </div>
       </div>
-    </div>
-  );
+    );
 
-  if (error && blueprints.length === 0) return (
-    <div className="rounded-2xl border border-border bg-card p-6 shadow-warm-xs">
-      <p className="text-[13px] text-amber-600 dark:text-amber-400">{error}</p>
-    </div>
-  );
+  if (error && blueprints.length === 0)
+    return (
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-warm-xs">
+        <p className="text-[13px] text-amber-600 dark:text-amber-400">{error}</p>
+      </div>
+    );
 
-  if (blueprints.length === 0) return (
-    <div className="rounded-2xl border border-border bg-card p-6 shadow-warm-xs">
-      <p className="text-[14px] text-text-muted">Blueprint is empty. The AI may still be generating it.</p>
-    </div>
-  );
+  if (blueprints.length === 0)
+    return (
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-warm-xs">
+        <p className="text-[14px] text-text-muted">
+          Blueprint is empty. The AI may still be generating it.
+        </p>
+      </div>
+    );
 
   if (blueprints.length >= 2) {
     return (
@@ -689,8 +754,16 @@ function UploadForm({ sessionId, onUploaded }: { sessionId: string; onUploaded: 
         xhr.onload = () => {
           if (xhr.status === 202 || xhr.status === 200) resolve();
           else {
-            try { reject(new Error((JSON.parse(xhr.responseText) as { detail?: string }).detail ?? `Upload failed (${xhr.status})`)); }
-            catch { reject(new Error(`Upload failed (${xhr.status})`)); }
+            try {
+              reject(
+                new Error(
+                  (JSON.parse(xhr.responseText) as { detail?: string }).detail ??
+                    `Upload failed (${xhr.status})`,
+                ),
+              );
+            } catch {
+              reject(new Error(`Upload failed (${xhr.status})`));
+            }
           }
         };
         xhr.onerror = () => reject(new Error("Network error during upload."));
@@ -712,14 +785,24 @@ function UploadForm({ sessionId, onUploaded }: { sessionId: string; onUploaded: 
         Supported: MP3, MP4, M4A, WAV, WEBM, OGG · max 500 MB
       </p>
       <label className="block cursor-pointer">
-        <div className={[
-          "flex flex-col items-center justify-center gap-2.5 h-32 rounded-2xl border-2 border-dashed transition-colors",
-          file ? "border-accent bg-accent/5" : "border-border hover:border-accent/50 hover:bg-surface",
-        ].join(" ")}>
+        <div
+          className={[
+            "flex flex-col items-center justify-center gap-2.5 h-32 rounded-2xl border-2 border-dashed transition-colors",
+            file
+              ? "border-accent bg-accent/5"
+              : "border-border hover:border-accent/50 hover:bg-surface",
+          ].join(" ")}
+        >
           <Upload className={`h-6 w-6 ${file ? "text-accent" : "text-text-muted"}`} />
           <div className="text-center">
-            <span className="text-[13px] text-text-secondary">{file ? file.name : "Click to choose a file"}</span>
-            {file && <p className="text-[11px] text-text-muted mt-0.5">{(file.size / 1024 / 1024).toFixed(1)} MB</p>}
+            <span className="text-[13px] text-text-secondary">
+              {file ? file.name : "Click to choose a file"}
+            </span>
+            {file && (
+              <p className="text-[11px] text-text-muted mt-0.5">
+                {(file.size / 1024 / 1024).toFixed(1)} MB
+              </p>
+            )}
           </div>
           <input
             type="file"
@@ -733,12 +816,19 @@ function UploadForm({ sessionId, onUploaded }: { sessionId: string; onUploaded: 
       {uploading && (
         <div className="space-y-1.5">
           <div className="h-2 rounded-full bg-surface overflow-hidden shadow-warm-xs">
-            <div className="h-full bg-accent transition-all duration-300 rounded-full" style={{ width: `${progress}%` }} />
+            <div
+              className="h-full bg-accent transition-all duration-300 rounded-full"
+              style={{ width: `${progress}%` }}
+            />
           </div>
           <p className="text-[11px] text-text-muted text-right">{progress}%</p>
         </div>
       )}
-      {error && <p role="alert" className="text-[13px] text-destructive">{error}</p>}
+      {error && (
+        <p role="alert" className="text-[13px] text-destructive">
+          {error}
+        </p>
+      )}
       <button
         type="submit"
         disabled={!file || uploading}
@@ -795,7 +885,9 @@ function MicCapture({
       if (level < 5) {
         if (silenceStartRef.current === null) silenceStartRef.current = Date.now();
         else if (!lowVolWarnedRef.current && Date.now() - silenceStartRef.current > 5000) {
-          toast.warning("Your mic seems very quiet — try speaking louder or moving closer.", { duration: 6000 });
+          toast.warning("Your mic seems very quiet — try speaking louder or moving closer.", {
+            duration: 6000,
+          });
           lowVolWarnedRef.current = true;
         }
       } else {
@@ -882,9 +974,7 @@ function MicCapture({
     `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
   const levelColor =
-    audioLevel > 25 ? "bg-[oklch(0.55_0.18_145)]"
-    : audioLevel > 8  ? "bg-amber-400"
-    : "bg-red-500";
+    audioLevel > 25 ? "bg-[oklch(0.55_0.18_145)]" : audioLevel > 8 ? "bg-amber-400" : "bg-red-500";
 
   return (
     <div className="space-y-4">
@@ -999,7 +1089,9 @@ function SessionPage() {
     }
   }, [sessionId]);
 
-  useEffect(() => { fetchSession(); }, [fetchSession]);
+  useEffect(() => {
+    fetchSession();
+  }, [fetchSession]);
 
   useEffect(() => {
     if (!session) return;
@@ -1029,7 +1121,11 @@ function SessionPage() {
           case "transcript":
             setTranscript((prev) => [
               ...prev,
-              { text: (msg.text as string) ?? "", speaker: msg.speaker as string | undefined, timestamp: Date.now() },
+              {
+                text: (msg.text as string) ?? "",
+                speaker: msg.speaker as string | undefined,
+                timestamp: Date.now(),
+              },
             ]);
             break;
           case "featureDetected": {
@@ -1056,16 +1152,23 @@ function SessionPage() {
             break;
           case "blueprintError":
             toast.error((msg.error as string) ?? "Blueprint generation failed.", {
-              description: "The recording may be too short or silent. Try uploading a clearer file.",
+              description:
+                "The recording may be too short or silent. Try uploading a clearer file.",
               duration: 8000,
             });
             break;
         }
-      } catch { /* ignore parse errors */ }
+      } catch {
+        /* ignore parse errors */
+      }
     };
 
-    ws.onerror = () => { /* handled silently */ };
-    return () => { ws.close(); };
+    ws.onerror = () => {
+      /* handled silently */
+    };
+    return () => {
+      ws.close();
+    };
   }, [session?.status, sessionId, fetchSession]);
 
   useEffect(() => {
@@ -1074,7 +1177,9 @@ function SessionPage() {
       return;
     }
     pollRef.current = setInterval(fetchSession, 5_000);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
   }, [session?.status, fetchSession]);
 
   useEffect(() => {
@@ -1087,9 +1192,11 @@ function SessionPage() {
     apiFetch(`/api/v1/voxa/session/${sessionId}/transcript`)
       .then(async (res) => {
         if (!res.ok) return;
-        const data = await res.json() as { transcript: string };
+        const data = (await res.json()) as { transcript: string };
         if (data.transcript) {
-          setTranscript((prev) => prev.length > 0 ? prev : [{ text: data.transcript, timestamp: 0 }]);
+          setTranscript((prev) =>
+            prev.length > 0 ? prev : [{ text: data.transcript, timestamp: 0 }],
+          );
         }
       })
       .catch(() => {});
@@ -1103,21 +1210,37 @@ function SessionPage() {
         method: "POST",
         body: JSON.stringify({ session_id: session.id }),
       });
-      if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.detail ?? "Failed to join."); return; }
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        toast.error(d.detail ?? "Failed to join.");
+        return;
+      }
       await fetchSession();
-    } catch { toast.error("Network error — could not join meeting."); }
-    finally { setActionLoading(false); }
+    } catch {
+      toast.error("Network error — could not join meeting.");
+    } finally {
+      setActionLoading(false);
+    }
   }
 
   async function handleStartLive() {
     if (!session) return;
     setActionLoading(true);
     try {
-      const res = await apiFetch(`/api/v1/voxa/session/${session.id}/start-live`, { method: "POST" });
-      if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.detail ?? "Failed to start live transcription."); return; }
+      const res = await apiFetch(`/api/v1/voxa/session/${session.id}/start-live`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        toast.error(d.detail ?? "Failed to start live transcription.");
+        return;
+      }
       await fetchSession();
-    } catch { toast.error("Network error — could not start transcription."); }
-    finally { setActionLoading(false); }
+    } catch {
+      toast.error("Network error — could not start transcription.");
+    } finally {
+      setActionLoading(false);
+    }
   }
 
   async function handleEnd() {
@@ -1128,11 +1251,18 @@ function SessionPage() {
         method: "POST",
         body: JSON.stringify({ session_id: session.id }),
       });
-      if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.detail ?? "Failed to end session."); return; }
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        toast.error(d.detail ?? "Failed to end session.");
+        return;
+      }
       wsRef.current?.close();
       await fetchSession();
-    } catch { toast.error("Network error — could not end session."); }
-    finally { setActionLoading(false); }
+    } catch {
+      toast.error("Network error — could not end session.");
+    } finally {
+      setActionLoading(false);
+    }
   }
 
   if (loading) {
@@ -1150,7 +1280,10 @@ function SessionPage() {
     return (
       <div className="px-6 md:px-[8vw] py-12 max-w-3xl mx-auto">
         <p className="text-destructive text-[14px] mb-4">{error || "Session not found."}</p>
-        <Link to="/dashboard" className="inline-flex items-center gap-1.5 text-[13px] text-accent hover:text-accent/80 transition-colors">
+        <Link
+          to="/dashboard"
+          className="inline-flex items-center gap-1.5 text-[13px] text-accent hover:text-accent/80 transition-colors"
+        >
           <ArrowLeft className="h-3.5 w-3.5" />
           Back to dashboard
         </Link>
@@ -1181,7 +1314,9 @@ function SessionPage() {
               {PLATFORM_LABEL[session.platform] ?? session.platform} session
             </h1>
             {session.meeting_url && (
-              <p className="mt-1 text-[13px] font-mono-ui text-text-muted truncate max-w-sm">{session.meeting_url}</p>
+              <p className="mt-1 text-[13px] font-mono-ui text-text-muted truncate max-w-sm">
+                {session.meeting_url}
+              </p>
             )}
           </div>
           <StatusBadge status={session.status} />
@@ -1192,8 +1327,16 @@ function SessionPage() {
       {session.status === "WAITING" && !isPhysical && (
         <div className="rounded-2xl border border-border bg-card p-8 text-center space-y-5 shadow-warm-xs slide-up">
           <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-accent/10 mx-auto">
-            <svg className="h-7 w-7 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M15 10l4.553-2.069A1 1 0 0 1 21 8.87v6.26a1 1 0 0 1-1.447.9L15 14M5 18h8a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2z"/>
+            <svg
+              className="h-7 w-7 text-accent"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M15 10l4.553-2.069A1 1 0 0 1 21 8.87v6.26a1 1 0 0 1-1.447.9L15 14M5 18h8a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2z" />
             </svg>
           </div>
           <div>
@@ -1213,7 +1356,9 @@ function SessionPage() {
                 <div className="w-4 h-4 rounded-full border-2 border-accent-foreground/40 border-t-accent-foreground animate-spin" />
                 Joining…
               </span>
-            ) : "Join meeting →"}
+            ) : (
+              "Join meeting →"
+            )}
           </button>
         </div>
       )}
@@ -1224,8 +1369,12 @@ function SessionPage() {
           {physicalMode === "choose" && (
             <>
               <div>
-                <p className="text-[15px] font-semibold text-ink mb-1">How do you want to capture this meeting?</p>
-                <p className="text-[13px] text-text-muted">Upload a recording you already have, or transcribe live using your microphone.</p>
+                <p className="text-[15px] font-semibold text-ink mb-1">
+                  How do you want to capture this meeting?
+                </p>
+                <p className="text-[13px] text-text-muted">
+                  Upload a recording you already have, or transcribe live using your microphone.
+                </p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <button
@@ -1238,13 +1387,18 @@ function SessionPage() {
                   </div>
                   <div>
                     <p className="text-[14px] font-semibold text-ink">Upload recording</p>
-                    <p className="text-[12px] text-text-muted mt-0.5">MP3, MP4, WAV, WEBM — up to 500 MB</p>
+                    <p className="text-[12px] text-text-muted mt-0.5">
+                      MP3, MP4, WAV, WEBM — up to 500 MB
+                    </p>
                   </div>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => { setPhysicalMode("live"); handleStartLive(); }}
+                  onClick={() => {
+                    setPhysicalMode("live");
+                    handleStartLive();
+                  }}
                   disabled={actionLoading}
                   className="flex flex-col items-start gap-3 rounded-2xl border border-border p-5 text-left hover:border-accent transition-all card-hover group disabled:opacity-60"
                 >
@@ -1253,7 +1407,9 @@ function SessionPage() {
                   </div>
                   <div>
                     <p className="text-[14px] font-semibold text-ink">Live transcription</p>
-                    <p className="text-[12px] text-text-muted mt-0.5">Use your microphone in real time</p>
+                    <p className="text-[12px] text-text-muted mt-0.5">
+                      Use your microphone in real time
+                    </p>
                   </div>
                 </button>
               </div>
@@ -1311,7 +1467,13 @@ function SessionPage() {
               <p className="label-eyebrow mb-3">Detected features</p>
               <div className="flex flex-wrap gap-2">
                 {features.map((f, i) => (
-                  <span key={i} className="px-2.5 py-1 rounded-full bg-accent/10 text-accent text-[12px] font-medium badge-pop" style={{ animationDelay: `${i * 60}ms` }}>{f}</span>
+                  <span
+                    key={i}
+                    className="px-2.5 py-1 rounded-full bg-accent/10 text-accent text-[12px] font-medium badge-pop"
+                    style={{ animationDelay: `${i * 60}ms` }}
+                  >
+                    {f}
+                  </span>
                 ))}
               </div>
             </div>
@@ -1340,7 +1502,12 @@ function SessionPage() {
               <p className="label-eyebrow mb-3">Detected features</p>
               <div className="flex flex-wrap gap-2">
                 {features.map((f, i) => (
-                  <span key={i} className="px-2.5 py-1 rounded-full bg-accent/10 text-accent text-[12px] font-medium">{f}</span>
+                  <span
+                    key={i}
+                    className="px-2.5 py-1 rounded-full bg-accent/10 text-accent text-[12px] font-medium"
+                  >
+                    {f}
+                  </span>
                 ))}
               </div>
             </div>
@@ -1354,7 +1521,11 @@ function SessionPage() {
           <div className="rounded-2xl border border-border bg-card p-10 text-center space-y-4 shadow-warm-xs">
             <div className="flex justify-center gap-1.5">
               {[0, 1, 2].map((i) => (
-                <span key={i} className="h-2.5 w-2.5 rounded-full bg-accent animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
+                <span
+                  key={i}
+                  className="h-2.5 w-2.5 rounded-full bg-accent animate-bounce"
+                  style={{ animationDelay: `${i * 150}ms` }}
+                />
               ))}
             </div>
             <div>
@@ -1362,7 +1533,9 @@ function SessionPage() {
                 {isPhysical ? "Transcribing your recording…" : "Analysing transcript…"}
               </p>
               <p className="text-[14px] text-text-secondary">
-                {isPhysical ? "Extracting features and building your product blueprint." : "Generating your app blueprint from the meeting."}
+                {isPhysical
+                  ? "Extracting features and building your product blueprint."
+                  : "Generating your app blueprint from the meeting."}
               </p>
             </div>
             <p className="text-[12px] text-text-muted">Usually takes 30–120 seconds.</p>
@@ -1378,7 +1551,12 @@ function SessionPage() {
               <p className="label-eyebrow mb-3">Detected features</p>
               <div className="flex flex-wrap gap-2">
                 {features.map((f, i) => (
-                  <span key={i} className="px-2.5 py-1 rounded-full bg-accent/10 text-accent text-[12px] font-medium">{f}</span>
+                  <span
+                    key={i}
+                    className="px-2.5 py-1 rounded-full bg-accent/10 text-accent text-[12px] font-medium"
+                  >
+                    {f}
+                  </span>
                 ))}
               </div>
             </div>
@@ -1404,12 +1582,18 @@ function SessionPage() {
         <div className="rounded-2xl border border-border bg-card p-10 text-center space-y-4 shadow-warm-xs">
           <div className="flex justify-center gap-1.5">
             {[0, 1, 2].map((i) => (
-              <span key={i} className="h-2.5 w-2.5 rounded-full bg-[oklch(0.55_0.18_145)] animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
+              <span
+                key={i}
+                className="h-2.5 w-2.5 rounded-full bg-[oklch(0.55_0.18_145)] animate-bounce"
+                style={{ animationDelay: `${i * 150}ms` }}
+              />
             ))}
           </div>
           <div>
             <p className="text-[16px] font-semibold text-ink mb-1">Building your apps</p>
-            <p className="text-[14px] text-text-secondary">Flutter, React Native, and Next.js — all from your blueprint.</p>
+            <p className="text-[14px] text-text-secondary">
+              Flutter, React Native, and Next.js — all from your blueprint.
+            </p>
           </div>
         </div>
       )}
@@ -1424,10 +1608,14 @@ function SessionPage() {
           <div className="space-y-2 rounded-2xl border border-border bg-card p-4 shadow-warm-xs">
             {session.recent_events.map((ev) => (
               <div key={ev.id} className="flex items-start gap-3 text-[12px] font-mono-ui">
-                <span className="shrink-0 text-text-muted/60 w-20">{new Date(ev.timestamp).toLocaleTimeString()}</span>
+                <span className="shrink-0 text-text-muted/60 w-20">
+                  {new Date(ev.timestamp).toLocaleTimeString()}
+                </span>
                 <span className="text-accent shrink-0">{ev.event_type}</span>
                 {ev.payload && (
-                  <span className="text-text-muted/80 truncate">{JSON.stringify(ev.payload).slice(0, 80)}</span>
+                  <span className="text-text-muted/80 truncate">
+                    {JSON.stringify(ev.payload).slice(0, 80)}
+                  </span>
                 )}
               </div>
             ))}

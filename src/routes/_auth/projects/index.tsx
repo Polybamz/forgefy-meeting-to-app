@@ -61,14 +61,18 @@ function ProjectCard({ project, index }: { project: Project; index: number }) {
       {/* Card top */}
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="flex items-center gap-3 min-w-0">
-          <div className={`flex items-center justify-center w-9 h-9 rounded-xl text-[14px] font-bold shrink-0 ${avatarColor}`}>
+          <div
+            className={`flex items-center justify-center w-9 h-9 rounded-xl text-[14px] font-bold shrink-0 ${avatarColor}`}
+          >
             {initials || "A"}
           </div>
           <p className="text-[14px] font-semibold text-ink group-hover:text-accent transition-colors truncate">
             {project.app_name}
           </p>
         </div>
-        <span className={`shrink-0 text-[11px] font-medium px-2.5 py-0.5 rounded-full ${templateColor}`}>
+        <span
+          className={`shrink-0 text-[11px] font-medium px-2.5 py-0.5 rounded-full ${templateColor}`}
+        >
           {templateLabel}
         </span>
       </div>
@@ -174,7 +178,9 @@ function ProjectsPage() {
           setWsReady(true);
           setShowSkeleton(false);
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     };
     ws.onerror = () => {
       ws.close();
@@ -199,7 +205,9 @@ function ProjectsPage() {
       <div className="mb-8 flex items-end justify-between flex-wrap gap-4">
         <div>
           <p className="label-eyebrow mb-1">Projects</p>
-          <h1 className="font-display text-[32px] md:text-[40px] text-ink leading-[1.1]">Your apps</h1>
+          <h1 className="font-display text-[32px] md:text-[40px] text-ink leading-[1.1]">
+            Your apps
+          </h1>
         </div>
         {projects.length > 0 && (
           <div className="flex items-center gap-2">
@@ -217,7 +225,9 @@ function ProjectsPage() {
       {/* Skeleton state */}
       {isLoading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...Array(6)].map((_, i) => <ProjectCardSkeleton key={i} />)}
+          {[...Array(6)].map((_, i) => (
+            <ProjectCardSkeleton key={i} />
+          ))}
         </div>
       )}
 
@@ -225,18 +235,31 @@ function ProjectsPage() {
       {!isLoading && projects.length === 0 && (
         <div className="flex flex-col items-center justify-center gap-5 py-24 rounded-2xl border border-dashed border-border">
           <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-surface text-text-muted">
-            <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-              <line x1="8" y1="21" x2="16" y2="21"/>
-              <line x1="12" y1="17" x2="12" y2="21"/>
+            <svg
+              className="h-7 w-7"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+              <line x1="8" y1="21" x2="16" y2="21" />
+              <line x1="12" y1="17" x2="12" y2="21" />
             </svg>
           </div>
           <div className="text-center">
             <p className="text-[15px] font-semibold text-ink mb-1">No apps yet</p>
             <p className="text-[13px] text-text-muted max-w-xs">
               Approve a blueprint in a{" "}
-              <Link to="/sessions" className="text-accent hover:text-accent/80 underline underline-offset-2 transition-colors">session</Link>
-              {" "}to generate your first app.
+              <Link
+                to="/sessions"
+                className="text-accent hover:text-accent/80 underline underline-offset-2 transition-colors"
+              >
+                session
+              </Link>{" "}
+              to generate your first app.
             </p>
           </div>
           <Link
@@ -255,10 +278,14 @@ function ProjectsPage() {
             <section>
               <div className="flex items-center gap-2 mb-4">
                 <p className="label-eyebrow">Building</p>
-                <span className="text-[11px] font-medium text-accent bg-accent/10 px-2 py-0.5 rounded-full">{building.length}</span>
+                <span className="text-[11px] font-medium text-accent bg-accent/10 px-2 py-0.5 rounded-full">
+                  {building.length}
+                </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {building.map((p, i) => <ProjectCard key={p.id} project={p} index={i} />)}
+                {building.map((p, i) => (
+                  <ProjectCard key={p.id} project={p} index={i} />
+                ))}
               </div>
             </section>
           )}
@@ -267,10 +294,14 @@ function ProjectsPage() {
             <section>
               <div className="flex items-center gap-2 mb-4">
                 <p className="label-eyebrow text-amber-600 dark:text-amber-400">Failed</p>
-                <span className="text-[11px] font-medium text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-full">{failed.length}</span>
+                <span className="text-[11px] font-medium text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-full">
+                  {failed.length}
+                </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {failed.map((p, i) => <ProjectCard key={p.id} project={p} index={i} />)}
+                {failed.map((p, i) => (
+                  <ProjectCard key={p.id} project={p} index={i} />
+                ))}
               </div>
             </section>
           )}
@@ -280,11 +311,15 @@ function ProjectsPage() {
               {(building.length > 0 || failed.length > 0) && (
                 <div className="flex items-center gap-2 mb-4">
                   <p className="label-eyebrow">Complete</p>
-                  <span className="text-[11px] font-medium text-text-muted bg-surface border border-border px-2 py-0.5 rounded-full">{done.length}</span>
+                  <span className="text-[11px] font-medium text-text-muted bg-surface border border-border px-2 py-0.5 rounded-full">
+                    {done.length}
+                  </span>
                 </div>
               )}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {done.map((p, i) => <ProjectCard key={p.id} project={p} index={i} />)}
+                {done.map((p, i) => (
+                  <ProjectCard key={p.id} project={p} index={i} />
+                ))}
               </div>
             </section>
           )}

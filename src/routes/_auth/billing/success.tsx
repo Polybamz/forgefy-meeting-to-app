@@ -24,7 +24,13 @@ function BillingSuccessPage() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] px-6 text-center gap-5">
       <div className="h-14 w-14 rounded-full bg-[oklch(0.55_0.18_145)]/15 flex items-center justify-center">
-        <svg className="h-7 w-7 text-[oklch(0.55_0.18_145)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+        <svg
+          className="h-7 w-7 text-[oklch(0.55_0.18_145)]"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+        >
           <polyline points="20 6 9 17 4 12" />
         </svg>
       </div>
@@ -36,9 +42,7 @@ function BillingSuccessPage() {
             You're now on the <span className="text-ink font-medium">{status.tier_name}</span> plan.
           </p>
         ) : (
-          <p className="text-[14px] text-text-muted mt-1">
-            Your subscription is being activated…
-          </p>
+          <p className="text-[14px] text-text-muted mt-1">Your subscription is being activated…</p>
         )}
       </div>
 

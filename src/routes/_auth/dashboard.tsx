@@ -155,12 +155,18 @@ function StatCard({
       to={href}
       className="group flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 hover:border-accent transition-all duration-200 card-hover shadow-warm-xs"
     >
-      <div className={`flex items-center justify-center w-9 h-9 rounded-xl ${accent ? "bg-accent/10" : "bg-surface"} transition-colors group-hover:bg-accent/10`}>
-        <Icon className={`h-4 w-4 ${accent ? "text-accent" : "text-text-secondary"} group-hover:text-accent transition-colors`} />
+      <div
+        className={`flex items-center justify-center w-9 h-9 rounded-xl ${accent ? "bg-accent/10" : "bg-surface"} transition-colors group-hover:bg-accent/10`}
+      >
+        <Icon
+          className={`h-4 w-4 ${accent ? "text-accent" : "text-text-secondary"} group-hover:text-accent transition-colors`}
+        />
       </div>
       <div>
         <p className="text-[30px] font-display text-ink leading-none counter-pop">{value}</p>
-        <p className="text-[12px] text-text-muted mt-1 group-hover:text-accent transition-colors">{label}</p>
+        <p className="text-[12px] text-text-muted mt-1 group-hover:text-accent transition-colors">
+          {label}
+        </p>
       </div>
     </Link>
   );
@@ -193,7 +199,9 @@ function RecentSessionRow({ session }: { session: StoredSession }) {
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {isActive && <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />}
-        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${colorClass}`}>{label}</span>
+        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${colorClass}`}>
+          {label}
+        </span>
       </div>
     </Link>
   );
@@ -228,7 +236,9 @@ function RecentProjectRow({ project }: { project: Project }) {
         {project.build_error && (
           <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">Failed</span>
         )}
-        <span className="text-[11px] text-text-muted bg-surface px-2 py-0.5 rounded-full">{templateLabel}</span>
+        <span className="text-[11px] text-text-muted bg-surface px-2 py-0.5 rounded-full">
+          {templateLabel}
+        </span>
       </div>
     </Link>
   );
@@ -313,7 +323,9 @@ function NewSessionCard() {
       <div className="flex items-end gap-3">
         {platform !== "physical" && (
           <div className="flex-1 min-w-0">
-            <label htmlFor="db-meeting-url" className="label-eyebrow block mb-1.5">Meeting URL</label>
+            <label htmlFor="db-meeting-url" className="label-eyebrow block mb-1.5">
+              Meeting URL
+            </label>
             <input
               id="db-meeting-url"
               type="url"
@@ -321,9 +333,11 @@ function NewSessionCard() {
               onChange={(e) => setMeetingUrl(e.target.value)}
               className="w-full h-10 px-3 rounded-xl bg-background border border-border text-[13px] text-ink placeholder:text-text-muted outline-none focus:border-accent focus:ring-2 focus:ring-accent/15 transition-all"
               placeholder={
-                platform === "meet" ? "https://meet.google.com/abc-def-ghi" :
-                platform === "zoom" ? "https://zoom.us/j/123456789" :
-                "https://teams.microsoft.com/l/meetup-join/…"
+                platform === "meet"
+                  ? "https://meet.google.com/abc-def-ghi"
+                  : platform === "zoom"
+                    ? "https://zoom.us/j/123456789"
+                    : "https://teams.microsoft.com/l/meetup-join/…"
               }
             />
           </div>
@@ -370,8 +384,13 @@ function DashboardPage() {
     sessWs.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data as string);
-        if (msg.type === "sessions") { setSessions(msg.data); setWsReady(true); }
-      } catch {}
+        if (msg.type === "sessions") {
+          setSessions(msg.data);
+          setWsReady(true);
+        }
+      } catch {
+        // ignore malformed WS messages
+      }
     };
     sessWs.onerror = () => sessWs.close();
     sessWs.onopen = () => setWsReady(true);
@@ -382,11 +401,16 @@ function DashboardPage() {
       try {
         const msg = JSON.parse(e.data as string);
         if (msg.type === "projects") setProjects(msg.data);
-      } catch {}
+      } catch {
+        // ignore malformed WS messages
+      }
     };
     projWs.onerror = () => projWs.close();
 
-    return () => { sessWs.close(); projWs.close(); };
+    return () => {
+      sessWs.close();
+      projWs.close();
+    };
   }, []);
 
   const recentSessions = sessions.slice(0, 4);
@@ -399,7 +423,10 @@ function DashboardPage() {
   // Show skeletons until first WS message arrives — cap at ~2s
   const [showSkeleton, setShowSkeleton] = useState(true);
   useEffect(() => {
-    if (wsReady) { setShowSkeleton(false); return; }
+    if (wsReady) {
+      setShowSkeleton(false);
+      return;
+    }
     const t = setTimeout(() => setShowSkeleton(false), 2000);
     return () => clearTimeout(t);
   }, [wsReady]);
@@ -456,13 +483,18 @@ function DashboardPage() {
         <div className="rounded-2xl border border-border bg-card shadow-warm-xs overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border/60">
             <p className="text-[13px] font-semibold text-ink">Recent sessions</p>
-            <Link to="/sessions" className="text-[12px] text-accent hover:text-accent/80 transition-colors flex items-center gap-1">
+            <Link
+              to="/sessions"
+              className="text-[12px] text-accent hover:text-accent/80 transition-colors flex items-center gap-1"
+            >
               View all <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
           {showSkeleton ? (
             <div className="divide-y divide-border/40 px-2 py-1">
-              {[0, 1, 2].map((i) => <SkeletonRow key={i} />)}
+              {[0, 1, 2].map((i) => (
+                <SkeletonRow key={i} />
+              ))}
             </div>
           ) : recentSessions.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 px-5 text-center">
@@ -487,13 +519,18 @@ function DashboardPage() {
         <div className="rounded-2xl border border-border bg-card shadow-warm-xs overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border/60">
             <p className="text-[13px] font-semibold text-ink">Recent projects</p>
-            <Link to="/projects" className="text-[12px] text-accent hover:text-accent/80 transition-colors flex items-center gap-1">
+            <Link
+              to="/projects"
+              className="text-[12px] text-accent hover:text-accent/80 transition-colors flex items-center gap-1"
+            >
               View all <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
           {showSkeleton ? (
             <div className="divide-y divide-border/40 px-2 py-1">
-              {[0, 1, 2].map((i) => <SkeletonRow key={i} />)}
+              {[0, 1, 2].map((i) => (
+                <SkeletonRow key={i} />
+              ))}
             </div>
           ) : recentProjects.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 px-5 text-center">
@@ -501,7 +538,9 @@ function DashboardPage() {
                 <FolderKanban className="h-5 w-5 text-text-muted" />
               </div>
               <p className="text-[13px] text-text-muted mb-1">No projects yet</p>
-              <p className="text-[12px] text-text-muted">Approve a blueprint in a session to build your first app.</p>
+              <p className="text-[12px] text-text-muted">
+                Approve a blueprint in a session to build your first app.
+              </p>
             </div>
           ) : (
             <div className="divide-y divide-border/40 px-2 py-1">
