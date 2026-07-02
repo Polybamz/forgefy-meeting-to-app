@@ -24,6 +24,6 @@ export default async (env: ConfigEnv) => {
           "/ws": { target: apiTarget, ws: true, changeOrigin: false },
         },
       },
-    }
+    },
   })(env);
 };

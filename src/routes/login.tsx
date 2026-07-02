@@ -78,11 +78,18 @@ function LoginPage() {
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center gap-2.5 group mb-4">
             <div className="w-9 h-9 rounded-xl bg-accent flex items-center justify-center shadow-warm-md group-hover:shadow-warm-lg transition-shadow">
-              <svg className="w-4.5 h-4.5 text-accent-foreground" viewBox="0 0 16 16" fill="currentColor" style={{ width: 18, height: 18 }}>
-                <path d="M8 1L2 4.5v7L8 15l6-3.5v-7L8 1zm0 1.8l4.2 2.45v4.9L8 12.6 3.8 10.15V5.25L8 2.8z"/>
+              <svg
+                className="w-4.5 h-4.5 text-accent-foreground"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+                style={{ width: 18, height: 18 }}
+              >
+                <path d="M8 1L2 4.5v7L8 15l6-3.5v-7L8 1zm0 1.8l4.2 2.45v4.9L8 12.6 3.8 10.15V5.25L8 2.8z" />
               </svg>
             </div>
-            <span className="font-display text-[28px] text-ink group-hover:text-accent transition-colors">Forgefy</span>
+            <span className="font-display text-[28px] text-ink group-hover:text-accent transition-colors">
+              Forgefy
+            </span>
           </Link>
           <h1 className="text-[22px] font-display text-ink">Welcome back</h1>
           <p className="mt-1 text-[14px] text-text-secondary">Sign in to continue building</p>
@@ -120,7 +127,9 @@ function LoginPage() {
           {/* Email / password form */}
           <form onSubmit={onSubmit} className="space-y-4" aria-label="Sign in">
             <div className="space-y-1.5">
-              <label htmlFor="email" className="label-eyebrow block">Email</label>
+              <label htmlFor="email" className="label-eyebrow block">
+                Email
+              </label>
               <input
                 id="email"
                 type="email"
@@ -134,7 +143,9 @@ function LoginPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="password" className="label-eyebrow block">Password</label>
+              <label htmlFor="password" className="label-eyebrow block">
+                Password
+              </label>
               <input
                 id="password"
                 type="password"
@@ -148,9 +159,20 @@ function LoginPage() {
             </div>
 
             {error && (
-              <div role="alert" className="flex items-start gap-2 p-3 rounded-xl bg-destructive/8 border border-destructive/20 text-[13px] text-destructive">
-                <svg className="w-4 h-4 shrink-0 mt-px" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              <div
+                role="alert"
+                className="flex items-start gap-2 p-3 rounded-xl bg-destructive/8 border border-destructive/20 text-[13px] text-destructive"
+              >
+                <svg
+                  className="w-4 h-4 shrink-0 mt-px"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
                 </svg>
                 {error}
               </div>
@@ -166,13 +188,18 @@ function LoginPage() {
                   <div className="w-4 h-4 rounded-full border-2 border-accent-foreground/40 border-t-accent-foreground animate-spin" />
                   Signing in…
                 </span>
-              ) : "Sign in →"}
+              ) : (
+                "Sign in →"
+              )}
             </button>
           </form>
 
           <p className="text-center text-[13px] text-text-muted">
             No account?{" "}
-            <Link to="/register" className="text-accent hover:text-accent/80 underline-offset-2 underline transition-colors">
+            <Link
+              to="/register"
+              className="text-accent hover:text-accent/80 underline-offset-2 underline transition-colors"
+            >
               Create one free
             </Link>
           </p>
@@ -185,10 +212,22 @@ function LoginPage() {
 function GoogleIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-      <path d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
-      <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.859-3.048.859-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
-      <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
-      <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+      <path
+        d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"
+        fill="#4285F4"
+      />
+      <path
+        d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.859-3.048.859-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"
+        fill="#34A853"
+      />
+      <path
+        d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"
+        fill="#FBBC05"
+      />
+      <path
+        d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"
+        fill="#EA4335"
+      />
     </svg>
   );
 }

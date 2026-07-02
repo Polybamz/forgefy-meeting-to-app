@@ -126,7 +126,9 @@ function NewSessionForm({ onCreated }: { onCreated: () => void }) {
       {/* URL */}
       {platform !== "physical" && (
         <div>
-          <label htmlFor="meeting_url" className="label-eyebrow block mb-1.5">Meeting URL</label>
+          <label htmlFor="meeting_url" className="label-eyebrow block mb-1.5">
+            Meeting URL
+          </label>
           <input
             id="meeting_url"
             type="url"
@@ -134,9 +136,11 @@ function NewSessionForm({ onCreated }: { onCreated: () => void }) {
             onChange={(e) => setMeetingUrl(e.target.value)}
             className="w-full h-10 px-3 rounded-xl bg-background border border-border text-[13px] text-ink placeholder:text-text-muted outline-none focus:border-accent focus:ring-2 focus:ring-accent/15 transition-all"
             placeholder={
-              platform === "meet" ? "https://meet.google.com/abc-def-ghi" :
-              platform === "zoom" ? "https://zoom.us/j/123456789" :
-              "https://teams.microsoft.com/l/meetup-join/…"
+              platform === "meet"
+                ? "https://meet.google.com/abc-def-ghi"
+                : platform === "zoom"
+                  ? "https://zoom.us/j/123456789"
+                  : "https://teams.microsoft.com/l/meetup-join/…"
             }
           />
         </div>
@@ -165,7 +169,9 @@ function NewSessionForm({ onCreated }: { onCreated: () => void }) {
             <div className="w-4 h-4 rounded-full border-2 border-accent-foreground/40 border-t-accent-foreground animate-spin" />
             Creating…
           </span>
-        ) : "Start session →"}
+        ) : (
+          "Start session →"
+        )}
       </button>
     </form>
   );
@@ -237,11 +243,17 @@ function DeleteSessionModal({
 
           <div className="space-y-1.5">
             <label className="label-eyebrow block">
-              Reason <span className="text-text-muted normal-case font-normal tracking-normal text-[11px]">(optional)</span>
+              Reason{" "}
+              <span className="text-text-muted normal-case font-normal tracking-normal text-[11px]">
+                (optional)
+              </span>
             </label>
             <textarea
               value={reason}
-              onChange={(e) => { setReason(e.target.value); setError(""); }}
+              onChange={(e) => {
+                setReason(e.target.value);
+                setError("");
+              }}
               placeholder="e.g. Duplicate session, wrong meeting, test run…"
               rows={3}
               className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-[13px] text-ink placeholder:text-text-muted outline-none focus:border-accent focus:ring-2 focus:ring-accent/15 transition-all resize-none"
@@ -311,7 +323,9 @@ function SessionCard({
         >
           <div className="min-w-0">
             <div className="flex items-center gap-2.5 mb-1">
-              {isActive && <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse shrink-0 pulse-ring" />}
+              {isActive && (
+                <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse shrink-0 pulse-ring" />
+              )}
               <p className="text-[14px] font-semibold text-ink group-hover:text-accent transition-colors truncate">
                 {PLATFORM_LABELS[session.platform] ?? session.platform}
               </p>
@@ -323,19 +337,28 @@ function SessionCard({
             )}
             <p className="mt-1 text-[11px] text-text-muted">
               {date.toLocaleDateString(undefined, {
-                month: "short", day: "numeric", year: "numeric",
-                hour: "2-digit", minute: "2-digit",
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
               })}
             </p>
           </div>
           <div className="flex items-center gap-3 shrink-0">
-            <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full ${pillClass}`}>{label}</span>
+            <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full ${pillClass}`}>
+              {label}
+            </span>
           </div>
         </Link>
 
         {/* Delete button on hover */}
         <button
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowDelete(true); }}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setShowDelete(true);
+          }}
           title="Delete session"
           className="absolute right-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex items-center justify-center w-7 h-7 rounded-lg text-text-muted hover:text-destructive hover:bg-destructive/10 transition-all"
         >
@@ -347,7 +370,10 @@ function SessionCard({
         <DeleteSessionModal
           session={session}
           onClose={() => setShowDelete(false)}
-          onDeleted={() => { setShowDelete(false); onDeleted(session.id); }}
+          onDeleted={() => {
+            setShowDelete(false);
+            onDeleted(session.id);
+          }}
         />
       )}
     </>
@@ -390,7 +416,9 @@ function SessionsPage() {
       try {
         const msg = JSON.parse(e.data as string);
         if (msg.type === "sessions") setSessions(msg.data);
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     };
     ws.onerror = () => {
       ws.close();
@@ -401,7 +429,10 @@ function SessionsPage() {
 
   const [showSkeleton, setShowSkeleton] = useState(true);
   useEffect(() => {
-    if (wsReady) { setShowSkeleton(false); return; }
+    if (wsReady) {
+      setShowSkeleton(false);
+      return;
+    }
     const t = setTimeout(() => setShowSkeleton(false), 2000);
     return () => clearTimeout(t);
   }, [wsReady]);
@@ -424,7 +455,9 @@ function SessionsPage() {
           {showSkeleton ? (
             <>
               <div className="skeleton h-3 w-28 rounded mb-4" />
-              {[0, 1, 2].map((i) => <SessionSkeleton key={i} />)}
+              {[0, 1, 2].map((i) => (
+                <SessionSkeleton key={i} />
+              ))}
             </>
           ) : sessions.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 rounded-2xl border border-dashed border-border gap-3 text-center px-6">
@@ -436,9 +469,7 @@ function SessionsPage() {
             </div>
           ) : (
             <>
-              <p className="label-eyebrow mb-1">
-                All sessions ({sessions.length})
-              </p>
+              <p className="label-eyebrow mb-1">All sessions ({sessions.length})</p>
               {sessions.map((s, i) => (
                 <SessionCard key={s.id} session={s} index={i} onDeleted={handleSessionDeleted} />
               ))}

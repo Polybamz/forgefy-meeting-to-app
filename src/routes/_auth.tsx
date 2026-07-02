@@ -1,8 +1,25 @@
-import { createFileRoute, redirect, Outlet, Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  redirect,
+  Outlet,
+  Link,
+  useNavigate,
+  useRouterState,
+} from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { clearTokens, getToken, getWsUrl } from "@/lib/api";
 import { ThemeToggle } from "@/hooks/use-theme";
-import { LayoutDashboard, Mic2, FolderKanban, CreditCard, Settings, Menu, X, LogOut, Zap } from "lucide-react";
+import {
+  LayoutDashboard,
+  Mic2,
+  FolderKanban,
+  CreditCard,
+  Settings,
+  Menu,
+  X,
+  LogOut,
+  Zap,
+} from "lucide-react";
 
 export const Route = createFileRoute("/_auth")({
   beforeLoad: () => {
@@ -31,10 +48,7 @@ function TokenExhaustedModal({ event, onDismiss }: { event: QuotaEvent; onDismis
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 sm:p-6">
       {/* backdrop */}
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm fade-in"
-        onClick={onDismiss}
-      />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm fade-in" onClick={onDismiss} />
 
       {/* panel */}
       <div className="relative w-full max-w-md rounded-2xl bg-card border border-border shadow-warm-xl slide-up p-8 flex flex-col gap-5">
@@ -47,10 +61,9 @@ function TokenExhaustedModal({ event, onDismiss }: { event: QuotaEvent; onDismis
         <div className="text-center">
           <h2 className="font-display text-[22px] text-ink mb-2">Tokens exhausted</h2>
           <p className="text-[13px] text-text-secondary leading-relaxed">
-            You've used all{" "}
-            <span className="font-semibold text-ink">{fmt(event.limit)}</span> tokens in your{" "}
-            <span className="font-semibold text-ink capitalize">{event.tier}</span> plan this month.
-            Upgrade to keep building.
+            You've used all <span className="font-semibold text-ink">{fmt(event.limit)}</span>{" "}
+            tokens in your <span className="font-semibold text-ink capitalize">{event.tier}</span>{" "}
+            plan this month. Upgrade to keep building.
           </p>
         </div>
 
@@ -137,21 +150,34 @@ function AuthLayout() {
         try {
           const msg = JSON.parse(e.data);
           if (msg.type === "quota_exceeded") {
-            setQuotaEvent({ message: msg.message, tier: msg.tier ?? "free", limit: msg.limit ?? 0 });
+            setQuotaEvent({
+              message: msg.message,
+              tier: msg.tier ?? "free",
+              limit: msg.limit ?? 0,
+            });
           }
-        } catch { /* ignore malformed frames */ }
+        } catch {
+          /* ignore malformed frames */
+        }
       };
 
-      ws.onclose = () => { reconnectTimer = setTimeout(connect, 5_000); };
+      ws.onclose = () => {
+        reconnectTimer = setTimeout(connect, 5_000);
+      };
       ws.onerror = () => ws.close();
     }
 
     connect();
-    return () => { clearTimeout(reconnectTimer); wsRef.current?.close(); };
+    return () => {
+      clearTimeout(reconnectTimer);
+      wsRef.current?.close();
+    };
   }, []);
 
   // Close sidebar whenever the route changes
-  useEffect(() => { setSidebarOpen(false); }, [pathname]);
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
 
   function handleLogout() {
     clearTokens();
@@ -162,7 +188,9 @@ function AuthLayout() {
     return (
       <>
         <Outlet />
-        {quotaEvent && <TokenExhaustedModal event={quotaEvent} onDismiss={() => setQuotaEvent(null)} />}
+        {quotaEvent && (
+          <TokenExhaustedModal event={quotaEvent} onDismiss={() => setQuotaEvent(null)} />
+        )}
       </>
     );
   }
@@ -190,8 +218,12 @@ function AuthLayout() {
         <div className="h-[56px] flex items-center justify-between px-4 border-b border-border/60 shrink-0">
           <Link to="/dashboard" className="flex items-center gap-2.5 group">
             <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center shadow-warm-sm group-hover:shadow-warm-md transition-shadow shrink-0">
-              <svg className="w-3.5 h-3.5 text-accent-foreground" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 1L2 4.5v7L8 15l6-3.5v-7L8 1zm0 1.8l4.2 2.45v4.9L8 12.6 3.8 10.15V5.25L8 2.8z"/>
+              <svg
+                className="w-3.5 h-3.5 text-accent-foreground"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+              >
+                <path d="M8 1L2 4.5v7L8 15l6-3.5v-7L8 1zm0 1.8l4.2 2.45v4.9L8 12.6 3.8 10.15V5.25L8 2.8z" />
               </svg>
             </div>
             <span className="font-display text-[18px] text-ink group-hover:text-accent transition-colors leading-none">
@@ -209,24 +241,38 @@ function AuthLayout() {
 
         {/* Section label */}
         <div className="px-4 pt-5 pb-1">
-          <p className="text-[10px] font-medium uppercase tracking-[0.10em] text-text-muted">Workspace</p>
+          <p className="text-[10px] font-medium uppercase tracking-[0.10em] text-text-muted">
+            Workspace
+          </p>
         </div>
 
         {/* Main nav */}
         <nav className="flex-1 px-3 pb-4 space-y-0.5 overflow-y-auto">
-          <NavItem to="/dashboard" icon={LayoutDashboard}>Dashboard</NavItem>
-          <NavItem to="/sessions" icon={Mic2}>Sessions</NavItem>
-          <NavItem to="/projects" icon={FolderKanban}>Projects</NavItem>
+          <NavItem to="/dashboard" icon={LayoutDashboard}>
+            Dashboard
+          </NavItem>
+          <NavItem to="/sessions" icon={Mic2}>
+            Sessions
+          </NavItem>
+          <NavItem to="/projects" icon={FolderKanban}>
+            Projects
+          </NavItem>
         </nav>
 
         {/* Footer nav */}
         <div className="border-t border-border/60 shrink-0">
           <div className="px-4 pt-4 pb-1">
-            <p className="text-[10px] font-medium uppercase tracking-[0.10em] text-text-muted">Account</p>
+            <p className="text-[10px] font-medium uppercase tracking-[0.10em] text-text-muted">
+              Account
+            </p>
           </div>
           <div className="px-3 pb-4 space-y-0.5">
-            <NavItem to="/billing" icon={CreditCard}>Billing</NavItem>
-            <NavItem to="/settings" icon={Settings}>Settings</NavItem>
+            <NavItem to="/billing" icon={CreditCard}>
+              Billing
+            </NavItem>
+            <NavItem to="/settings" icon={Settings}>
+              Settings
+            </NavItem>
           </div>
           <div className="px-4 py-3 border-t border-border/40 flex items-center justify-between">
             <ThemeToggle />
@@ -254,8 +300,12 @@ function AuthLayout() {
           </button>
           <Link to="/dashboard" className="flex items-center gap-2 group">
             <div className="w-6 h-6 rounded-md bg-accent flex items-center justify-center shrink-0">
-              <svg className="w-3 h-3 text-accent-foreground" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 1L2 4.5v7L8 15l6-3.5v-7L8 1zm0 1.8l4.2 2.45v4.9L8 12.6 3.8 10.15V5.25L8 2.8z"/>
+              <svg
+                className="w-3 h-3 text-accent-foreground"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+              >
+                <path d="M8 1L2 4.5v7L8 15l6-3.5v-7L8 1zm0 1.8l4.2 2.45v4.9L8 12.6 3.8 10.15V5.25L8 2.8z" />
               </svg>
             </div>
             <span className="font-display text-[17px] text-ink">Forgefy</span>
