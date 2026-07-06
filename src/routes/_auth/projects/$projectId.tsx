@@ -101,12 +101,12 @@ function AgentActivityBlock({
 
   const fileItems = plan
     ? [
-        ...plan.files_to_create.map((f: PlanFile) => ({
+        ...(plan.files_to_create ?? []).map((f: PlanFile) => ({
           path: f.path,
           badge: "+",
           done: !isActive || writtenFiles.has(f.path),
         })),
-        ...plan.files_to_modify.map((f: PlanFile) => ({
+        ...(plan.files_to_modify ?? []).map((f: PlanFile) => ({
           path: f.path,
           badge: "~",
           done: !isActive || writtenFiles.has(f.path),
