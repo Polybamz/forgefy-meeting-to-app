@@ -976,6 +976,12 @@ function Index() {
             <Link to="/register" className="hover:text-ink transition-colors">
               Sign up
             </Link>
+            <Link to="/terms" className="hover:text-ink transition-colors">
+              Terms
+            </Link>
+            <Link to="/privacy" className="hover:text-ink transition-colors">
+              Privacy
+            </Link>
           </div>
           <span className="font-mono-ui">© 2025 Forgefy</span>
         </div>

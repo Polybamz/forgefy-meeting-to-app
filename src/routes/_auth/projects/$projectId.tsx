@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { apiFetch, getWsUrl, type Project } from "@/lib/api";
+import { Database, X, Zap } from "lucide-react";
+import { apiFetch, getWsUrl, type BillingStatus, type Project } from "@/lib/api";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -23,6 +24,8 @@ interface ChatMessage {
   role: "user" | "assistant" | "error";
   text: string;
   timestamp: Date;
+  needsDatabase?: boolean;
+  clarifyOptions?: string[];
 }
 
 interface LogEntry {
@@ -655,32 +658,76 @@ function Md({ children, className = "" }: { children: string; className?: string
 // ---------------------------------------------------------------------------
 // ChatBubble
 // ---------------------------------------------------------------------------
-function ChatBubble({ message }: { message: ChatMessage }) {
+function ChatBubble({
+  message,
+  onAddDatabase,
+  onDeclineDatabase,
+  onSelectOption,
+}: {
+  message: ChatMessage;
+  onAddDatabase?: () => void;
+  onDeclineDatabase?: () => void;
+  onSelectOption?: (option: string) => void;
+}) {
   const isUser = message.role === "user";
   const isError = message.role === "error";
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-      <div
-        className={[
-          "max-w-[88%] px-4 py-3 text-[13px] leading-[1.65]",
-          isUser
-            ? "bg-accent text-accent-foreground rounded-2xl rounded-br-sm shadow-warm-xs"
-            : isError
-              ? "bg-amber-500/[0.07] border border-amber-400/20 text-amber-700 dark:text-amber-400 rounded-2xl rounded-bl-sm"
-              : "bg-card border border-border text-text-secondary rounded-2xl rounded-bl-sm shadow-warm-xs",
-        ].join(" ")}
-      >
-        {isUser ? (
-          <p className="whitespace-pre-wrap">{message.text}</p>
-        ) : (
-          <Md className="text-[13px]">{message.text}</Md>
-        )}
-        <p
-          className={`text-[10px] mt-2 ${isUser ? "text-accent-foreground/50" : "text-text-muted"}`}
+    <div className={`flex flex-col gap-1.5 ${isUser ? "items-end" : "items-start"}`}>
+      <div className={`flex w-full ${isUser ? "justify-end" : "justify-start"}`}>
+        <div
+          className={[
+            "max-w-[88%] px-4 py-3 text-[13px] leading-[1.65]",
+            isUser
+              ? "bg-accent text-accent-foreground rounded-2xl rounded-br-sm shadow-warm-xs"
+              : isError
+                ? "bg-amber-500/[0.07] border border-amber-400/20 text-amber-700 dark:text-amber-400 rounded-2xl rounded-bl-sm"
+                : "bg-card border border-border text-text-secondary rounded-2xl rounded-bl-sm shadow-warm-xs",
+          ].join(" ")}
         >
-          {message.timestamp.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
-        </p>
+          {isUser ? (
+            <p className="whitespace-pre-wrap">{message.text}</p>
+          ) : (
+            <Md className="text-[13px]">{message.text}</Md>
+          )}
+          <p
+            className={`text-[10px] mt-2 ${isUser ? "text-accent-foreground/50" : "text-text-muted"}`}
+          >
+            {message.timestamp.toLocaleTimeString(undefined, {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </p>
+        </div>
       </div>
+      {message.needsDatabase && !isUser && (
+        <div className="flex items-center gap-2 pl-1">
+          <button
+            onClick={onAddDatabase}
+            className="h-7 px-3 rounded-lg bg-accent text-accent-foreground text-[12px] font-medium hover:bg-[oklch(0.55_0.135_45)] transition-colors btn-press"
+          >
+            Add a database
+          </button>
+          <button
+            onClick={onDeclineDatabase}
+            className="h-7 px-3 rounded-lg border border-border text-[12px] text-text-secondary hover:text-ink transition-colors btn-press"
+          >
+            No thanks
+          </button>
+        </div>
+      )}
+      {!message.needsDatabase && message.clarifyOptions && !isUser && (
+        <div className="flex flex-wrap items-center gap-2 pl-1">
+          {message.clarifyOptions.map((option) => (
+            <button
+              key={option}
+              onClick={() => onSelectOption?.(option)}
+              className="h-7 px-3 rounded-lg border border-border text-[12px] text-text-secondary hover:text-ink hover:border-text-secondary transition-colors btn-press"
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -769,6 +816,450 @@ function GitHubSyncButton({
 }
 
 // ---------------------------------------------------------------------------
+// Supabase connect button
+// ---------------------------------------------------------------------------
+const SUPABASE_ICON = (
+  <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none">
+    <path
+      d="M13.3 23.6c-.5.6-1.5.3-1.5-.5v-8.4H4.9c-1 0-1.6-1.2-.9-2l9.7-11.7c.5-.6 1.5-.3 1.5.5v8.4h6.9c1 0 1.6 1.2.9 2L13.3 23.6Z"
+      fill="currentColor"
+    />
+  </svg>
+);
+
+function SupabaseConnectButton({
+  project,
+  supabaseLinked,
+  connecting,
+  error,
+  orgs,
+  onConnectAccount,
+  onStartConnect,
+  onPickOrg,
+  onDismissOrgPicker,
+}: {
+  project: Project;
+  supabaseLinked: boolean | null;
+  connecting: boolean;
+  error: string;
+  orgs: { id: string; name: string }[] | null;
+  onConnectAccount: () => void;
+  onStartConnect: () => void;
+  onPickOrg: (organizationId: string) => void;
+  onDismissOrgPicker: () => void;
+}) {
+  if (project.supabase_project_ref) {
+    return (
+      <a
+        href={`https://supabase.com/dashboard/project/${project.supabase_project_ref}`}
+        target="_blank"
+        rel="noreferrer"
+        title="Open in Supabase"
+        className="flex items-center gap-1.5 h-8 px-3 rounded-xl border border-border hover:border-text-secondary text-[12px] text-text-secondary hover:text-ink transition-colors"
+      >
+        {SUPABASE_ICON}
+        <span className="hidden sm:block">Database connected</span>
+        <span className="text-text-muted">↗</span>
+      </a>
+    );
+  }
+
+  if (supabaseLinked === null) {
+    return (
+      <div className="flex items-center gap-1.5 h-8 px-3 rounded-xl border border-border text-[12px] text-text-muted/50">
+        {SUPABASE_ICON}
+        <span>…</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative flex flex-col items-end gap-0.5">
+      <button
+        onClick={supabaseLinked ? onStartConnect : onConnectAccount}
+        disabled={connecting}
+        className="flex items-center gap-1.5 h-8 px-3 rounded-xl bg-[#3ecf8e] hover:bg-[#34b87b] text-[#1c1c1c] text-[12px] font-medium transition-colors disabled:opacity-60 btn-press"
+      >
+        {SUPABASE_ICON}
+        {connecting ? "Connecting…" : supabaseLinked ? "Connect Database" : "Connect Supabase"}
+      </button>
+      {error && (
+        <p className="text-[10px] text-amber-600 dark:text-amber-400 max-w-[180px] text-right leading-tight">
+          {error}
+        </p>
+      )}
+      {orgs && (
+        <div className="absolute right-0 top-9 z-20 w-56 rounded-xl border border-border bg-card p-1.5 shadow-warm-lg">
+          <p className="px-2 py-1 text-[10px] uppercase tracking-wide text-text-muted">
+            Choose an organization
+          </p>
+          {orgs.map((org) => (
+            <button
+              key={org.id}
+              onClick={() => onPickOrg(org.id)}
+              className="block w-full rounded-lg px-2 py-1.5 text-left text-[13px] text-ink hover:bg-surface transition-colors"
+            >
+              {org.name}
+            </button>
+          ))}
+          <button
+            onClick={onDismissOrgPicker}
+            className="mt-1 block w-full rounded-lg px-2 py-1.5 text-left text-[12px] text-text-muted hover:bg-surface transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Neon connect button — embedded model: no account linking, single click
+// ---------------------------------------------------------------------------
+const NEON_ICON = (
+  <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none">
+    <path d="M4 3h16v9.5c0 5-3.5 8.5-8 8.5V13H8v8c-2.5-1-4-3.5-4-6.5V3Z" fill="currentColor" />
+  </svg>
+);
+
+function NeonConnectButton({
+  project,
+  connecting,
+  error,
+  onConnect,
+}: {
+  project: Project;
+  connecting: boolean;
+  error: string;
+  onConnect: () => void;
+}) {
+  if (project.neon_project_id) {
+    return (
+      <a
+        href={`https://console.neon.tech/app/projects/${project.neon_project_id}`}
+        target="_blank"
+        rel="noreferrer"
+        title="Open in Neon console"
+        className="flex items-center gap-1.5 h-8 px-3 rounded-xl border border-border hover:border-text-secondary text-[12px] text-text-secondary hover:text-ink transition-colors"
+      >
+        {NEON_ICON}
+        <span className="hidden sm:block">Database connected</span>
+        <span className="text-text-muted">↗</span>
+      </a>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-0.5">
+      <button
+        onClick={onConnect}
+        disabled={connecting}
+        className="flex items-center gap-1.5 h-8 px-3 rounded-xl bg-[#00e599] hover:bg-[#00cc89] text-[#003524] text-[12px] font-medium transition-colors disabled:opacity-60 btn-press"
+      >
+        {NEON_ICON}
+        {connecting ? "Connecting…" : "Connect Neon"}
+      </button>
+      {error && (
+        <p className="text-[10px] text-amber-600 dark:text-amber-400 max-w-[180px] text-right leading-tight">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Firebase connect button — Google OAuth account link, then per-project
+// Firestore provisioning (single click, no org picker)
+// ---------------------------------------------------------------------------
+const FIREBASE_ICON = (
+  <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none">
+    <path d="M5.5 20.5 8 3.2c.1-.7 1-.9 1.4-.3l2 3.1-1.9 3.5-4 11Z" fill="currentColor" />
+    <path d="M5.5 20.5 12.2 8l2.2 4.1-4.9 8.4Z" fill="currentColor" opacity="0.7" />
+    <path d="M5.5 20.5 15.8 14l2.7 5-8 3Z" fill="currentColor" opacity="0.5" />
+  </svg>
+);
+
+function FirebaseConnectButton({
+  project,
+  firebaseLinked,
+  connecting,
+  error,
+  onConnectAccount,
+  onConnectProject,
+}: {
+  project: Project;
+  firebaseLinked: boolean | null;
+  connecting: boolean;
+  error: string;
+  onConnectAccount: () => void;
+  onConnectProject: () => void;
+}) {
+  if (project.firebase_project_id) {
+    return (
+      <a
+        href={`https://console.firebase.google.com/project/${project.firebase_project_id}/firestore`}
+        target="_blank"
+        rel="noreferrer"
+        title="Open in Firebase console"
+        className="flex items-center gap-1.5 h-8 px-3 rounded-xl border border-border hover:border-text-secondary text-[12px] text-text-secondary hover:text-ink transition-colors"
+      >
+        {FIREBASE_ICON}
+        <span className="hidden sm:block">Database connected</span>
+        <span className="text-text-muted">↗</span>
+      </a>
+    );
+  }
+
+  if (firebaseLinked === null) {
+    return (
+      <div className="flex items-center gap-1.5 h-8 px-3 rounded-xl border border-border text-[12px] text-text-muted/50">
+        {FIREBASE_ICON}
+        <span>…</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-0.5">
+      <button
+        onClick={firebaseLinked ? onConnectProject : onConnectAccount}
+        disabled={connecting}
+        className="flex items-center gap-1.5 h-8 px-3 rounded-xl bg-[#ffca28] hover:bg-[#ffc107] text-[#1c1c1c] text-[12px] font-medium transition-colors disabled:opacity-60 btn-press"
+      >
+        {FIREBASE_ICON}
+        {connecting ? "Connecting…" : firebaseLinked ? "Connect Database" : "Connect Firebase"}
+      </button>
+      {error && (
+        <p className="text-[10px] text-amber-600 dark:text-amber-400 max-w-[180px] text-right leading-tight">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Database connect modal — single entry point for all three DB providers
+// ---------------------------------------------------------------------------
+function DatabaseConnectModal({
+  project,
+  supabaseLinked,
+  connectingSupabase,
+  supabaseError,
+  supabaseOrgs,
+  onConnectSupabaseAccount,
+  onStartSupabaseConnect,
+  onPickSupabaseOrg,
+  onDismissSupabaseOrgPicker,
+  connectingNeon,
+  neonError,
+  onConnectNeon,
+  firebaseLinked,
+  connectingFirebase,
+  firebaseError,
+  onConnectFirebaseAccount,
+  onConnectFirebaseProject,
+  onClose,
+}: {
+  project: Project;
+  supabaseLinked: boolean | null;
+  connectingSupabase: boolean;
+  supabaseError: string;
+  supabaseOrgs: { id: string; name: string }[] | null;
+  onConnectSupabaseAccount: () => void;
+  onStartSupabaseConnect: () => void;
+  onPickSupabaseOrg: (organizationId: string) => void;
+  onDismissSupabaseOrgPicker: () => void;
+  connectingNeon: boolean;
+  neonError: string;
+  onConnectNeon: () => void;
+  firebaseLinked: boolean | null;
+  connectingFirebase: boolean;
+  firebaseError: string;
+  onConnectFirebaseAccount: () => void;
+  onConnectFirebaseProject: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4 fade-in"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="w-full max-w-md bg-card rounded-2xl border border-border shadow-warm-xl overflow-hidden slide-up">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h2 className="text-[15px] font-semibold text-ink">Connect a database</h2>
+          <button
+            onClick={onClose}
+            className="flex items-center justify-center w-7 h-7 rounded-lg text-text-muted hover:text-ink hover:bg-surface transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="px-5 py-5 space-y-2.5">
+          <p className="text-[12px] text-text-muted">
+            Give your generated app a real database. Pick a provider below.
+          </p>
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-border px-3 py-2.5">
+            <span className="flex items-center gap-2 text-[13px] text-ink font-medium">
+              {SUPABASE_ICON} Supabase
+            </span>
+            <SupabaseConnectButton
+              project={project}
+              supabaseLinked={supabaseLinked}
+              connecting={connectingSupabase}
+              error={supabaseError}
+              orgs={supabaseOrgs}
+              onConnectAccount={onConnectSupabaseAccount}
+              onStartConnect={onStartSupabaseConnect}
+              onPickOrg={onPickSupabaseOrg}
+              onDismissOrgPicker={onDismissSupabaseOrgPicker}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-border px-3 py-2.5">
+            <span className="flex items-center gap-2 text-[13px] text-ink font-medium">
+              {NEON_ICON} Neon
+            </span>
+            <NeonConnectButton
+              project={project}
+              connecting={connectingNeon}
+              error={neonError}
+              onConnect={onConnectNeon}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-border px-3 py-2.5">
+            <span className="flex items-center gap-2 text-[13px] text-ink font-medium">
+              {FIREBASE_ICON} Firebase
+            </span>
+            <FirebaseConnectButton
+              project={project}
+              firebaseLinked={firebaseLinked}
+              connecting={connectingFirebase}
+              error={firebaseError}
+              onConnectAccount={onConnectFirebaseAccount}
+              onConnectProject={onConnectFirebaseProject}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Database decision modal — shown once when the initial build was withheld
+// pending this exact question (see db_decision_pending on Project)
+// ---------------------------------------------------------------------------
+function DbDecisionModal({
+  reason,
+  skipping,
+  error,
+  onChooseProvider,
+  onSkip,
+}: {
+  reason: string | null | undefined;
+  skipping: boolean;
+  error: string;
+  onChooseProvider: () => void;
+  onSkip: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4 fade-in">
+      <div className="w-full max-w-md bg-card rounded-2xl border border-border shadow-warm-xl overflow-hidden slide-up">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="text-[15px] font-semibold text-ink">
+            This app looks like it needs a database
+          </h2>
+        </div>
+        <div className="px-5 py-5 space-y-4">
+          {reason && <p className="text-[13px] text-text-secondary leading-relaxed">{reason}</p>}
+          <p className="text-[13px] text-text-secondary leading-relaxed">
+            Want to connect one now? The build will start as soon as you decide.
+          </p>
+          {error && (
+            <p className="text-[12px] text-amber-600 dark:text-amber-400 leading-tight">{error}</p>
+          )}
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <button
+              onClick={onSkip}
+              disabled={skipping}
+              className="h-8 px-3 rounded-xl border border-border text-[12px] text-text-secondary hover:text-ink transition-colors disabled:opacity-60 btn-press"
+            >
+              {skipping ? "Continuing…" : "No, continue without one"}
+            </button>
+            <button
+              onClick={onChooseProvider}
+              disabled={skipping}
+              className="h-8 px-3 rounded-xl bg-accent text-accent-foreground text-[12px] font-medium hover:bg-[oklch(0.55_0.135_45)] transition-colors disabled:opacity-60 btn-press"
+            >
+              Choose a provider
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Wire-in confirmation — shown after ANY successful database connect on an
+// already-built project. Connecting only provisions the database; rewriting
+// app code to use it needs this separate, explicit confirmation.
+// ---------------------------------------------------------------------------
+function WireInPromptModal({
+  provider,
+  wiringIn,
+  error,
+  onConfirm,
+  onDismiss,
+}: {
+  provider: string;
+  wiringIn: boolean;
+  error: string;
+  onConfirm: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4 fade-in"
+      onClick={(e) => e.target === e.currentTarget && onDismiss()}
+    >
+      <div className="w-full max-w-md bg-card rounded-2xl border border-border shadow-warm-xl overflow-hidden slide-up">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="text-[15px] font-semibold text-ink">{provider} connected</h2>
+        </div>
+        <div className="px-5 py-5 space-y-4">
+          <p className="text-[13px] text-text-secondary leading-relaxed">
+            Want me to wire it into the app now? I'll scan the app and replace any mock/local data
+            with real reads and writes through it.
+          </p>
+          {error && (
+            <p className="text-[12px] text-amber-600 dark:text-amber-400 leading-tight">{error}</p>
+          )}
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <button
+              onClick={onDismiss}
+              disabled={wiringIn}
+              className="h-8 px-3 rounded-xl border border-border text-[12px] text-text-secondary hover:text-ink transition-colors disabled:opacity-60 btn-press"
+            >
+              Not now
+            </button>
+            <button
+              onClick={onConfirm}
+              disabled={wiringIn}
+              className="h-8 px-3 rounded-xl bg-accent text-accent-foreground text-[12px] font-medium hover:bg-[oklch(0.55_0.135_45)] transition-colors disabled:opacity-60 btn-press"
+            >
+              {wiringIn ? "Wiring in…" : "Wire it in"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Stop button (inline SVG)
 // ---------------------------------------------------------------------------
 function StopButton({ stopping, onClick }: { stopping: boolean; onClick: () => void }) {
@@ -838,6 +1329,22 @@ function ProjectEditorPage() {
   const [githubLinked, setGithubLinked] = useState<boolean | null>(null);
   const [transferring, setTransferring] = useState(false);
   const [transferError, setTransferError] = useState("");
+  const [supabaseLinked, setSupabaseLinked] = useState<boolean | null>(null);
+  const [connectingSupabase, setConnectingSupabase] = useState(false);
+  const [supabaseError, setSupabaseError] = useState("");
+  const [supabaseOrgs, setSupabaseOrgs] = useState<{ id: string; name: string }[] | null>(null);
+  const [connectingNeon, setConnectingNeon] = useState(false);
+  const [neonError, setNeonError] = useState("");
+  const [firebaseLinked, setFirebaseLinked] = useState<boolean | null>(null);
+  const [connectingFirebase, setConnectingFirebase] = useState(false);
+  const [firebaseError, setFirebaseError] = useState("");
+  const [dbModalOpen, setDbModalOpen] = useState(false);
+  const [skippingDb, setSkippingDb] = useState(false);
+  const [skipDbError, setSkipDbError] = useState("");
+  const [wireInPrompt, setWireInPrompt] = useState<string | null>(null);
+  const [wiringIn, setWiringIn] = useState(false);
+  const [wireInError, setWireInError] = useState("");
+  const [tokenBalance, setTokenBalance] = useState<BillingStatus | null>(null);
   const [buildingPreview, setBuildingPreview] = useState(false);
   const [rightTab, setRightTab] = useState<"preview" | "code">("preview");
   const navigate = useNavigate();
@@ -924,6 +1431,19 @@ function ProjectEditorPage() {
     fetchProject();
   }, [fetchProject]);
 
+  const loadTokenBalance = useCallback(async () => {
+    try {
+      const res = await apiFetch("/api/v1/billing/status");
+      if (res.ok) setTokenBalance(await res.json());
+    } catch {
+      // non-critical — just skip showing the balance this time
+    }
+  }, []);
+
+  useEffect(() => {
+    loadTokenBalance();
+  }, [loadTokenBalance]);
+
   useEffect(() => {
     apiFetch("/api/v1/auth/github/status")
       .then((r) => (r.ok ? r.json() : null))
@@ -938,6 +1458,40 @@ function ProjectEditorPage() {
     if (params.get("pending_transfer") === "true") {
       setGithubLinked(true);
       pendingTransferRef.current = true;
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
+  useEffect(() => {
+    apiFetch("/api/v1/auth/supabase/status")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setSupabaseLinked(d.linked))
+      .catch(() => {});
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("supabase") === "connected") {
+      setSupabaseLinked(true);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    if (params.get("supabase_error")) {
+      setSupabaseError("Could not connect your Supabase account. Please try again.");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
+  useEffect(() => {
+    apiFetch("/api/v1/auth/firebase/status")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setFirebaseLinked(d.linked))
+      .catch(() => {});
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("firebase") === "connected") {
+      setFirebaseLinked(true);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    if (params.get("firebase_error")) {
+      setFirebaseError("Could not connect your Google account. Please try again.");
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, []);
@@ -965,6 +1519,7 @@ function ProjectEditorPage() {
 
           if (wasUpdating && !updated.is_updating) {
             setBuildingPreview(false);
+            loadTokenBalance();
           }
 
           if (
@@ -1005,7 +1560,7 @@ function ProjectEditorPage() {
     };
     ws.onerror = () => ws.close();
     return () => ws.close();
-  }, [projectId]);
+  }, [projectId, loadTokenBalance]);
 
   useEffect(() => {
     let ws: WebSocket;
@@ -1099,6 +1654,174 @@ function ProjectEditorPage() {
     }
   }
 
+  async function connectSupabaseAccount() {
+    const res = await apiFetch("/api/v1/auth/supabase/authorize");
+    if (res.ok) {
+      const { url } = await res.json();
+      if (url) window.location.href = url;
+    }
+  }
+
+  async function handleDbConnectResponse(res: Response, providerLabel: string) {
+    const data = (await res.json().catch(() => ({}))) as {
+      build_queued?: boolean;
+      prompt_wire_in?: boolean;
+    };
+    await fetchProject();
+    if (data.prompt_wire_in) {
+      setDbModalOpen(false);
+      setWireInPrompt(providerLabel);
+    } else if (data.build_queued) {
+      setDbModalOpen(false);
+    }
+  }
+
+  async function connectSupabaseProject(organizationId: string) {
+    setConnectingSupabase(true);
+    setSupabaseError("");
+    setSupabaseOrgs(null);
+    try {
+      const res = await apiFetch(`/api/v1/projects/${projectId}/supabase/connect`, {
+        method: "POST",
+        body: JSON.stringify({ organization_id: organizationId }),
+      });
+      if (res.ok) {
+        await handleDbConnectResponse(res, "Supabase");
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setSupabaseError(
+          (d as { detail?: string }).detail ?? "Could not provision a database. Please try again.",
+        );
+      }
+    } catch {
+      setSupabaseError("Network error. Please try again.");
+    } finally {
+      setConnectingSupabase(false);
+    }
+  }
+
+  async function startSupabaseConnect() {
+    setSupabaseError("");
+    setConnectingSupabase(true);
+    try {
+      const res = await apiFetch("/api/v1/auth/supabase/organizations");
+      if (!res.ok) {
+        setSupabaseError("Could not list your Supabase organizations. Please try again.");
+        return;
+      }
+      const orgs: { id: string; name: string }[] = await res.json();
+      if (orgs.length === 0) {
+        setSupabaseError("No Supabase organizations found on your account.");
+      } else if (orgs.length === 1) {
+        await connectSupabaseProject(orgs[0].id);
+        return;
+      } else {
+        setSupabaseOrgs(orgs);
+      }
+    } catch {
+      setSupabaseError("Network error. Please try again.");
+    } finally {
+      setConnectingSupabase(false);
+    }
+  }
+
+  async function connectNeon() {
+    setConnectingNeon(true);
+    setNeonError("");
+    try {
+      const res = await apiFetch(`/api/v1/projects/${projectId}/neon/connect`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        await handleDbConnectResponse(res, "Neon");
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setNeonError(
+          (d as { detail?: string }).detail ?? "Could not provision a database. Please try again.",
+        );
+      }
+    } catch {
+      setNeonError("Network error. Please try again.");
+    } finally {
+      setConnectingNeon(false);
+    }
+  }
+
+  async function connectFirebaseAccount() {
+    const res = await apiFetch("/api/v1/auth/firebase/authorize");
+    if (res.ok) {
+      const { url } = await res.json();
+      if (url) window.location.href = url;
+    }
+  }
+
+  async function connectFirebaseProject() {
+    setConnectingFirebase(true);
+    setFirebaseError("");
+    try {
+      const res = await apiFetch(`/api/v1/projects/${projectId}/firebase/connect`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        await handleDbConnectResponse(res, "Firebase");
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setFirebaseError(
+          (d as { detail?: string }).detail ?? "Could not provision a database. Please try again.",
+        );
+      }
+    } catch {
+      setFirebaseError("Network error. Please try again.");
+    } finally {
+      setConnectingFirebase(false);
+    }
+  }
+
+  async function skipDatabase() {
+    setSkippingDb(true);
+    setSkipDbError("");
+    try {
+      const res = await apiFetch(`/api/v1/projects/${projectId}/skip-database`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        await fetchProject();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setSkipDbError(
+          (d as { detail?: string }).detail ?? "Could not continue. Please try again.",
+        );
+      }
+    } catch {
+      setSkipDbError("Network error. Please try again.");
+    } finally {
+      setSkippingDb(false);
+    }
+  }
+
+  async function wireDatabaseIn() {
+    setWiringIn(true);
+    setWireInError("");
+    try {
+      const res = await apiFetch(`/api/v1/projects/${projectId}/wire-database`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        setWireInPrompt(null);
+        await fetchProject();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setWireInError(
+          (d as { detail?: string }).detail ?? "Could not queue the update. Please try again.",
+        );
+      }
+    } catch {
+      setWireInError("Network error. Please try again.");
+    } finally {
+      setWiringIn(false);
+    }
+  }
+
   useEffect(() => {
     if (pendingTransferRef.current && project && !project.is_updating) {
       pendingTransferRef.current = false;
@@ -1136,8 +1859,7 @@ function ProjectEditorPage() {
     }
   }
 
-  async function handleSend() {
-    const text = prompt.trim();
+  async function sendMessage(text: string) {
     if (!text || sending || project?.is_updating) return;
 
     setSendError("");
@@ -1153,8 +1875,6 @@ function ProjectEditorPage() {
       timestamp: new Date(),
     };
     setMessages((prev) => [...prev, userMsg]);
-    setPrompt("");
-    if (textareaRef.current) textareaRef.current.style.height = "auto";
 
     try {
       const res = await apiFetch(`/api/v1/projects/${projectId}/chat`, {
@@ -1174,6 +1894,8 @@ function ProjectEditorPage() {
           type: string;
           response: string;
           update_queued: boolean;
+          needs_database?: boolean;
+          clarify_options?: string[] | null;
         };
         if (data.response) {
           setMessages((prev) => [
@@ -1183,6 +1905,8 @@ function ProjectEditorPage() {
               role: "assistant",
               text: data.response,
               timestamp: new Date(),
+              needsDatabase: data.needs_database,
+              clarifyOptions: data.clarify_options ?? undefined,
             },
           ]);
         }
@@ -1201,6 +1925,14 @@ function ProjectEditorPage() {
     } finally {
       setSending(false);
     }
+  }
+
+  async function handleSend() {
+    const text = prompt.trim();
+    if (!text || sending || project?.is_updating) return;
+    setPrompt("");
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
+    await sendMessage(text);
   }
 
   async function handleStop() {
@@ -1337,6 +2069,26 @@ function ProjectEditorPage() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          {tokenBalance && (
+            <Link
+              to="/billing"
+              title={`${tokenBalance.tokens_used.toLocaleString()} of ${tokenBalance.monthly_tokens.toLocaleString()} tokens used this month`}
+              className="hidden sm:flex items-center gap-1.5 h-8 px-3 rounded-xl border border-border hover:border-text-secondary text-[12px] text-text-secondary hover:text-ink transition-colors"
+            >
+              <Zap
+                className={`h-3.5 w-3.5 ${
+                  tokenBalance.tokens_remaining <= 0
+                    ? "text-destructive"
+                    : tokenBalance.tokens_remaining < tokenBalance.monthly_tokens * 0.1
+                      ? "text-amber-500"
+                      : "text-text-muted"
+                }`}
+              />
+              <span className="font-mono-ui">
+                {tokenBalance.tokens_remaining.toLocaleString()} left
+              </span>
+            </Link>
+          )}
           {project.preview_url && (
             <a
               href={project.preview_url}
@@ -1373,6 +2125,18 @@ function ProjectEditorPage() {
             onSync={transferToGitHub}
           />
           <button
+            onClick={() => setDbModalOpen(true)}
+            title="Connect a database"
+            className="relative flex items-center justify-center w-8 h-8 rounded-xl border border-border text-text-muted hover:text-ink hover:border-text-muted transition-colors btn-press"
+          >
+            <Database className="w-4 h-4" />
+            {(project.supabase_project_ref ||
+              project.neon_project_id ||
+              project.firebase_project_id) && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 border border-card" />
+            )}
+          </button>
+          <button
             onClick={() => navigate({ to: "/projects/$projectId/settings", params: { projectId } })}
             title="Project settings"
             className="flex items-center justify-center w-8 h-8 rounded-xl border border-border text-text-muted hover:text-ink hover:border-text-muted transition-colors btn-press"
@@ -1392,6 +2156,49 @@ function ProjectEditorPage() {
           </button>
         </div>
       </header>
+
+      {dbModalOpen && (
+        <DatabaseConnectModal
+          project={project}
+          supabaseLinked={supabaseLinked}
+          connectingSupabase={connectingSupabase}
+          supabaseError={supabaseError}
+          supabaseOrgs={supabaseOrgs}
+          onConnectSupabaseAccount={connectSupabaseAccount}
+          onStartSupabaseConnect={startSupabaseConnect}
+          onPickSupabaseOrg={connectSupabaseProject}
+          onDismissSupabaseOrgPicker={() => setSupabaseOrgs(null)}
+          connectingNeon={connectingNeon}
+          neonError={neonError}
+          onConnectNeon={connectNeon}
+          firebaseLinked={firebaseLinked}
+          connectingFirebase={connectingFirebase}
+          firebaseError={firebaseError}
+          onConnectFirebaseAccount={connectFirebaseAccount}
+          onConnectFirebaseProject={connectFirebaseProject}
+          onClose={() => setDbModalOpen(false)}
+        />
+      )}
+
+      {project.db_decision_pending && !dbModalOpen && (
+        <DbDecisionModal
+          reason={project.db_decision_reason}
+          skipping={skippingDb}
+          error={skipDbError}
+          onChooseProvider={() => setDbModalOpen(true)}
+          onSkip={skipDatabase}
+        />
+      )}
+
+      {wireInPrompt && (
+        <WireInPromptModal
+          provider={wireInPrompt}
+          wiringIn={wiringIn}
+          error={wireInError}
+          onConfirm={wireDatabaseIn}
+          onDismiss={() => setWireInPrompt(null)}
+        />
+      )}
 
       {/* ── Split body ── */}
       <div className="flex flex-1 min-h-0">
@@ -1503,7 +2310,15 @@ function ProjectEditorPage() {
                 </div>
               </div>
             ) : (
-              messages.map((msg) => <ChatBubble key={msg.id} message={msg} />)
+              messages.map((msg) => (
+                <ChatBubble
+                  key={msg.id}
+                  message={msg}
+                  onAddDatabase={() => setDbModalOpen(true)}
+                  onDeclineDatabase={() => sendMessage("No, continue without a database for now.")}
+                  onSelectOption={(option) => sendMessage(option)}
+                />
+              ))
             )}
             {logs.length > 0 && (
               <AgentActivityBlock

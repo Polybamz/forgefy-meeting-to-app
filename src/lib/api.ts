@@ -96,6 +96,19 @@ export interface Project {
   blueprint_id: string | null;
   created_at: string;
   updated_at: string;
+  supabase_project_ref?: string | null;
+  supabase_url?: string | null;
+  supabase_anon_key?: string | null;
+  neon_project_id?: string | null;
+  neon_data_api_url?: string | null;
+  firebase_project_id?: string | null;
+  firebase_api_key?: string | null;
+  firebase_auth_domain?: string | null;
+  firebase_storage_bucket?: string | null;
+  firebase_messaging_sender_id?: string | null;
+  firebase_app_id?: string | null;
+  db_decision_pending?: boolean;
+  db_decision_reason?: string | null;
 }
 
 export interface BillingStatus {
