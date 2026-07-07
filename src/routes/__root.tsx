@@ -80,7 +80,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content:
           "Forgefy joins your planning calls, extracts what your team actually decided, and builds Flutter, React Native, and Next.js apps — simultaneously",
       },
-      { name: "author", content: "Lovable" },
       { property: "og:title", content: "Forgefy" },
       {
         property: "og:description",
@@ -89,23 +88,22 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "Forgefy" },
       {
         name: "twitter:description",
         content:
           "Forgefy joins your planning calls, extracts what your team actually decided, and builds Flutter, React Native, and Next.js apps — simultaneously",
       },
-      {
-        property: "og:image",
-        content:
-          "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/751d4147-ee4c-401c-afb2-1ab18b0e1930",
-      },
-      {
-        name: "twitter:image",
-        content:
-          "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/751d4147-ee4c-401c-afb2-1ab18b0e1930",
-      },
+      // {
+      //   property: "og:image",
+      //   content:
+      //     "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/751d4147-ee4c-401c-afb2-1ab18b0e1930",
+      // },
+      // {
+      //   name: "twitter:image",
+      //   content:
+      //     "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/751d4147-ee4c-401c-afb2-1ab18b0e1930",
+      // },
     ],
     links: [
       {
@@ -120,7 +118,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "@context": "https://schema.org",
           "@type": "Organization",
           name: "Forgefy",
-          url: "https://forgeefy.lovable.app",
+          url: "",
           description:
             "Forgefy joins your planning calls, extracts what your team decided, and builds Flutter, React Native, and Next.js apps simultaneously.",
         }),
@@ -131,7 +129,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "@context": "https://schema.org",
           "@type": "WebSite",
           name: "Forgefy",
-          url: "https://forgeefy.lovable.app",
+          url: "",
         }),
       },
     ],
