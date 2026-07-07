@@ -152,10 +152,8 @@ function BuildModelSection({ projectId }: { projectId: string }) {
   const [current, setCurrent] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // For now this reads/writes the global build model.
-  // Per-project overrides can be added later by storing in the project document.
   useEffect(() => {
-    apiFetch("/api/v1/admin/build-model")
+    apiFetch("/api/v1/account/build-model")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && setCurrent(d.model))
       .catch(() => {});
@@ -165,7 +163,7 @@ function BuildModelSection({ projectId }: { projectId: string }) {
     if (saving || value === current) return;
     setSaving(true);
     try {
-      const res = await apiFetch("/api/v1/admin/build-model", {
+      const res = await apiFetch("/api/v1/account/build-model", {
         method: "PATCH",
         body: JSON.stringify({ model: value }),
       });

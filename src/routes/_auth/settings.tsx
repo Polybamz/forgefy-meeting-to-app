@@ -173,7 +173,7 @@ function BuildModelSection() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    apiFetch("/api/v1/admin/build-model")
+    apiFetch("/api/v1/account/build-model")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && setCurrent(d.model))
       .catch(() => {});
@@ -183,7 +183,7 @@ function BuildModelSection() {
     if (saving || value === current) return;
     setSaving(true);
     try {
-      const res = await apiFetch("/api/v1/admin/build-model", {
+      const res = await apiFetch("/api/v1/account/build-model", {
         method: "PATCH",
         body: JSON.stringify({ model: value }),
       });
