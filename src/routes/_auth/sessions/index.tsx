@@ -132,6 +132,7 @@ function NewSessionForm({ onCreated }: { onCreated: () => void }) {
           <input
             id="meeting_url"
             type="url"
+            required
             value={meetingUrl}
             onChange={(e) => setMeetingUrl(e.target.value)}
             className="w-full h-10 px-3 rounded-xl bg-background border border-border text-[13px] text-ink placeholder:text-text-muted outline-none focus:border-accent focus:ring-2 focus:ring-accent/15 transition-all"
