@@ -26,6 +26,9 @@ export const Route = createFileRoute("/_auth")({
     if (!getToken()) throw redirect({ to: "/login" });
   },
   component: AuthLayout,
+  head: () => ({
+    meta: [{ name: "robots", content: "noindex, nofollow" }],
+  }),
 });
 
 // ---------------------------------------------------------------------------

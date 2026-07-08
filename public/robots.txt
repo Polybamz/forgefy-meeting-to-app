@@ -1,4 +1,9 @@
 User-agent: *
 Allow: /
+Disallow: /dashboard
+Disallow: /sessions
+Disallow: /projects
+Disallow: /settings
+Disallow: /billing
 
-Sitemap: https://forgeefy.lovable.app/sitemap.xml
+Sitemap: https://forgefy.dev/sitemap.xml

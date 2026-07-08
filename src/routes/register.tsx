@@ -8,7 +8,16 @@ export const Route = createFileRoute("/register")({
     if (getToken()) throw redirect({ to: "/dashboard" });
   },
   component: RegisterPage,
-  head: () => ({ meta: [{ title: "Create account — Forgefy" }] }),
+  head: () => ({
+    meta: [
+      { title: "Create account — Forgefy" },
+      {
+        name: "description",
+        content: "Create a free Forgefy account and turn your next meeting into an app.",
+      },
+      { name: "robots", content: "noindex, follow" },
+    ],
+  }),
 });
 
 function RegisterPage() {

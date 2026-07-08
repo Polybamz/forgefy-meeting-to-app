@@ -1,9 +1,22 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { SITE_URL } from "./__root";
+
+const DESCRIPTION =
+  "The terms that govern your use of Forgefy — meeting recording, AI processing, generated code, subscriptions, and third-party integrations.";
 
 export const Route = createFileRoute("/terms")({
   component: Terms,
   head: () => ({
-    meta: [{ title: "Terms of Service — Forgefy" }],
+    meta: [
+      { title: "Terms of Service — Forgefy" },
+      { name: "description", content: DESCRIPTION },
+      { property: "og:title", content: "Terms of Service — Forgefy" },
+      { property: "og:description", content: DESCRIPTION },
+      { property: "og:url", content: `${SITE_URL}/terms` },
+      { name: "twitter:title", content: "Terms of Service — Forgefy" },
+      { name: "twitter:description", content: DESCRIPTION },
+    ],
+    links: [{ rel: "canonical", href: `${SITE_URL}/terms` }],
   }),
 });
 

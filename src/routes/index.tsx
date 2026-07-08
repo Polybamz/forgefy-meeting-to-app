@@ -2,6 +2,7 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { ThemeToggle } from "@/hooks/use-theme";
 import { getToken } from "@/lib/api";
+import { SITE_URL } from "./__root";
 
 export const Route = createFileRoute("/")({
   beforeLoad: () => {
@@ -17,8 +18,15 @@ export const Route = createFileRoute("/")({
           "Forgefy joins your planning calls, extracts what your team decided, and builds your app in Flutter, React Native, or Next.js automatically.",
       },
       { property: "og:title", content: "Forgefy — Your meeting just became an app." },
+      {
+        property: "og:description",
+        content:
+          "Forgefy joins your planning calls, extracts what your team decided, and builds your app in Flutter, React Native, or Next.js automatically.",
+      },
       { property: "og:type", content: "website" },
+      { property: "og:url", content: `${SITE_URL}/` },
     ],
+    links: [{ rel: "canonical", href: `${SITE_URL}/` }],
   }),
 });
 
@@ -510,6 +518,9 @@ function Index() {
             <a href="#pricing" className="hover:text-ink transition-colors">
               Pricing
             </a>
+            <Link to="/documentation" className="hover:text-ink transition-colors">
+              Docs
+            </Link>
           </nav>
 
           <div className="hidden md:flex items-center gap-2.5">
@@ -587,6 +598,13 @@ function Index() {
             >
               Pricing
             </a>
+            <Link
+              to="/documentation"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-text-muted hover:text-ink py-1"
+            >
+              Docs
+            </Link>
             <div className="pt-2 flex flex-col gap-2 border-t border-border">
               <Link
                 to="/login"
@@ -970,6 +988,9 @@ function Index() {
             <a href="#pricing" className="hover:text-ink transition-colors">
               Pricing
             </a>
+            <Link to="/documentation" className="hover:text-ink transition-colors">
+              Docs
+            </Link>
             <Link to="/login" className="hover:text-ink transition-colors">
               Log in
             </Link>

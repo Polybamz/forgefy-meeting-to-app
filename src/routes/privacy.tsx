@@ -1,9 +1,22 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { SITE_URL } from "./__root";
+
+const DESCRIPTION =
+  "How Forgefy collects, uses, and protects your meeting content, generated code, and account data.";
 
 export const Route = createFileRoute("/privacy")({
   component: Privacy,
   head: () => ({
-    meta: [{ title: "Privacy Policy — Forgefy" }],
+    meta: [
+      { title: "Privacy Policy — Forgefy" },
+      { name: "description", content: DESCRIPTION },
+      { property: "og:title", content: "Privacy Policy — Forgefy" },
+      { property: "og:description", content: DESCRIPTION },
+      { property: "og:url", content: `${SITE_URL}/privacy` },
+      { name: "twitter:title", content: "Privacy Policy — Forgefy" },
+      { name: "twitter:description", content: DESCRIPTION },
+    ],
+    links: [{ rel: "canonical", href: `${SITE_URL}/privacy` }],
   }),
 });
 
