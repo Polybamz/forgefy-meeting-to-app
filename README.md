@@ -6,7 +6,7 @@ TanStack Start (React 19 + Vite) frontend for Forgefy. Talks to the [forgefy-bac
 
 - **App data & auth**: [forgefy-backend](../forgefy-backend) (FastAPI + Firestore), reached via `/api/*` and `/ws/*`, proxied in dev by Vite and in production by Vercel rewrites (see `vercel.json`) to the Render-hosted API.
 - **Google sign-in**: Firebase Auth (`src/lib/firebase.ts`) — only used to obtain a Google ID token, which is then exchanged with the backend at `POST /api/v1/auth/google`. Firebase does not store app data.
-- **Waitlist form**: Supabase (`supabase/migrations/`) — a single `waitlist_signups` table with an insert-only RLS policy is provisioned, but no route/component in `src/` currently submits to it. Supabase is not used for anything else in this app; the auth-related files under `src/integrations/supabase/` are unused Lovable-generated scaffolding kept for reference.
+- **Waitlist form**: Supabase (`supabase/migrations/`) — a single `waitlist_signups` table with an insert-only RLS policy is provisioned, but no route/component in `src/` currently submits to it. Supabase is not used for anything else in this app.
 - **Deployment**: Vercel (static SPA build + rewrites to the backend). There is no Cloudflare Workers deployment target — that config has been removed.
 
 ## Requirements
@@ -63,7 +63,6 @@ src/
 ├── lib/
 │   ├── api.ts                 # Backend API client (VITE_API_URL-based)
 │   └── firebase.ts            # Firebase Auth (Google sign-in only)
-├── integrations/supabase/     # Unused Lovable-generated scaffolding — not currently wired to any route
 └── components/                # UI components (shadcn/radix-based)
 supabase/migrations/           # Only migration: waitlist_signups table + RLS policy (provisioned, no submitting UI yet)
 ```

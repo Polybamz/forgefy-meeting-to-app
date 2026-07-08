@@ -8,7 +8,13 @@ export const Route = createFileRoute("/login")({
     if (getToken()) throw redirect({ to: "/dashboard" });
   },
   component: LoginPage,
-  head: () => ({ meta: [{ title: "Sign in — Forgefy" }] }),
+  head: () => ({
+    meta: [
+      { title: "Sign in — Forgefy" },
+      { name: "description", content: "Sign in to your Forgefy account." },
+      { name: "robots", content: "noindex, follow" },
+    ],
+  }),
 });
 
 function LoginPage() {

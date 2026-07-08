@@ -1,7 +1,10 @@
 # Forgefy
 
-> Forgefy is an AI agent that joins your planning meetings, extracts what your team decided, and simultaneously generates Flutter, React Native, and Next.js apps.
+> Forgefy joins your planning meetings, extracts what your team decided, and builds Flutter, React Native, and Next.js apps from it — automatically.
 
 ## Pages
 
-- [Home](/): Waitlist landing — overview of Forgefy and early access signup.
+- [Home](/): Product overview, how it works, example apps, and pricing.
+- [Documentation](/documentation): How to use Forgefy — sessions, blueprints, builds, databases, GitHub, and billing.
+- [Terms of Service](/terms)
+- [Privacy Policy](/privacy)

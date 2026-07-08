@@ -69,47 +69,40 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   );
 }
 
+export const SITE_URL = "https://forgefy.dev";
+const DEFAULT_DESCRIPTION =
+  "Forgefy joins your planning calls, extracts what your team actually decided, and builds Flutter, React Native, and Next.js apps — simultaneously";
+const OG_IMAGE = `${SITE_URL}/og-image.png`;
+
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Forgefy" },
-      {
-        name: "description",
-        content:
-          "Forgefy joins your planning calls, extracts what your team actually decided, and builds Flutter, React Native, and Next.js apps — simultaneously",
-      },
-      { property: "og:title", content: "Forgefy" },
-      {
-        property: "og:description",
-        content:
-          "Forgefy joins your planning calls, extracts what your team actually decided, and builds Flutter, React Native, and Next.js apps — simultaneously",
-      },
+      { title: "Forgefy — Your meeting just became an app." },
+      { name: "description", content: DEFAULT_DESCRIPTION },
+      { name: "theme-color", content: "#F7F4EF" },
+      { name: "robots", content: "index, follow" },
+      { property: "og:site_name", content: "Forgefy" },
+      { property: "og:title", content: "Forgefy — Your meeting just became an app." },
+      { property: "og:description", content: DEFAULT_DESCRIPTION },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      { name: "twitter:title", content: "Forgefy" },
-      {
-        name: "twitter:description",
-        content:
-          "Forgefy joins your planning calls, extracts what your team actually decided, and builds Flutter, React Native, and Next.js apps — simultaneously",
-      },
-      // {
-      //   property: "og:image",
-      //   content:
-      //     "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/751d4147-ee4c-401c-afb2-1ab18b0e1930",
-      // },
-      // {
-      //   name: "twitter:image",
-      //   content:
-      //     "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/751d4147-ee4c-401c-afb2-1ab18b0e1930",
-      // },
+      { property: "og:url", content: `${SITE_URL}/` },
+      { property: "og:image", content: OG_IMAGE },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      { property: "og:image:alt", content: "Forgefy — Your meeting just became an app." },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Forgefy — Your meeting just became an app." },
+      { name: "twitter:description", content: DEFAULT_DESCRIPTION },
+      { name: "twitter:image", content: OG_IMAGE },
     ],
     links: [
       {
         rel: "stylesheet",
         href: appCss,
       },
+      { rel: "icon", href: "/favicon.ico", sizes: "any" },
     ],
     scripts: [
       {
@@ -118,7 +111,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "@context": "https://schema.org",
           "@type": "Organization",
           name: "Forgefy",
-          url: "",
+          url: SITE_URL,
+          logo: `${SITE_URL}/favicon.ico`,
           description:
             "Forgefy joins your planning calls, extracts what your team decided, and builds Flutter, React Native, and Next.js apps simultaneously.",
         }),
@@ -129,7 +123,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "@context": "https://schema.org",
           "@type": "WebSite",
           name: "Forgefy",
-          url: "",
+          url: SITE_URL,
         }),
       },
     ],
