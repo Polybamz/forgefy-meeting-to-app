@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { apiFetch, getWsUrl, updateStoredSession } from "@/lib/api";
-import { ChevronDown, Mic, Upload, CheckCircle2, X, Plus, ArrowLeft } from "lucide-react";
+import { ChevronDown, Mic, Upload, CheckCircle2, X, Plus, ArrowLeft, Info } from "lucide-react";
 
 export const Route = createFileRoute("/_auth/sessions/$sessionId")({
   component: SessionPage,
@@ -1460,6 +1460,11 @@ function SessionPage() {
                 {actionLoading ? "Ending…" : "End meeting"}
               </button>
             </div>
+            <p className="flex items-center gap-1.5 text-[12px] text-text-muted">
+              <Info className="h-3.5 w-3.5 shrink-0" />
+              Transcription is tuned for accuracy — lines appear a few seconds behind the
+              conversation.
+            </p>
             <TranscriptPanel lines={transcript} />
           </div>
           {features.length > 0 && (
