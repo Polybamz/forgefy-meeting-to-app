@@ -2,7 +2,17 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { apiFetch, getWsUrl, updateStoredSession } from "@/lib/api";
-import { ChevronDown, Mic, Upload, CheckCircle2, X, Plus, ArrowLeft, Info } from "lucide-react";
+import {
+  ChevronDown,
+  Mic,
+  Upload,
+  CheckCircle2,
+  X,
+  Plus,
+  ArrowLeft,
+  Info,
+  AlertTriangle,
+} from "lucide-react";
 
 export const Route = createFileRoute("/_auth/sessions/$sessionId")({
   component: SessionPage,
@@ -19,7 +29,14 @@ type SessionStatus =
   | "PROCESSING"
   | "BLUEPRINT_READY"
   | "APPROVED"
-  | "BUILDING";
+  | "BUILDING"
+  | "FAILED";
+
+interface SessionAlert {
+  variant: "error" | "warning";
+  title: string;
+  description?: string;
+}
 
 interface SessionEvent {
   id: string;
@@ -65,6 +82,7 @@ const STATUS_LABEL: Record<SessionStatus, string> = {
   BLUEPRINT_READY: "Blueprint ready",
   APPROVED: "Approved",
   BUILDING: "Building apps…",
+  FAILED: "Failed",
 };
 
 const PLATFORM_LABEL: Record<string, string> = {
@@ -80,20 +98,71 @@ const PLATFORM_LABEL: Record<string, string> = {
 function StatusBadge({ status }: { status: SessionStatus }) {
   const isActive = ["JOINING", "LISTENING", "PROCESSING", "BUILDING"].includes(status);
   const isReady = ["BLUEPRINT_READY", "APPROVED"].includes(status);
+  const isFailed = status === "FAILED";
   return (
     <span
       className={[
         "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-medium",
-        isActive
-          ? "bg-accent/10 text-accent"
-          : isReady
-            ? "bg-[oklch(0.55_0.18_145)]/10 text-[oklch(0.45_0.18_145)]"
-            : "bg-surface text-text-muted border border-border",
+        isFailed
+          ? "bg-destructive/10 text-destructive"
+          : isActive
+            ? "bg-accent/10 text-accent"
+            : isReady
+              ? "bg-[oklch(0.55_0.18_145)]/10 text-[oklch(0.45_0.18_145)]"
+              : "bg-surface text-text-muted border border-border",
       ].join(" ")}
     >
       {isActive && <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />}
-      {STATUS_LABEL[status]}
+      {STATUS_LABEL[status] ?? status}
     </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AlertCard — persistent error/warning banner at the top of the session page
+// ---------------------------------------------------------------------------
+function AlertCard({ alert, onDismiss }: { alert: SessionAlert; onDismiss?: () => void }) {
+  const isError = alert.variant === "error";
+  return (
+    <div
+      role="alert"
+      className={[
+        "mb-6 flex items-start gap-3 rounded-2xl border p-4 shadow-warm-xs slide-up",
+        isError ? "border-destructive/30 bg-destructive/5" : "border-amber-500/30 bg-amber-500/5",
+      ].join(" ")}
+    >
+      <AlertTriangle
+        className={[
+          "h-4 w-4 mt-0.5 shrink-0",
+          isError ? "text-destructive" : "text-amber-500",
+        ].join(" ")}
+      />
+      <div className="flex-1 min-w-0">
+        <p
+          className={[
+            "text-[14px] font-semibold",
+            isError ? "text-destructive" : "text-amber-600 dark:text-amber-400",
+          ].join(" ")}
+        >
+          {alert.title}
+        </p>
+        {alert.description && (
+          <p className="mt-0.5 text-[13px] text-text-secondary leading-[1.6]">
+            {alert.description}
+          </p>
+        )}
+      </div>
+      {onDismiss && (
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss"
+          className="shrink-0 flex items-center justify-center w-7 h-7 rounded-lg text-text-muted hover:text-ink hover:bg-surface transition-colors"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -1065,10 +1134,12 @@ function SessionPage() {
   const [transcript, setTranscript] = useState<TranscriptLine[]>([]);
   const [features, setFeatures] = useState<string[]>([]);
   const [physicalMode, setPhysicalMode] = useState<"choose" | "upload" | "live">("choose");
+  const [pageAlert, setPageAlert] = useState<SessionAlert | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const dbTranscriptLoadedRef = useRef(false);
+  const wsErrorToastedRef = useRef(false);
 
   const fetchSession = useCallback(async () => {
     try {
@@ -1151,11 +1222,14 @@ function SessionPage() {
             fetchSession();
             break;
           case "blueprintError":
-            toast.error((msg.error as string) ?? "Blueprint generation failed.", {
+            setPageAlert({
+              variant: "error",
+              title: (msg.error as string) ?? "Blueprint generation failed.",
               description:
-                "The recording may be too short or silent. Try uploading a clearer file.",
-              duration: 8000,
+                "The recording may be too short, silent, or not contain product discussion. " +
+                "Try a new session with a clear conversation about the app you want to build.",
             });
+            fetchSession();
             break;
         }
       } catch {
@@ -1164,7 +1238,14 @@ function SessionPage() {
     };
 
     ws.onerror = () => {
-      /* handled silently */
+      if (!wsErrorToastedRef.current) {
+        wsErrorToastedRef.current = true;
+        setPageAlert({
+          variant: "warning",
+          title: "Live connection failed — the transcript may not update in real time.",
+          description: "Lines are still being saved on the server; refresh the page to load them.",
+        });
+      }
     };
     return () => {
       ws.close();
@@ -1184,16 +1265,27 @@ function SessionPage() {
 
   useEffect(() => {
     if (!session) return;
-    const postLiveStates: SessionStatus[] = ["BLUEPRINT_READY", "APPROVED", "BUILDING"];
-    if (!postLiveStates.includes(session.status)) return;
+    // Seed the transcript from the DB — covers opening the page mid-meeting,
+    // a dropped WebSocket, and viewing a finished session. Live WS lines
+    // append after the seeded text.
+    const seedableStates: SessionStatus[] = [
+      "LISTENING",
+      "PROCESSING",
+      "BLUEPRINT_READY",
+      "APPROVED",
+      "BUILDING",
+    ];
+    if (!seedableStates.includes(session.status)) return;
     if (dbTranscriptLoadedRef.current) return;
-    dbTranscriptLoadedRef.current = true;
 
     apiFetch(`/api/v1/voxa/session/${sessionId}/transcript`)
       .then(async (res) => {
         if (!res.ok) return;
         const data = (await res.json()) as { transcript: string };
         if (data.transcript) {
+          // Only mark loaded on a non-empty result so an early fetch (before
+          // any segment is stored) retries on the next status change.
+          dbTranscriptLoadedRef.current = true;
           setTranscript((prev) =>
             prev.length > 0 ? prev : [{ text: data.transcript, timestamp: 0 }],
           );
@@ -1205,6 +1297,7 @@ function SessionPage() {
   async function handleJoin() {
     if (!session) return;
     setActionLoading(true);
+    setPageAlert(null);
     try {
       const res = await apiFetch("/api/v1/voxa/session/join", {
         method: "POST",
@@ -1212,12 +1305,12 @@ function SessionPage() {
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        toast.error(d.detail ?? "Failed to join.");
+        setPageAlert({ variant: "error", title: d.detail ?? "Failed to join." });
         return;
       }
       await fetchSession();
     } catch {
-      toast.error("Network error — could not join meeting.");
+      setPageAlert({ variant: "error", title: "Network error — could not join meeting." });
     } finally {
       setActionLoading(false);
     }
@@ -1226,18 +1319,22 @@ function SessionPage() {
   async function handleStartLive() {
     if (!session) return;
     setActionLoading(true);
+    setPageAlert(null);
     try {
       const res = await apiFetch(`/api/v1/voxa/session/${session.id}/start-live`, {
         method: "POST",
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        toast.error(d.detail ?? "Failed to start live transcription.");
+        setPageAlert({
+          variant: "error",
+          title: d.detail ?? "Failed to start live transcription.",
+        });
         return;
       }
       await fetchSession();
     } catch {
-      toast.error("Network error — could not start transcription.");
+      setPageAlert({ variant: "error", title: "Network error — could not start transcription." });
     } finally {
       setActionLoading(false);
     }
@@ -1246,6 +1343,7 @@ function SessionPage() {
   async function handleEnd() {
     if (!session) return;
     setActionLoading(true);
+    setPageAlert(null);
     try {
       const res = await apiFetch("/api/v1/voxa/session/end", {
         method: "POST",
@@ -1253,13 +1351,13 @@ function SessionPage() {
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        toast.error(d.detail ?? "Failed to end session.");
+        setPageAlert({ variant: "error", title: d.detail ?? "Failed to end session." });
         return;
       }
       wsRef.current?.close();
       await fetchSession();
     } catch {
-      toast.error("Network error — could not end session.");
+      setPageAlert({ variant: "error", title: "Network error — could not end session." });
     } finally {
       setActionLoading(false);
     }
@@ -1299,6 +1397,21 @@ function SessionPage() {
 
   return (
     <div className="px-6 md:px-[8vw] py-10 max-w-4xl mx-auto page-enter">
+      {/* ── Error / warning banner ── */}
+      {pageAlert && <AlertCard alert={pageAlert} onDismiss={() => setPageAlert(null)} />}
+      {!pageAlert && session.status === "FAILED" && (
+        <AlertCard
+          alert={{
+            variant: "error",
+            title: "Blueprint generation failed for this session.",
+            description:
+              "No requirements could be extracted — the recording may be too short, silent, " +
+              "or not contain product discussion. Start a new session with a clear conversation " +
+              "about the app you want to build.",
+          }}
+        />
+      )}
+
       {/* Header */}
       <div className="mb-8">
         <Link
