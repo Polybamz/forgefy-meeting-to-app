@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { apiFetch, getWsUrl, type StoredSession } from "@/lib/api";
+import { apiFetch, connectWs, type StoredSession } from "@/lib/api";
 import { Mic2, Upload, Radio, Globe, Trash2, X } from "lucide-react";
 
 export const Route = createFileRoute("/_auth/sessions/")({
@@ -410,22 +410,26 @@ function SessionsPage() {
   }
 
   useEffect(() => {
-    const ws = new WebSocket(getWsUrl("/ws/sessions"));
-    wsRef.current = ws;
-    ws.onopen = () => setWsReady(true);
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data as string);
-        if (msg.type === "sessions") setSessions(msg.data);
-      } catch {
-        /* ignore */
-      }
-    };
-    ws.onerror = () => {
-      ws.close();
-      toast.error("Live session updates unavailable — refresh to see latest state.");
-    };
-    return () => ws.close();
+    let errorToasted = false;
+    return connectWs("/ws/sessions", (ws) => {
+      wsRef.current = ws;
+      ws.onopen = () => setWsReady(true);
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data as string);
+          if (msg.type === "sessions") setSessions(msg.data);
+        } catch {
+          /* ignore */
+        }
+      };
+      ws.onerror = () => {
+        ws.close();
+        if (!errorToasted) {
+          errorToasted = true;
+          toast.error("Live session updates unavailable — reconnecting…");
+        }
+      };
+    });
   }, []);
 
   const [showSkeleton, setShowSkeleton] = useState(true);
@@ -452,7 +456,7 @@ function SessionsPage() {
         </div>
 
         {/* Session list */}
-        <div className="md:col-span-8 space-y-3">
+        <div className="grid lg:grid-cols-2 md:grid-cols-1 gap-4 md:col-span-8 space-y-3 min-lg:h-[70vh] min-lg:overflow-y-auto   p-4 space-y-3 max-lg:min-h-[400px]">
           {showSkeleton ? (
             <>
               <div className="skeleton h-3 w-28 rounded mb-4" />

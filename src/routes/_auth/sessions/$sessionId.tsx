@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { apiFetch, getWsUrl, updateStoredSession } from "@/lib/api";
+import { apiFetch, ensureFreshToken, getWsUrl, updateStoredSession } from "@/lib/api";
 import {
   ChevronDown,
   Mic,
@@ -1174,81 +1174,90 @@ function SessionPage() {
     }
     if (wsRef.current && wsRef.current.readyState < 2) return;
 
-    const ws = new WebSocket(getWsUrl("/ws/voxa"));
-    wsRef.current = ws;
+    // No auto-reconnect here: the socket's lifecycle is driven by session
+    // status, and re-joining after a deliberate close would resurrect an
+    // ended meeting. Just make sure the token is fresh before connecting.
+    let cancelled = false;
+    void ensureFreshToken().then(() => {
+      if (cancelled) return;
+      const ws = new WebSocket(getWsUrl("/ws/voxa"));
+      wsRef.current = ws;
 
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: "joinSession", session_id: sessionId }));
-      const ping = setInterval(() => {
-        if (ws.readyState === 1) ws.send(JSON.stringify({ type: "ping" }));
-      }, 25_000);
-      ws.addEventListener("close", () => clearInterval(ping));
-    };
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: "joinSession", session_id: sessionId }));
+        const ping = setInterval(() => {
+          if (ws.readyState === 1) ws.send(JSON.stringify({ type: "ping" }));
+        }, 25_000);
+        ws.addEventListener("close", () => clearInterval(ping));
+      };
 
-    ws.onmessage = (evt) => {
-      try {
-        const msg = JSON.parse(evt.data as string) as Record<string, unknown>;
-        switch (msg.type) {
-          case "transcript":
-            setTranscript((prev) => [
-              ...prev,
-              {
-                text: (msg.text as string) ?? "",
-                speaker: msg.speaker as string | undefined,
-                timestamp: Date.now(),
-              },
-            ]);
-            break;
-          case "featureDetected": {
-            const subState = msg.sub_state as string;
-            const p = msg.payload as Record<string, unknown> | null | undefined;
-            let label: string;
-            if (subState === "FEATURE_FOUND") {
-              label = (p?.title as string) ?? "Feature detected";
-            } else if (subState === "QUESTION_FOUND") {
-              label = `? ${(p?.text as string) ?? "Open question"}`;
-            } else if (subState === "CONFLICT_FOUND") {
-              label = `⚠ ${(p?.description as string) ?? "Conflict"}`;
-            } else if (subState === "ACTION_ITEM_FOUND") {
-              label = `→ ${(p?.task as string) ?? "Action item"}`;
-            } else {
-              label = (p?.title as string) ?? (p?.text as string) ?? subState ?? "Detected";
+      ws.onmessage = (evt) => {
+        try {
+          const msg = JSON.parse(evt.data as string) as Record<string, unknown>;
+          switch (msg.type) {
+            case "transcript":
+              setTranscript((prev) => [
+                ...prev,
+                {
+                  text: (msg.text as string) ?? "",
+                  speaker: msg.speaker as string | undefined,
+                  timestamp: Date.now(),
+                },
+              ]);
+              break;
+            case "featureDetected": {
+              const subState = msg.sub_state as string;
+              const p = msg.payload as Record<string, unknown> | null | undefined;
+              let label: string;
+              if (subState === "FEATURE_FOUND") {
+                label = (p?.title as string) ?? "Feature detected";
+              } else if (subState === "QUESTION_FOUND") {
+                label = `? ${(p?.text as string) ?? "Open question"}`;
+              } else if (subState === "CONFLICT_FOUND") {
+                label = `⚠ ${(p?.description as string) ?? "Conflict"}`;
+              } else if (subState === "ACTION_ITEM_FOUND") {
+                label = `→ ${(p?.task as string) ?? "Action item"}`;
+              } else {
+                label = (p?.title as string) ?? (p?.text as string) ?? subState ?? "Detected";
+              }
+              setFeatures((prev) => [...prev, label]);
+              break;
             }
-            setFeatures((prev) => [...prev, label]);
-            break;
+            case "blueprintReady":
+            case "meetingStatus":
+              fetchSession();
+              break;
+            case "blueprintError":
+              setPageAlert({
+                variant: "error",
+                title: (msg.error as string) ?? "Blueprint generation failed.",
+                description:
+                  "The recording may be too short, silent, or not contain product discussion. " +
+                  "Try a new session with a clear conversation about the app you want to build.",
+              });
+              fetchSession();
+              break;
           }
-          case "blueprintReady":
-          case "meetingStatus":
-            fetchSession();
-            break;
-          case "blueprintError":
-            setPageAlert({
-              variant: "error",
-              title: (msg.error as string) ?? "Blueprint generation failed.",
-              description:
-                "The recording may be too short, silent, or not contain product discussion. " +
-                "Try a new session with a clear conversation about the app you want to build.",
-            });
-            fetchSession();
-            break;
+        } catch {
+          /* ignore parse errors */
         }
-      } catch {
-        /* ignore parse errors */
-      }
-    };
+      };
 
-    ws.onerror = () => {
-      if (!wsErrorToastedRef.current) {
-        wsErrorToastedRef.current = true;
-        setPageAlert({
-          variant: "warning",
-          title: "Live connection failed — the transcript may not update in real time.",
-          description: "Lines are still being saved on the server; refresh the page to load them.",
-        });
-      }
-    };
+      ws.onerror = () => {
+        if (!wsErrorToastedRef.current) {
+          wsErrorToastedRef.current = true;
+          setPageAlert({
+            variant: "warning",
+            title: "Live connection failed — the transcript may not update in real time.",
+            description:
+              "Lines are still being saved on the server; refresh the page to load them.",
+          });
+        }
+      };
+    });
     return () => {
-      ws.close();
+      cancelled = true;
+      wsRef.current?.close();
     };
   }, [session?.status, sessionId, fetchSession]);
 

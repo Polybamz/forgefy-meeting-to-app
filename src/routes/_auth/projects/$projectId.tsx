@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Database, X, Zap } from "lucide-react";
-import { apiFetch, getWsUrl, type BillingStatus, type Project } from "@/lib/api";
+import { apiFetch, connectWs, type BillingStatus, type Project } from "@/lib/api";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -1497,78 +1497,73 @@ function ProjectEditorPage() {
   }, []);
 
   useEffect(() => {
-    const ws = new WebSocket(getWsUrl("/ws/projects"));
-    wsRef.current = ws;
+    return connectWs("/ws/projects", (ws) => {
+      wsRef.current = ws;
 
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        if (msg.type === "projects") {
-          const updated: Project | undefined = (msg.data as Project[]).find(
-            (p) => p.id === projectId,
-          );
-          if (!updated) return;
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.type === "projects") {
+            const updated: Project | undefined = (msg.data as Project[]).find(
+              (p) => p.id === projectId,
+            );
+            if (!updated) return;
 
-          const wasUpdating = prevUpdatingRef.current;
-          const prevUpdatedAt = prevUpdatedAtRef.current;
+            const wasUpdating = prevUpdatingRef.current;
+            const prevUpdatedAt = prevUpdatedAtRef.current;
 
-          prevUpdatingRef.current = updated.is_updating;
-          prevUpdatedAtRef.current = updated.updated_at;
+            prevUpdatingRef.current = updated.is_updating;
+            prevUpdatedAtRef.current = updated.updated_at;
 
-          setProject(updated);
+            setProject(updated);
 
-          if (wasUpdating && !updated.is_updating) {
-            setBuildingPreview(false);
-            loadTokenBalance();
+            if (wasUpdating && !updated.is_updating) {
+              setBuildingPreview(false);
+              loadTokenBalance();
+            }
+
+            if (
+              wasUpdating &&
+              !updated.is_updating &&
+              !updated.build_error &&
+              prevUpdatedAt !== updated.updated_at
+            ) {
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id: `assistant-${Date.now()}`,
+                  role: "assistant",
+                  text:
+                    (updated as { last_summary?: string }).last_summary ||
+                    "Your app has been updated successfully!",
+                  timestamp: new Date(),
+                },
+              ]);
+            }
+
+            if (wasUpdating && !updated.is_updating && updated.build_error) {
+              setErrorDismissed(false);
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id: `err-${Date.now()}`,
+                  role: "error",
+                  text: `Update failed: ${updated.build_error}`,
+                  timestamp: new Date(),
+                },
+              ]);
+            }
           }
-
-          if (
-            wasUpdating &&
-            !updated.is_updating &&
-            !updated.build_error &&
-            prevUpdatedAt !== updated.updated_at
-          ) {
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: `assistant-${Date.now()}`,
-                role: "assistant",
-                text:
-                  (updated as { last_summary?: string }).last_summary ||
-                  "Your app has been updated successfully!",
-                timestamp: new Date(),
-              },
-            ]);
-          }
-
-          if (wasUpdating && !updated.is_updating && updated.build_error) {
-            setErrorDismissed(false);
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: `err-${Date.now()}`,
-                role: "error",
-                text: `Update failed: ${updated.build_error}`,
-                timestamp: new Date(),
-              },
-            ]);
-          }
+        } catch {
+          /* ignore */
         }
-      } catch {
-        /* ignore */
-      }
-    };
-    ws.onerror = () => ws.close();
-    return () => ws.close();
+      };
+      ws.onerror = () => ws.close();
+    });
   }, [projectId, loadTokenBalance]);
 
   useEffect(() => {
-    let ws: WebSocket;
-    let dead = false;
-
-    function connect() {
-      if (dead) return;
-      ws = new WebSocket(getWsUrl(`/ws/projects/${projectId}/logs`));
+    return connectWs(`/ws/projects/${projectId}/logs`, (ws) => {
       wsLogsRef.current = ws;
 
       ws.onmessage = (e) => {
@@ -1609,17 +1604,8 @@ function ProjectEditorPage() {
         }
       };
 
-      ws.onclose = () => {
-        if (!dead) setTimeout(connect, 2000);
-      };
       ws.onerror = () => ws.close();
-    }
-
-    connect();
-    return () => {
-      dead = true;
-      ws?.close();
-    };
+    });
   }, [projectId]);
 
   async function transferToGitHub() {
