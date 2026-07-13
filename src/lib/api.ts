@@ -109,6 +109,10 @@ async function attemptRefresh(): Promise<boolean> {
 }
 
 export async function apiFetch(path: string, init?: RequestInit, _retry = true): Promise<Response> {
+  // Refresh proactively when the token is at/near expiry so requests don't
+  // burn a round-trip on a guaranteed 401 (the reactive path below still
+  // covers tokens revoked server-side).
+  if (_retry) await ensureFreshToken();
   const token = getToken();
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
