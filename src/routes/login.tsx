@@ -1,7 +1,7 @@
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { getToken, setTokens } from "@/lib/api";
-import { signInWithGoogle } from "@/lib/firebase";
+import { signInWithOAuth, type OAuthProviderName } from "@/lib/firebase";
 
 export const Route = createFileRoute("/login")({
   beforeLoad: () => {
@@ -23,21 +23,22 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState<OAuthProviderName | null>(null);
+  const providerLabel = { google: "Google", github: "GitHub" } as const;
 
-  async function onGoogleSignIn() {
+  async function onOAuthSignIn(provider: OAuthProviderName) {
     setError("");
-    setGoogleLoading(true);
+    setOauthLoading(provider);
     try {
-      const idToken = await signInWithGoogle();
-      const res = await fetch("/api/v1/auth/google", {
+      const idToken = await signInWithOAuth(provider);
+      const res = await fetch("/api/v1/auth/oauth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id_token: idToken }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(data.detail ?? "Google sign-in failed.");
+        setError(data.detail ?? `${providerLabel[provider]} sign-in failed.`);
         return;
       }
       const data = await res.json();
@@ -46,9 +47,9 @@ function LoginPage() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "";
       if (msg.includes("popup-closed") || msg.includes("cancelled")) return;
-      setError("Google sign-in failed. Please try again.");
+      setError(`${providerLabel[provider]} sign-in failed. Please try again.`);
     } finally {
-      setGoogleLoading(false);
+      setOauthLoading(null);
     }
   }
 
@@ -103,25 +104,45 @@ function LoginPage() {
 
         {/* Card */}
         <div className="rounded-2xl border border-border bg-card shadow-warm-lg p-8 space-y-5">
-          {/* Google sign-in */}
-          <button
-            type="button"
-            onClick={onGoogleSignIn}
-            disabled={googleLoading || loading}
-            className="w-full h-11 flex items-center justify-center gap-2.5 rounded-xl border border-border bg-background text-[14px] font-medium text-ink transition-all hover:bg-surface hover:border-text-muted disabled:opacity-60 btn-press"
-          >
-            {googleLoading ? (
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-                <span>Signing in…</span>
-              </div>
-            ) : (
-              <>
-                <GoogleIcon />
-                Continue with Google
-              </>
-            )}
-          </button>
+          {/* OAuth sign-in */}
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={() => onOAuthSignIn("google")}
+              disabled={oauthLoading !== null || loading}
+              className="w-full h-11 flex items-center justify-center gap-2.5 rounded-xl border border-border bg-background text-[14px] font-medium text-ink transition-all hover:bg-surface hover:border-text-muted disabled:opacity-60 btn-press"
+            >
+              {oauthLoading === "google" ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+                  <span>Signing in…</span>
+                </div>
+              ) : (
+                <>
+                  <GoogleIcon />
+                  Continue with Google
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => onOAuthSignIn("github")}
+              disabled={oauthLoading !== null || loading}
+              className="w-full h-11 flex items-center justify-center gap-2.5 rounded-xl border border-border bg-background text-[14px] font-medium text-ink transition-all hover:bg-surface hover:border-text-muted disabled:opacity-60 btn-press"
+            >
+              {oauthLoading === "github" ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+                  <span>Signing in…</span>
+                </div>
+              ) : (
+                <>
+                  <GitHubIcon />
+                  Continue with GitHub
+                </>
+              )}
+            </button>
+          </div>
 
           {/* Divider */}
           <div className="flex items-center gap-3">
@@ -186,7 +207,7 @@ function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading || googleLoading}
+              disabled={loading || oauthLoading !== null}
               className="w-full h-11 rounded-xl bg-accent text-accent-foreground text-[14px] font-medium transition-all hover:bg-[oklch(0.55_0.135_45)] disabled:opacity-60 btn-press shadow-warm-sm mt-1"
             >
               {loading ? (
@@ -212,6 +233,14 @@ function LoginPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+function GitHubIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+    </svg>
   );
 }
 

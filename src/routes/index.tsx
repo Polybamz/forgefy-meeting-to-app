@@ -496,7 +496,14 @@ function Index() {
       <header className="h-14 border-b border-border sticky top-0 z-20 frost">
         <div className="h-full max-w-7xl mx-auto flex items-center justify-between px-6 md:px-10">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center shadow-warm-sm">
+            <img
+              src="/apple-touch-icon.png"
+              alt="Forgefy"
+              className="h-8 w-8"
+              width={40}
+              height={40}
+              />
+            {/* ============================== 
               <svg
                 className="w-3.5 h-3.5 text-accent-foreground"
                 viewBox="0 0 16 16"
@@ -504,7 +511,7 @@ function Index() {
               >
                 <path d="M8 1L2 4.5v7L8 15l6-3.5v-7L8 1zm0 1.8l4.2 2.45v4.9L8 12.6 3.8 10.15V5.25L8 2.8z" />
               </svg>
-            </div>
+            </div> */}
             <span className="font-display text-[19px] text-ink">Forgefy</span>
           </div>
 

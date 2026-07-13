@@ -1,0 +1,17 @@
+{
+  "name": "Forgefy",
+  "short_name": "Forgefy",
+  "description": "Forgefy joins your planning calls, extracts what your team actually decided, and builds Flutter, React Native, and Next.js apps — simultaneously",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#F7F4EF",
+  "theme_color": "#F7F4EF",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
