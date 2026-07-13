@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
-import { apiFetch, getWsUrl, type StoredSession, type Project } from "@/lib/api";
+import { apiFetch, connectWs, type StoredSession, type Project } from "@/lib/api";
 import { LayoutDashboard, Mic2, FolderKanban, Github, ArrowRight, Circle } from "lucide-react";
 
 export const Route = createFileRoute("/_auth/dashboard")({
@@ -380,37 +380,39 @@ function DashboardPage() {
   const wsProjectsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    const sessWs = new WebSocket(getWsUrl("/ws/sessions"));
-    wsSessionsRef.current = sessWs;
-    sessWs.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data as string);
-        if (msg.type === "sessions") {
-          setSessions(msg.data);
-          setWsReady(true);
+    const disposeSessions = connectWs("/ws/sessions", (sessWs) => {
+      wsSessionsRef.current = sessWs;
+      sessWs.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data as string);
+          if (msg.type === "sessions") {
+            setSessions(msg.data);
+            setWsReady(true);
+          }
+        } catch {
+          // ignore malformed WS messages
         }
-      } catch {
-        // ignore malformed WS messages
-      }
-    };
-    sessWs.onerror = () => sessWs.close();
-    sessWs.onopen = () => setWsReady(true);
+      };
+      sessWs.onerror = () => sessWs.close();
+      sessWs.onopen = () => setWsReady(true);
+    });
 
-    const projWs = new WebSocket(getWsUrl("/ws/projects"));
-    wsProjectsRef.current = projWs;
-    projWs.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data as string);
-        if (msg.type === "projects") setProjects(msg.data);
-      } catch {
-        // ignore malformed WS messages
-      }
-    };
-    projWs.onerror = () => projWs.close();
+    const disposeProjects = connectWs("/ws/projects", (projWs) => {
+      wsProjectsRef.current = projWs;
+      projWs.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data as string);
+          if (msg.type === "projects") setProjects(msg.data);
+        } catch {
+          // ignore malformed WS messages
+        }
+      };
+      projWs.onerror = () => projWs.close();
+    });
 
     return () => {
-      sessWs.close();
-      projWs.close();
+      disposeSessions();
+      disposeProjects();
     };
   }, []);
 

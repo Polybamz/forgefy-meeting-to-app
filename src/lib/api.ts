@@ -32,6 +32,63 @@ export function getWsUrl(path: string): string {
   return path + query;
 }
 
+function tokenExpiresSoon(): boolean {
+  const token = getToken();
+  if (!token) return false;
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    // Treat tokens within 60s of expiry as stale so we never connect with one
+    // that dies mid-handshake.
+    return typeof payload.exp === "number" && payload.exp * 1000 < Date.now() + 60_000;
+  } catch {
+    return true;
+  }
+}
+
+export async function ensureFreshToken(): Promise<void> {
+  if (tokenExpiresSoon()) await attemptRefresh();
+}
+
+/**
+ * Open a WebSocket that survives access-token expiry.
+ *
+ * Refreshes the token before connecting when it is expired/near expiry,
+ * reconnects with exponential backoff, and force-refreshes when the server
+ * closes with code 4001 (auth failure). `setup` runs once per connection
+ * attempt to attach handlers. Returns a dispose function that stops the loop.
+ */
+export function connectWs(path: string, setup: (ws: WebSocket) => void): () => void {
+  let disposed = false;
+  let ws: WebSocket | null = null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let delay = 2_000;
+
+  async function open(forceRefresh: boolean): Promise<void> {
+    if (forceRefresh) await attemptRefresh();
+    else await ensureFreshToken();
+    if (disposed) return;
+
+    ws = new WebSocket(getWsUrl(path));
+    setup(ws);
+
+    ws.addEventListener("open", () => {
+      delay = 2_000;
+    });
+    ws.addEventListener("close", (e) => {
+      if (disposed) return;
+      timer = setTimeout(() => void open(e.code === 4001), delay);
+      delay = Math.min(delay * 2, 30_000);
+    });
+  }
+
+  void open(false);
+  return () => {
+    disposed = true;
+    clearTimeout(timer);
+    ws?.close();
+  };
+}
+
 async function attemptRefresh(): Promise<boolean> {
   const refreshToken =
     typeof window !== "undefined" ? localStorage.getItem("forgefy_refresh_token") : null;

@@ -7,7 +7,7 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { clearTokens, getToken, getWsUrl } from "@/lib/api";
+import { clearTokens, connectWs, getToken } from "@/lib/api";
 import { ThemeToggle } from "@/hooks/use-theme";
 import {
   LayoutDashboard,
@@ -142,11 +142,7 @@ function AuthLayout() {
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    let ws: WebSocket;
-    let reconnectTimer: ReturnType<typeof setTimeout>;
-
-    function connect() {
-      ws = new WebSocket(getWsUrl("/ws/user/events"));
+    return connectWs("/ws/user/events", (ws) => {
       wsRef.current = ws;
 
       ws.onmessage = (e) => {
@@ -164,17 +160,8 @@ function AuthLayout() {
         }
       };
 
-      ws.onclose = () => {
-        reconnectTimer = setTimeout(connect, 5_000);
-      };
       ws.onerror = () => ws.close();
-    }
-
-    connect();
-    return () => {
-      clearTimeout(reconnectTimer);
-      wsRef.current?.close();
-    };
+    });
   }, []);
 
   // Close sidebar whenever the route changes
