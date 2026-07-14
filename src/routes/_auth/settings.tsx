@@ -165,7 +165,7 @@ const BUILD_MODEL_OPTIONS = [
   { value: "gemini", label: "Gemini", sub: "Google · fast & capable" },
   { value: "claude", label: "Claude", sub: "Anthropic · precise reasoning" },
   { value: "gpt", label: "GPT-4o", sub: "OpenAI" },
-  { value: "Qwen3", label: "Qwen3", sub: "Local / Ollama" },
+  { value: "Qwen3", label: "Qwen3", sub: "Open models · OpenRouter / Ollama" },
 ] as const;
 
 function BuildModelSection() {
@@ -295,6 +295,121 @@ function AccountSection({ onSignOut }: { onSignOut: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
+// Privacy & data section (CCPA/GDPR: export + delete)
+// ---------------------------------------------------------------------------
+function PrivacySection({ onDeleted }: { onDeleted: () => void }) {
+  const [exporting, setExporting] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function exportData() {
+    setExporting(true);
+    try {
+      const res = await apiFetch("/api/v1/account/export");
+      if (!res.ok) {
+        toast.error("Export failed. Please try again.");
+        return;
+      }
+      const blob = new Blob([JSON.stringify(await res.json(), null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `forgefy-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Your data export has been downloaded.");
+    } catch {
+      toast.error("Network error. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function deleteAccount() {
+    if (confirmText !== "DELETE") return;
+    setDeleting(true);
+    try {
+      const res = await apiFetch("/api/v1/account", {
+        method: "DELETE",
+        body: JSON.stringify({ confirm: "DELETE" }),
+      });
+      if (res.ok) {
+        toast.success("Your account and all associated data have been deleted.");
+        onDeleted();
+      } else {
+        const detail = (await res.json().catch(() => null))?.detail;
+        toast.error(typeof detail === "string" ? detail : "Deletion failed. Please try again.");
+      }
+    } catch {
+      toast.error("Network error. Please try again.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <Section
+      title="Privacy & Data"
+      description="Download a copy of everything Forgefy stores about you, or delete it permanently."
+    >
+      <Row
+        label="Export my data"
+        sublabel="Profile, meetings, transcripts, blueprints, and projects as JSON"
+      >
+        <button
+          onClick={exportData}
+          disabled={exporting}
+          className="px-4 py-2 rounded-xl border border-border text-[13px] text-text-secondary hover:border-accent hover:text-accent transition-colors disabled:opacity-60 btn-press"
+        >
+          {exporting ? "Preparing…" : "Download export"}
+        </button>
+      </Row>
+      <Row
+        label="Delete account"
+        sublabel="Permanently removes your account, meetings, transcripts, and projects. GitHub repositories in your own account are not touched."
+      >
+        {!showConfirm ? (
+          <button
+            onClick={() => setShowConfirm(true)}
+            className="px-4 py-2 rounded-xl border border-border text-[13px] text-text-secondary hover:border-destructive hover:text-destructive hover:bg-destructive/5 transition-colors btn-press"
+          >
+            Delete…
+          </button>
+        ) : (
+          <div className="flex items-center gap-2">
+            <input
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder='Type "DELETE"'
+              className="w-32 px-3 py-2 rounded-xl border border-border bg-surface text-[13px] text-ink placeholder:text-text-muted focus:outline-none focus:border-destructive"
+            />
+            <button
+              onClick={deleteAccount}
+              disabled={confirmText !== "DELETE" || deleting}
+              className="px-4 py-2 rounded-xl bg-destructive text-white text-[13px] font-medium hover:bg-destructive/90 transition-colors disabled:opacity-40 btn-press"
+            >
+              {deleting ? "Deleting…" : "Confirm"}
+            </button>
+            <button
+              onClick={() => {
+                setShowConfirm(false);
+                setConfirmText("");
+              }}
+              className="px-3 py-2 rounded-xl text-[13px] text-text-muted hover:text-ink transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+      </Row>
+    </Section>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main settings page
 // ---------------------------------------------------------------------------
 function SettingsPage() {
@@ -316,6 +431,7 @@ function SettingsPage() {
         <GitHubSection />
         <BuildModelSection />
         <AppearanceSection />
+        <PrivacySection onDeleted={handleSignOut} />
         <AccountSection onSignOut={handleSignOut} />
       </div>
     </div>

@@ -20,7 +20,7 @@ export const Route = createFileRoute("/terms")({
   }),
 });
 
-const LAST_UPDATED = "July 6, 2026";
+const LAST_UPDATED = "July 14, 2026";
 
 export default function Terms() {
   return (
@@ -141,10 +141,19 @@ export default function Terms() {
           </div>
 
           <div>
-            <h2 className="text-lg font-medium text-ink">10. Termination</h2>
+            <h2 className="text-lg font-medium text-ink">10. Termination and account deletion</h2>
             <p className="mt-2">
-              You may stop using the Service and delete your account at any time. We may suspend or
-              terminate accounts that violate these Terms or applicable law.
+              You may stop using the Service at any time and permanently delete your account from{" "}
+              <strong>Settings → Privacy &amp; Data</strong> (or by emailing privacy@forgefy.dev).
+              Deletion removes your account, meetings, transcripts, blueprints, and projects from
+              our systems; code already pushed to your own GitHub repositories is yours and remains
+              untouched. You can also export a copy of your data from the same place before
+              deleting — see our{" "}
+              <Link to="/privacy" className="text-accent hover:underline">
+                Privacy Policy
+              </Link>{" "}
+              for details, including your California (CCPA) rights. We may suspend or terminate
+              accounts that violate these Terms or applicable law.
             </p>
           </div>
 

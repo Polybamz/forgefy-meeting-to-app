@@ -20,7 +20,7 @@ export const Route = createFileRoute("/privacy")({
   }),
 });
 
-const LAST_UPDATED = "July 6, 2026";
+const LAST_UPDATED = "July 14, 2026";
 
 export default function Privacy() {
   return (
@@ -136,24 +136,99 @@ export default function Privacy() {
           </div>
 
           <div>
-            <h2 className="text-lg font-medium text-ink">7. Your rights</h2>
+            <h2 className="text-lg font-medium text-ink">7. Your rights and choices</h2>
             <p className="mt-2">
-              Depending on where you live, you may have the right to access, correct, export, or
-              delete your personal data. You can delete individual projects from within the app, or
-              contact us to request full account deletion or a data export.
+              Wherever you live, Forgefy gives you self-service control over your data. From{" "}
+              <strong>Settings → Privacy &amp; Data</strong> you can:
+            </p>
+            <ul className="mt-2 list-disc pl-5 space-y-1.5">
+              <li>
+                <strong>Export your data</strong> — download a JSON copy of your profile, meeting
+                sessions and transcripts, blueprints, projects, and usage records.
+              </li>
+              <li>
+                <strong>Delete your account</strong> — permanently remove your account and all
+                associated data (meetings, transcripts, blueprints, projects, chats, and usage
+                records), including your sign-in credential. Code already pushed to your own GitHub
+                repositories remains yours and is not touched.
+              </li>
+            </ul>
+            <p className="mt-2">
+              You can also delete individual meetings and projects from within the app, or email{" "}
+              privacy@forgefy.dev to make any of these requests instead. We respond to verified
+              requests within 45 days.
             </p>
           </div>
 
           <div>
-            <h2 className="text-lg font-medium text-ink">8. Children's privacy</h2>
+            <h2 className="text-lg font-medium text-ink">
+              8. California privacy rights (CCPA/CPRA)
+            </h2>
+            <p className="mt-2">
+              If you are a California resident, the California Consumer Privacy Act, as amended by
+              the CPRA, gives you the following rights:
+            </p>
+            <ul className="mt-2 list-disc pl-5 space-y-1.5">
+              <li>
+                <strong>Right to know / access</strong> — request the categories and specific pieces
+                of personal information we have collected about you, the sources, the purposes, and
+                the categories of third parties we share it with.
+              </li>
+              <li>
+                <strong>Right to delete</strong> — request deletion of your personal information,
+                subject to legal exceptions (e.g. billing records we must retain).
+              </li>
+              <li>
+                <strong>Right to correct</strong> — request correction of inaccurate personal
+                information.
+              </li>
+              <li>
+                <strong>Right to data portability</strong> — receive your data in a portable,
+                machine-readable format (the JSON export above).
+              </li>
+              <li>
+                <strong>Right to opt out of sale or sharing</strong> — Forgefy{" "}
+                <strong>does not sell your personal information and does not share it for
+                cross-context behavioral advertising</strong>, and has not done so in the preceding
+                12 months, so there is nothing to opt out of.
+              </li>
+              <li>
+                <strong>Right to limit use of sensitive personal information</strong> — the only
+                sensitive personal information we process is your login credential, used solely to
+                authenticate you; we do not use sensitive information for any other purpose.
+              </li>
+              <li>
+                <strong>Right to non-discrimination</strong> — we will never deny you service,
+                charge you a different price, or degrade your experience for exercising any of these
+                rights.
+              </li>
+            </ul>
+            <p className="mt-2">
+              In CCPA terms, the categories we collect are: identifiers (email address),
+              commercial information (subscription tier, billing status), internet activity (usage
+              counts), audio/electronic information (meeting recordings and transcripts you choose
+              to process), and professional information incidentally contained in those meetings.
+            </p>
+            <p className="mt-2">
+              To exercise any right, use <strong>Settings → Privacy &amp; Data</strong> or email
+              privacy@forgefy.dev. You may use an authorized agent; we will verify the request
+              (and, for agents, written authorization) before acting on it. We will confirm receipt
+              within 10 business days and respond within 45 days, extendable once by a further 45
+              days with notice.
+            </p>
+          </div>
+
+          <div>
+            <h2 className="text-lg font-medium text-ink">9. Children's privacy</h2>
             <p className="mt-2">
               The Service is not directed to children under 16, and we do not knowingly collect
-              personal information from them.
+              personal information from them. We do not sell or share the personal information of
+              consumers we know to be under 16.
             </p>
           </div>
 
           <div>
-            <h2 className="text-lg font-medium text-ink">9. Changes to this policy</h2>
+            <h2 className="text-lg font-medium text-ink">10. Changes to this policy</h2>
             <p className="mt-2">
               We may update this Privacy Policy from time to time. Material changes will be
               reflected by updating the "Last updated" date above.
@@ -161,7 +236,7 @@ export default function Privacy() {
           </div>
 
           <div>
-            <h2 className="text-lg font-medium text-ink">10. Contact</h2>
+            <h2 className="text-lg font-medium text-ink">11. Contact</h2>
             <p className="mt-2">
               Questions about this Privacy Policy, or a request to access/delete your data? Contact
               us at privacy@forgefy.dev.
