@@ -18,7 +18,7 @@ const BUILD_MODEL_OPTIONS = [
   { value: "gemini", label: "Gemini", sub: "Google — fast & capable" },
   { value: "claude", label: "Claude", sub: "Anthropic — precise reasoning" },
   { value: "gpt", label: "GPT-4o", sub: "OpenAI" },
-  { value: "Qwen3", label: "Qwen3", sub: "Local / Ollama" },
+  { value: "Qwen3", label: "Qwen3", sub: "Open models — OpenRouter / Ollama" },
 ] as const;
 
 // ---------------------------------------------------------------------------
