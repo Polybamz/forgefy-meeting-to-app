@@ -1,8 +1,11 @@
 import { initializeApp, getApps } from "firebase/app";
 import {
+  createUserWithEmailAndPassword,
   getAuth,
   GithubAuthProvider,
   GoogleAuthProvider,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
   signInWithPopup,
 } from "firebase/auth";
 
