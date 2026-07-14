@@ -104,28 +104,32 @@ function ProjectCard({ project, index }: { project: Project; index: number }) {
             </span>
           )}
           {project.preview_url && (
-            <a
-              href={project.preview_url}
-              target="_blank"
-              rel="noreferrer"
-              onClick={(e) => e.stopPropagation()}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                window.open(project.preview_url!, "_blank", "noopener,noreferrer");
+              }}
               className="text-[11px] text-accent hover:text-accent/80 transition-colors"
             >
               Preview ↗
-            </a>
+            </button>
           )}
           {project.github_url && project.repo_owner === "user" && (
-            <a
-              href={project.github_url}
-              target="_blank"
-              rel="noreferrer"
-              onClick={(e) => e.stopPropagation()}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                window.open(project.github_url!, "_blank", "noopener,noreferrer");
+              }}
               className="flex items-center gap-1 text-[11px] text-text-muted hover:text-ink transition-colors"
               title={project.repo_full_name}
             >
               <GithubIcon className="h-3 w-3" />
               GitHub ↗
-            </a>
+            </button>
           )}
           {project.github_url && project.repo_owner === "platform" && (
             <span

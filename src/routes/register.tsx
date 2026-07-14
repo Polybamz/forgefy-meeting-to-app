@@ -1,7 +1,7 @@
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { getToken, setTokens } from "@/lib/api";
-import { signInWithOAuth, type OAuthProviderName } from "@/lib/firebase";
+import { oauthErrorMessage, signInWithOAuth, type OAuthProviderName } from "@/lib/firebase";
 
 export const Route = createFileRoute("/register")({
   beforeLoad: () => {
@@ -49,9 +49,8 @@ function RegisterPage() {
       setTokens(data.access_token, data.refresh_token);
       navigate({ to: "/dashboard" });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "";
-      if (msg.includes("popup-closed") || msg.includes("cancelled")) return;
-      setError(`${providerLabel[provider]} sign-in failed. Please try again.`);
+      const message = oauthErrorMessage(err, providerLabel[provider]);
+      if (message) setError(message);
     } finally {
       setOauthLoading(null);
     }

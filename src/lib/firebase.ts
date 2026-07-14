@@ -34,3 +34,30 @@ export async function signInWithOAuth(provider: OAuthProviderName): Promise<stri
   );
   return result.user.getIdToken();
 }
+
+/** Map a Firebase popup error to an actionable message, or null if the user
+ * simply dismissed the popup (no error worth showing). */
+export function oauthErrorMessage(err: unknown, providerName: string): string | null {
+  const code = (err as { code?: string })?.code ?? "";
+  const msg = err instanceof Error ? err.message : "";
+  if (
+    code === "auth/popup-closed-by-user" ||
+    code === "auth/cancelled-popup-request" ||
+    msg.includes("popup-closed") ||
+    msg.includes("cancelled")
+  ) {
+    return null;
+  }
+  switch (code) {
+    case "auth/account-exists-with-different-credential":
+      return "This email is already registered with a different sign-in method. Try Google or email/password instead.";
+    case "auth/operation-not-allowed":
+      return `${providerName} sign-in is not enabled for this app yet.`;
+    case "auth/unauthorized-domain":
+      return "Sign-in isn't authorized from this domain yet. Please contact support.";
+    case "auth/popup-blocked":
+      return "Your browser blocked the sign-in popup. Allow popups for this site and try again.";
+    default:
+      return `${providerName} sign-in failed${code ? ` (${code})` : ""}. Please try again.`;
+  }
+}
