@@ -103,11 +103,13 @@ function AgentActivityBlock({
     ? [
         ...(plan.files_to_create ?? []).map((f: PlanFile) => ({
           path: f.path,
+          desc: f.purpose,
           badge: "+",
           done: !isActive || writtenFiles.has(f.path),
         })),
         ...(plan.files_to_modify ?? []).map((f: PlanFile) => ({
           path: f.path,
+          desc: f.changes,
           badge: "~",
           done: !isActive || writtenFiles.has(f.path),
         })),
@@ -144,15 +146,20 @@ function AgentActivityBlock({
               <div className="px-3 py-2 space-y-1 border-b border-[#2a2522]">
                 <p className="text-[#7A6F65] leading-snug pb-1">{plan.summary}</p>
                 {fileItems.map((f) => (
-                  <div key={f.path} className="flex items-center gap-2 leading-[1.6]">
-                    <span className={f.done ? "text-[oklch(0.6_0.18_145)]" : "text-[#5a5249]"}>
+                  <div key={f.path} className="flex items-start gap-2 leading-[1.6]">
+                    <span className={`shrink-0 ${f.done ? "text-[oklch(0.6_0.18_145)]" : "text-[#5a5249]"}`}>
                       {f.done ? "✓" : "○"}
                     </span>
-                    <span
-                      className={`break-all ${f.done ? "text-[#5a5249] line-through" : "text-[#C8BFB5]"}`}
-                    >
-                      {f.path}
-                    </span>
+                    <div className="min-w-0 flex-1">
+                      <span
+                        className={`${f.done ? "text-[#5a5249] line-through" : "text-[#C8BFB5]"}`}
+                      >
+                        {f.desc || f.path}
+                      </span>
+                      {f.desc && (
+                        <span className="block text-[9px] text-[#5a5249] break-all">{f.path}</span>
+                      )}
+                    </div>
                     <span
                       className={`shrink-0 text-[9px] ${f.badge === "+" ? "text-[oklch(0.6_0.18_145)]" : "text-[oklch(0.65_0.18_60)]"}`}
                     >
@@ -314,7 +321,7 @@ function PreviewPanel({
         <iframe
           key={refreshKey}
           src={iframeUrl}
-          className="flex justify-center item-center w-[50%] h-full border-0"
+          className="flex justify-center item-center w-[100%] h-full border-0"
           title="App preview"
           allow="camera; microphone"
           sandbox={
