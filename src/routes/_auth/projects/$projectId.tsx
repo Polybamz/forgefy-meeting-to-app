@@ -177,10 +177,23 @@ function AgentActivityBlock({
           {logs.length === 0 && isActive && (
             <span className="text-[#5a5249] italic">Connecting…</span>
           )}
-          {logs.map((entry) => (
+          {logs.map((entry, i) => {
+            // The last line while the agent is running is the step in progress —
+            // show a spinning loader for it, whatever its type (covers every
+            // status verb and any process not in LOG_ICONS).
+            const isProcessing = isActive && i === logs.length - 1;
+            return (
             <div key={entry.ts} className="flex items-start gap-2 leading-[1.6]">
               <span className={`shrink-0 ${LOG_COLORS[entry.type] ?? "text-[#7A6F65]"}`}>
-                {LOG_ICONS[entry.type] ?? "·"}
+                {isProcessing ? (
+                  <span
+                    className="inline-block h-2.5 w-2.5 rounded-full border-[1.5px] border-current border-t-transparent animate-spin align-middle"
+                    role="status"
+                    aria-label="Processing"
+                  />
+                ) : (
+                  LOG_ICONS[entry.type] ?? "·"
+                )}
               </span>
               {entry.type === "text" || entry.type === "done" ? (
                 <Md
@@ -194,7 +207,8 @@ function AgentActivityBlock({
                 </span>
               )}
             </div>
-          ))}
+            );
+          })}
           <div ref={endRef} />
         </div>
       </div>
