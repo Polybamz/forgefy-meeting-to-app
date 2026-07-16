@@ -18,6 +18,7 @@ import { Route as DocumentationRouteImport } from './routes/documentation'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthSettingsRouteImport } from './routes/_auth/settings'
+import { Route as AuthDevelopersRouteImport } from './routes/_auth/developers'
 import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard'
 import { Route as AuthBillingRouteImport } from './routes/_auth/billing'
 import { Route as AuthSessionsIndexRouteImport } from './routes/_auth/sessions/index'
@@ -69,6 +70,11 @@ const IndexRoute = IndexRouteImport.update({
 const AuthSettingsRoute = AuthSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthDevelopersRoute = AuthDevelopersRouteImport.update({
+  id: '/developers',
+  path: '/developers',
   getParentRoute: () => AuthRoute,
 } as any)
 const AuthDashboardRoute = AuthDashboardRouteImport.update({
@@ -123,6 +129,7 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/billing': typeof AuthBillingRouteWithChildren
   '/dashboard': typeof AuthDashboardRoute
+  '/developers': typeof AuthDevelopersRoute
   '/settings': typeof AuthSettingsRoute
   '/billing/success': typeof AuthBillingSuccessRoute
   '/projects/$projectId': typeof AuthProjectsProjectIdRoute
@@ -141,6 +148,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/billing': typeof AuthBillingRouteWithChildren
   '/dashboard': typeof AuthDashboardRoute
+  '/developers': typeof AuthDevelopersRoute
   '/settings': typeof AuthSettingsRoute
   '/billing/success': typeof AuthBillingSuccessRoute
   '/projects/$projectId': typeof AuthProjectsProjectIdRoute
@@ -161,6 +169,7 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/_auth/billing': typeof AuthBillingRouteWithChildren
   '/_auth/dashboard': typeof AuthDashboardRoute
+  '/_auth/developers': typeof AuthDevelopersRoute
   '/_auth/settings': typeof AuthSettingsRoute
   '/_auth/billing/success': typeof AuthBillingSuccessRoute
   '/_auth/projects/$projectId': typeof AuthProjectsProjectIdRoute
@@ -181,6 +190,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/billing'
     | '/dashboard'
+    | '/developers'
     | '/settings'
     | '/billing/success'
     | '/projects/$projectId'
@@ -199,6 +209,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/billing'
     | '/dashboard'
+    | '/developers'
     | '/settings'
     | '/billing/success'
     | '/projects/$projectId'
@@ -218,6 +229,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/_auth/billing'
     | '/_auth/dashboard'
+    | '/_auth/developers'
     | '/_auth/settings'
     | '/_auth/billing/success'
     | '/_auth/projects/$projectId'
@@ -303,6 +315,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthSettingsRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/developers': {
+      id: '/_auth/developers'
+      path: '/developers'
+      fullPath: '/developers'
+      preLoaderRoute: typeof AuthDevelopersRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/dashboard': {
       id: '/_auth/dashboard'
       path: '/dashboard'
@@ -377,6 +396,7 @@ const AuthBillingRouteWithChildren = AuthBillingRoute._addFileChildren(
 interface AuthRouteChildren {
   AuthBillingRoute: typeof AuthBillingRouteWithChildren
   AuthDashboardRoute: typeof AuthDashboardRoute
+  AuthDevelopersRoute: typeof AuthDevelopersRoute
   AuthSettingsRoute: typeof AuthSettingsRoute
   AuthProjectsProjectIdRoute: typeof AuthProjectsProjectIdRoute
   AuthSessionsSessionIdRoute: typeof AuthSessionsSessionIdRoute
@@ -388,6 +408,7 @@ interface AuthRouteChildren {
 const AuthRouteChildren: AuthRouteChildren = {
   AuthBillingRoute: AuthBillingRouteWithChildren,
   AuthDashboardRoute: AuthDashboardRoute,
+  AuthDevelopersRoute: AuthDevelopersRoute,
   AuthSettingsRoute: AuthSettingsRoute,
   AuthProjectsProjectIdRoute: AuthProjectsProjectIdRoute,
   AuthSessionsSessionIdRoute: AuthSessionsSessionIdRoute,

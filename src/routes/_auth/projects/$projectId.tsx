@@ -1611,11 +1611,13 @@ function ProjectEditorPage() {
           const newEntry = { ...entry, ts: Date.now() + Math.random() };
           setLogs((prev) => {
             const sliced = prev.slice(-200);
-            if (
-              entry.type === "thinking" &&
-              sliced.length > 0 &&
-              sliced[sliced.length - 1].type === "thinking"
-            ) {
+            const last = sliced[sliced.length - 1];
+            // Never stack the exact same line twice in a row (e.g. repeated
+            // retry warnings) — the copy is already on screen.
+            if (last && last.type === entry.type && last.message === entry.message) {
+              return sliced;
+            }
+            if (entry.type === "thinking" && last?.type === "thinking") {
               return [...sliced.slice(0, -1), newEntry];
             }
             return [...sliced, newEntry];
