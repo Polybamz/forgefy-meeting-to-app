@@ -14,6 +14,7 @@ import {
   Mic2,
   FolderKanban,
   CreditCard,
+  Code2,
   Settings,
   Menu,
   X,
@@ -246,6 +247,9 @@ function AuthLayout() {
           </NavItem>
           <NavItem to="/projects" icon={FolderKanban}>
             Projects
+          </NavItem>
+          <NavItem to="/developers" icon={Code2}>
+            Developers
           </NavItem>
         </nav>
 

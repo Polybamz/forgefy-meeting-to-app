@@ -1,4 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
+import { Check, Copy } from "lucide-react";
+import { useApiOrigin } from "@/hooks/use-api-origin";
+import { ApiExamples } from "@/components/api-examples";
+import { HighlightedCode } from "@/components/highlighted-code";
 import { SITE_URL } from "./__root";
 
 const DESCRIPTION =
@@ -33,6 +38,7 @@ const TOC = [
   { id: "database", label: "Connecting a database" },
   { id: "github", label: "Publishing to GitHub" },
   { id: "billing", label: "Plans & billing" },
+  { id: "developer-api", label: "Developer API" },
   { id: "settings", label: "Account settings" },
   { id: "privacy", label: "Privacy & consent" },
   { id: "faq", label: "Troubleshooting" },
@@ -41,15 +47,7 @@ const TOC = [
 // ---------------------------------------------------------------------------
 // Layout helpers
 // ---------------------------------------------------------------------------
-function Doc({
-  id,
-  title,
-  children,
-}: {
-  id: string;
-  title: string;
-  children: React.ReactNode;
-}) {
+function Doc({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
   return (
     <section id={id} className="scroll-mt-20 pt-2">
       <h2 className="font-display text-[22px] md:text-[26px] text-ink mb-3">{title}</h2>
@@ -66,6 +64,35 @@ function Callout({ children }: { children: React.ReactNode }) {
   );
 }
 
+function CodeBlock({ children }: { children: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(children);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* clipboard unavailable — user can select the text */
+    }
+  }
+
+  return (
+    <div className="relative group">
+      <pre className="font-mono-ui text-[12px] leading-relaxed text-ink bg-surface border border-border rounded-xl p-4 pr-12 overflow-x-auto max-h-[400px] overflow-y-auto">
+        <HighlightedCode code={children} />
+      </pre>
+      <button
+        onClick={copy}
+        aria-label="Copy to clipboard"
+        className="absolute top-2.5 right-2.5 flex items-center justify-center w-7 h-7 rounded-lg border border-border bg-card text-text-muted hover:text-accent hover:border-accent transition-colors"
+      >
+        {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+      </button>
+    </div>
+  );
+}
+
 function Steps({ items }: { items: string[] }) {
   return (
     <ol className="space-y-2.5">
@@ -78,6 +105,195 @@ function Steps({ items }: { items: string[] }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Developer API section — snippets show the real base URL of this deployment
+// ---------------------------------------------------------------------------
+function EndpointRow({ method, url, desc }: { method: string; url: string; desc: string }) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3 py-2 border-b border-border/60 last:border-0">
+      <span
+        className={`shrink-0 w-12 text-[11px] font-mono-ui font-semibold ${
+          method === "GET" ? "text-accent" : "text-ink"
+        }`}
+      >
+        {method}
+      </span>
+      <code className="font-mono-ui text-[12px] text-ink break-all">{url}</code>
+      <span className="text-[12px] text-text-muted sm:ml-auto sm:text-right sm:shrink-0">
+        {desc}
+      </span>
+    </div>
+  );
+}
+
+function DeveloperApiDoc() {
+  const apiOrigin = useApiOrigin();
+  const base = `${apiOrigin}/api/v1`;
+
+  return (
+    <Doc id="developer-api" title="Developer API">
+      <p>
+        The same extraction engine that powers Forgefy's meetings is available as a REST API: send
+        any transcript, get back structured <strong>features</strong>,{" "}
+        <strong>open questions</strong>, <strong>conflicting requirements</strong>, and{" "}
+        <strong>action items</strong> as JSON — for your own meeting tool, project tracker, or
+        agent.
+      </p>
+
+      <p>
+        All endpoints live under this base URL (copy it — every example below uses it already filled
+        in):
+      </p>
+      <CodeBlock>{base}</CodeBlock>
+
+      <h3 className="text-[15px] font-semibold text-ink pt-2">Step 1 — Create an API key</h3>
+      <p>
+        Go to the{" "}
+        <Link to="/developers" className="text-accent hover:underline">
+          Developers
+        </Link>{" "}
+        page in your dashboard, give the key a name, and copy the{" "}
+        <code className="font-mono-ui">fgy_live_…</code> value it shows you.{" "}
+        <strong>It is shown exactly once</strong> — Forgefy stores only a hash. If you lose it,
+        revoke it and create a new one.
+      </p>
+
+      <h3 className="text-[15px] font-semibold text-ink pt-2">Step 2 — Make your first request</h3>
+      <p>
+        Pick your language — every example is complete and already uses this deployment's URL. The
+        only thing to replace is the API key:
+      </p>
+      <ApiExamples base={base} />
+      <p>You get grouped, structured JSON back:</p>
+      <CodeBlock>{`{
+  "model_tier": "standard",
+  "features": [
+    {"title": "Google OAuth login", "description": "...", "priority": "high"}
+  ],
+  "action_items": [
+    {"task": "Build the billing page", "owner": "Sarah", "due": null}
+  ],
+  "usage": {"input_tokens": 412, "output_tokens": 188}
+}`}</CodeBlock>
+      <Callout>
+        Transcripts up to <strong>50,000 characters</strong> work synchronously like this. The{" "}
+        <code className="font-mono-ui">extractors</code> field is optional — leave it out to run all
+        four; you're only metered for the ones you request.
+      </Callout>
+
+      <h3 className="text-[15px] font-semibold text-ink pt-2">Step 3 — Everything else</h3>
+      <div className="rounded-xl border border-border px-4 py-1">
+        <EndpointRow method="POST" url={`${base}/extract`} desc="Sync, ≤50k chars" />
+        <EndpointRow method="POST" url={`${base}/extract/jobs`} desc="Async, ≤200k chars" />
+        <EndpointRow method="GET" url={`${base}/extract/jobs/{id}`} desc="Job status + result" />
+        <EndpointRow method="GET" url={`${base}/usage`} desc="Your remaining token budget" />
+      </div>
+
+      <h4 className="text-[14px] font-semibold text-ink pt-1">Long transcripts (async jobs)</h4>
+      <p>
+        Queue a job, then poll it — or pass a <code className="font-mono-ui">webhook_url</code>{" "}
+        (https) and the result is POSTed to you when it finishes:
+      </p>
+      <CodeBlock>{`# Queue the job (the Idempotency-Key makes retries safe)
+curl -X POST "${base}/extract/jobs" \\
+  -H "Authorization: Bearer fgy_live_..." \\
+  -H "Idempotency-Key: my-import-42" \\
+  -H "Content-Type: application/json" \\
+  -d '{"transcript": "...", "webhook_url": "https://yourapp.com/hooks/forgefy"}'
+# → {"job_id": "...", "status": "queued", "webhook_secret": "..."}
+
+# Poll until status is "done"
+curl "${base}/extract/jobs/JOB_ID" \\
+  -H "Authorization: Bearer fgy_live_..."`}</CodeBlock>
+      <p>
+        Webhook deliveries carry an{" "}
+        <code className="font-mono-ui">X-Forgefy-Signature: sha256=…</code> header — an HMAC-SHA256
+        of the raw body using the <code className="font-mono-ui">webhook_secret</code> from the
+        queue response. Verify it before trusting the payload. Failed deliveries are retried three
+        times with backoff.
+      </p>
+
+      <h4 className="text-[14px] font-semibold text-ink pt-1">Quotas, limits &amp; errors</h4>
+      <ul className="list-disc pl-5 space-y-1.5">
+        <li>
+          API usage draws from the <strong>same monthly token allowance</strong> as builds and
+          updates (see{" "}
+          <a href="#billing" className="text-accent hover:underline">
+            Plans &amp; billing
+          </a>
+          ) — check it any time with <code className="font-mono-ui">GET {base}/usage</code>.
+        </li>
+        <li>
+          Over budget? Free plans get a <code className="font-mono-ui">402</code> with the reset
+          date. Paid plans keep working — requests are served by the free{" "}
+          <code className="font-mono-ui">economy</code> model instead, and the response's{" "}
+          <code className="font-mono-ui">model_tier</code> tells you which one answered.
+        </li>
+        <li>
+          Rate limit: <strong>60 requests/minute per API key</strong>. Errors are RFC 7807{" "}
+          <code className="font-mono-ui">application/problem+json</code> with a human-readable{" "}
+          <code className="font-mono-ui">detail</code>.
+        </li>
+      </ul>
+
+      <h4 className="text-[14px] font-semibold text-ink pt-1">MCP server (use from agents)</h4>
+      <p>
+        Prefer tools over HTTP? A small local connector exposes Forgefy inside Claude Code, Claude
+        Desktop, or Cursor, so the agent in your editor can call{" "}
+        <code className="font-mono-ui">extract_requirements</code> itself. Three steps:
+      </p>
+      <ol className="list-decimal pl-5 space-y-2">
+        <li>
+          <a href="/mcp_server.py" download className="text-accent hover:underline">
+            Download mcp_server.py
+          </a>{" "}
+          (a single Python 3.10+ file — save it anywhere) and install its dependency:{" "}
+          <code className="font-mono-ui">pip install "mcp[cli]" httpx</code>
+        </li>
+        <li>
+          Register it — for Claude Code, run this in a terminal (swap in your key and the file's
+          path):
+          <div className="mt-2">
+            <CodeBlock>{`claude mcp add forgefy \\
+  -e FORGEFY_API_KEY=fgy_live_... \\
+  -e FORGEFY_API_URL=${apiOrigin} \\
+  -- python /path/to/mcp_server.py`}</CodeBlock>
+          </div>
+          For Claude Desktop or Cursor, add the equivalent entry to the MCP settings JSON (
+          <code className="font-mono-ui">claude_desktop_config.json</code> /{" "}
+          <code className="font-mono-ui">.cursor/mcp.json</code>) with the same two environment
+          variables.
+        </li>
+        <li>
+          Restart the editor and just ask:{" "}
+          <em>"Use forgefy to extract the requirements from this transcript: …"</em> — the agent
+          calls the tool and gets structured JSON back. The exact client config snippets are on the{" "}
+          <Link to="/developers" className="text-accent hover:underline">
+            Developers
+          </Link>{" "}
+          page.
+        </li>
+      </ol>
+      <Callout>
+        Interactive API reference with every request/response schema:{" "}
+        <a
+          href={`${apiOrigin}/docs`}
+          target="_blank"
+          rel="noreferrer"
+          className="text-accent hover:underline break-all"
+        >
+          {apiOrigin}/docs
+        </a>{" "}
+        (available on development builds). Key management lives on the{" "}
+        <Link to="/developers" className="text-accent hover:underline">
+          Developers
+        </Link>{" "}
+        page.
+      </Callout>
+    </Doc>
   );
 }
 
@@ -121,15 +337,15 @@ export default function Documentation() {
             <p>
               Forgefy turns a planning conversation into a working app. Invite it to a call on
               Google Meet, Zoom, or Microsoft Teams — or record in person — and it listens, figures
-              out what your team decided (features, entities, constraints, conflicts, action
-              items), and builds a real Flutter, React Native, or Next.js app from that
-              understanding. Nothing gets built without your approval, and the source code is
-              pushed to GitHub automatically.
+              out what your team decided (features, entities, constraints, conflicts, action items),
+              and builds a real Flutter, React Native, or Next.js app from that understanding.
+              Nothing gets built without your approval, and the source code is pushed to GitHub
+              automatically.
             </p>
             <p>
-              After the first build, the same conversational workflow keeps going: open the
-              project, describe a change in plain language, and Forgefy's agent edits the code,
-              shows you a live preview, and keeps a running log of what it did.
+              After the first build, the same conversational workflow keeps going: open the project,
+              describe a change in plain language, and Forgefy's agent edits the code, shows you a
+              live preview, and keeps a running log of what it did.
             </p>
           </Doc>
 
@@ -148,19 +364,19 @@ export default function Documentation() {
 
           <Doc id="sessions" title="Starting a session">
             <p>
-              From the Dashboard, click <strong>New session</strong> and choose how the meeting
-              will be captured:
+              From the Dashboard, click <strong>New session</strong> and choose how the meeting will
+              be captured:
             </p>
             <ul className="list-disc pl-5 space-y-1.5">
               <li>
-                <strong>Google Meet, Zoom, or Teams</strong> — paste the meeting link. Forgefy
-                joins as a silent participant and starts listening once you tell it to join.
+                <strong>Google Meet, Zoom, or Teams</strong> — paste the meeting link. Forgefy joins
+                as a silent participant and starts listening once you tell it to join.
               </li>
               <li>
-                <strong>Physical / in-person</strong> — no link needed. On the session page,
-                choose to either <strong>upload a recording</strong> you already have (MP3, MP4,
-                M4A, WAV, WEBM, or OGG, up to 500 MB) or use <strong>live transcription</strong>{" "}
-                through your device's microphone.
+                <strong>Physical / in-person</strong> — no link needed. On the session page, choose
+                to either <strong>upload a recording</strong> you already have (MP3, MP4, M4A, WAV,
+                WEBM, or OGG, up to 500 MB) or use <strong>live transcription</strong> through your
+                device's microphone.
               </li>
             </ul>
             <Callout>
@@ -182,8 +398,8 @@ export default function Documentation() {
           <Doc id="blueprint" title="Reviewing your blueprint">
             <p>
               The blueprint is the plan for your app: an app name, a target stack (Flutter, React
-              Native, or Next.js), and the list of features Forgefy extracted from the
-              conversation. Nothing is built until you approve it.
+              Native, or Next.js), and the list of features Forgefy extracted from the conversation.
+              Nothing is built until you approve it.
             </p>
             <ul className="list-disc pl-5 space-y-1.5">
               <li>
@@ -196,8 +412,8 @@ export default function Documentation() {
               </li>
               <li>
                 If your conversation implies both a mobile app and a companion web experience,
-                Forgefy generates <strong>two blueprints</strong> and lets you choose which to
-                build first; you can build the other one later.
+                Forgefy generates <strong>two blueprints</strong> and lets you choose which to build
+                first; you can build the other one later.
               </li>
             </ul>
           </Doc>
@@ -209,9 +425,9 @@ export default function Documentation() {
             </p>
             <ul className="list-disc pl-5 space-y-1.5">
               <li>
-                <strong>Chat</strong> — describe any change in plain language ("add a login
-                screen", "make the button red") and the build agent plans the change, shows which
-                files it's writing, and applies it.
+                <strong>Chat</strong> — describe any change in plain language ("add a login screen",
+                "make the button red") and the build agent plans the change, shows which files it's
+                writing, and applies it.
               </li>
               <li>
                 <strong>Preview</strong> — a live, embedded preview of the running app so you can
@@ -240,8 +456,8 @@ export default function Documentation() {
             <ul className="list-disc pl-5 space-y-1.5">
               <li>
                 <strong>Supabase</strong>, <strong>Neon</strong>, or <strong>Firebase</strong> —
-                connect the provider account once; new databases are provisioned per project with
-                a single click afterward.
+                connect the provider account once; new databases are provisioned per project with a
+                single click afterward.
               </li>
               <li>
                 Connecting a database only provisions it. If you connect one on a project that's
@@ -311,23 +527,24 @@ export default function Documentation() {
             </div>
             <p>
               Paid plans also get priority processing. Payments are handled by Notchpay and accept
-              cards, MTN Mobile Money, and Orange Money. If you exhaust your monthly tokens,
-              further builds and updates pause until the next billing cycle or until you upgrade —
-              you'll see a prompt to upgrade from anywhere in the app when this happens. Manage or
-              change your plan any time from <strong>Billing</strong>.
+              cards, MTN Mobile Money, and Orange Money. If you exhaust your monthly tokens, further
+              builds and updates pause until the next billing cycle or until you upgrade — you'll
+              see a prompt to upgrade from anywhere in the app when this happens. Manage or change
+              your plan any time from <strong>Billing</strong>.
             </p>
           </Doc>
+
+          <DeveloperApiDoc />
 
           <Doc id="settings" title="Account settings">
             <ul className="list-disc pl-5 space-y-1.5">
               <li>
-                <strong>Build model</strong> — choose which AI model powers your builds and
-                updates (Gemini, Claude, GPT-4o, or a local Qwen3 model). Takes effect on your next
-                build or update.
+                <strong>Build model</strong> — choose which AI model powers your builds and updates
+                (Gemini, Claude, GPT-4o, or a local Qwen3 model). Takes effect on your next build or
+                update.
               </li>
               <li>
-                <strong>GitHub</strong> — connect or check the status of your linked GitHub
-                account.
+                <strong>GitHub</strong> — connect or check the status of your linked GitHub account.
               </li>
               <li>
                 <strong>Appearance</strong> — switch between light and dark mode.
