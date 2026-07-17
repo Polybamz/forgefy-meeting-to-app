@@ -4,6 +4,7 @@ import { Check, Copy } from "lucide-react";
 import { useApiOrigin } from "@/hooks/use-api-origin";
 import { ApiExamples } from "@/components/api-examples";
 import { HighlightedCode } from "@/components/highlighted-code";
+import { SdkGuide } from "@/components/sdk-guide";
 import { SITE_URL } from "./__root";
 
 const DESCRIPTION =
@@ -161,10 +162,22 @@ function DeveloperApiDoc() {
         revoke it and create a new one.
       </p>
 
-      <h3 className="text-[15px] font-semibold text-ink pt-2">Step 2 — Make your first request</h3>
+      <h3 className="text-[15px] font-semibold text-ink pt-2">
+        Step 2 — Install an SDK (recommended)
+      </h3>
       <p>
-        Pick your language — every example is complete and already uses this deployment's URL. The
-        only thing to replace is the API key:
+        Official SDKs for <strong>TypeScript</strong> (
+        <code className="font-mono-ui">@forgefy/sdk</code> on npm) and <strong>Python</strong> (
+        <code className="font-mono-ui">forgefy</code> on PyPI) wrap every endpoint with typed
+        responses, automatic retries, idempotent jobs, built-in job polling, and webhook signature
+        verification — so you don't hand-roll any of it.
+      </p>
+      <SdkGuide apiOrigin={apiOrigin} />
+
+      <h3 className="text-[15px] font-semibold text-ink pt-2">Or call the API directly</h3>
+      <p>
+        No SDK for your language? Every endpoint is plain REST. Each example below is complete and
+        already uses this deployment's URL — the only thing to replace is the API key:
       </p>
       <ApiExamples base={base} />
       <p>You get grouped, structured JSON back:</p>
@@ -184,7 +197,7 @@ function DeveloperApiDoc() {
         four; you're only metered for the ones you request.
       </Callout>
 
-      <h3 className="text-[15px] font-semibold text-ink pt-2">Step 3 — Everything else</h3>
+      <h3 className="text-[15px] font-semibold text-ink pt-2">Endpoint reference</h3>
       <div className="rounded-xl border border-border px-4 py-1">
         <EndpointRow method="POST" url={`${base}/extract`} desc="Sync, ≤50k chars" />
         <EndpointRow method="POST" url={`${base}/extract/jobs`} desc="Async, ≤200k chars" />
