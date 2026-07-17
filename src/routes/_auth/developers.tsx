@@ -6,6 +6,7 @@ import { apiFetch, type BillingStatus } from "@/lib/api";
 import { useApiOrigin } from "@/hooks/use-api-origin";
 import { ApiExamples } from "@/components/api-examples";
 import { HighlightedCode } from "@/components/highlighted-code";
+import { SdkGuide } from "@/components/sdk-guide";
 
 export const Route = createFileRoute("/_auth/developers")({
   component: DevelopersPage,
@@ -329,7 +330,23 @@ function UsageSection() {
 }
 
 // ---------------------------------------------------------------------------
-// Quickstart section
+// SDK section — the recommended integration path
+// ---------------------------------------------------------------------------
+function SdkSection() {
+  const apiOrigin = useApiOrigin();
+
+  return (
+    <Section
+      title="Official SDKs"
+      description="Typed clients with automatic retries, idempotent jobs, job polling, and webhook verification built in — the recommended way to integrate."
+    >
+      <SdkGuide apiOrigin={apiOrigin} />
+    </Section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Quickstart section — raw HTTP fallback for languages without an SDK
 // ---------------------------------------------------------------------------
 function QuickstartSection() {
   const apiOrigin = useApiOrigin();
@@ -337,8 +354,8 @@ function QuickstartSection() {
 
   return (
     <Section
-      title="Quick start"
-      description="Turn any transcript into structured features, questions, conflicts, and action items — in your language of choice."
+      title="Or call the API directly"
+      description="No SDK for your language? Every endpoint is plain REST — pick a language below."
     >
       <div className="flex items-center gap-2 mb-3">
         <p className="text-[12px] text-text-muted shrink-0">Base URL</p>
@@ -495,7 +512,7 @@ function McpSection() {
 // ---------------------------------------------------------------------------
 function DevelopersPage() {
   return (
-    <div className="px-6 md:px-10 py-10 max-w-2xl mx-auto page-enter">
+    <div className="px-2  md:px-2 py-10 max-w-2xl mx-auto page-enter">
       <div className="mb-8">
         <p className="label-eyebrow mb-1">Developers</p>
         <h1 className="font-display text-[32px] md:text-[40px] text-ink leading-[1.1]">
@@ -509,6 +526,7 @@ function DevelopersPage() {
       <div className="space-y-4">
         <ApiKeysSection />
         <UsageSection />
+        <SdkSection />
         <QuickstartSection />
         <McpSection />
       </div>
