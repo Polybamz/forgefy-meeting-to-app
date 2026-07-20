@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Database, X, Zap } from "lucide-react";
+import { Database, X, Zap, Smartphone, RotateCw, Maximize2, Loader2, Monitor } from "lucide-react";
 import { apiFetch, connectWs, type BillingStatus, type Project } from "@/lib/api";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -219,39 +219,64 @@ function AgentActivityBlock({
 // ---------------------------------------------------------------------------
 // PreviewPanel
 // ---------------------------------------------------------------------------
+// The preview is presented differently per template:
+//   • flutter / react_native → a phone device frame (mobile apps)
+//   • next                    → a browser frame with a resizable viewport
+// Appetize URLs already render their own device, so they are shown frame-less.
+type PreviewDevice = "ios" | "android";
+
+const DEVICE_FRAMES: Record<PreviewDevice, { label: string; w: number; h: number; radius: string }> = {
+  ios: { label: "iPhone", w: 300, h: 620, radius: "2.6rem" },
+  android: { label: "Android", w: 300, h: 620, radius: "1.9rem" },
+};
+
+// Viewport presets for the Next.js (web) preview. `w: null` = fill the panel.
+type WebWidth = "desktop" | "tablet" | "mobile";
+
+const WEB_WIDTHS: Record<WebWidth, { label: string; w: number | null }> = {
+  desktop: { label: "Desktop", w: null },
+  tablet: { label: "Tablet", w: 834 },
+  mobile: { label: "Mobile", w: 400 },
+};
+
+const IFRAME_SANDBOX = "allow-scripts allow-same-origin allow-forms allow-popups";
+
 function PreviewPanel({
   previewUrl,
   buildingPreview,
   canBuildPreview,
   onBuildPreview,
+  templateKey,
 }: {
   previewUrl: string | null;
   buildingPreview: boolean;
   canBuildPreview: boolean;
   onBuildPreview: () => void;
+  templateKey: string;
 }) {
   const [refreshKey, setRefreshKey] = useState(0);
+  const [device, setDevice] = useState<PreviewDevice>("ios");
+  const [webWidth, setWebWidth] = useState<WebWidth>("desktop");
 
-  if (!previewUrl) {
+  const isWeb = templateKey === "next";
+
+  // No deployed URL yet and nothing building → the empty call-to-action.
+  if (!previewUrl && !buildingPreview) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 text-text-muted">
         <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-surface border border-border">
-          <svg
-            className="h-7 w-7 opacity-40"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          >
-            <rect x="2" y="3" width="20" height="14" rx="2" />
-            <line x1="8" y1="21" x2="16" y2="21" />
-            <line x1="12" y1="17" x2="12" y2="21" />
-          </svg>
+          {isWeb ? (
+            <Monitor className="h-7 w-7 opacity-40" />
+          ) : (
+            <Smartphone className="h-7 w-7 opacity-40" />
+          )}
         </div>
         <div className="text-center">
           <p className="text-[14px] font-semibold text-ink mb-1">No preview yet</p>
           <p className="text-[12px] text-text-muted max-w-[200px]">
-            A preview URL will appear once the app is deployed.
+            {isWeb
+              ? "Build a live preview to see your site running in the browser."
+              : "Build a live preview to see your app running in a phone."}
           </p>
         </div>
         {canBuildPreview && (
@@ -260,91 +285,234 @@ function PreviewPanel({
             disabled={buildingPreview}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent text-accent-foreground text-[13px] font-medium hover:bg-[oklch(0.55_0.135_45)] transition-colors disabled:opacity-60 btn-press shadow-warm-xs"
           >
-            {buildingPreview ? (
-              <>
-                <span className="h-3.5 w-3.5 rounded-full border-2 border-accent-foreground/30 border-t-accent-foreground animate-spin" />
-                Building…
-              </>
-            ) : (
-              "Build Preview"
-            )}
+            Build Preview
           </button>
         )}
       </div>
     );
   }
 
-  const isAppetize = previewUrl.includes("appetize.io");
+  const isAppetize = !!previewUrl?.includes("appetize.io");
   const iframeUrl = isAppetize
-    ? previewUrl.replace("appetize.io/app/", "appetize.io/embed/")
+    ? previewUrl!.replace("appetize.io/app/", "appetize.io/embed/")
     : previewUrl;
 
-  return (
-    <div className="flex flex-col h-full rounded-xl border border-border overflow-hidden shadow-warm-xs">
-      {/* Browser chrome */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-surface shrink-0">
-        <div className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-[#3a3633]" />
-          <span className="h-2.5 w-2.5 rounded-full bg-[#3a3633]" />
-          <span className="h-2.5 w-2.5 rounded-full bg-[#3a3633]" />
+  const buildingScreen = (
+    <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-text-muted bg-gradient-to-br from-surface to-card">
+      <Loader2 className="h-9 w-9 text-accent animate-spin" />
+      <p className="text-[12px] font-medium text-ink">
+        {isWeb ? "Building your site…" : "Building your app…"}
+      </p>
+      <p className="text-[11px] text-text-muted max-w-[180px] text-center">
+        Compiling and deploying to Cloudflare
+      </p>
+    </div>
+  );
+
+  const reloadButton = previewUrl && (
+    <button
+      onClick={() => setRefreshKey((k) => k + 1)}
+      title="Reload preview"
+      className="flex items-center justify-center w-7 h-7 rounded-lg text-text-muted hover:text-ink hover:bg-surface transition-colors"
+    >
+      <RotateCw className="h-3.5 w-3.5" />
+    </button>
+  );
+
+  const openButton = previewUrl && (
+    <a
+      href={previewUrl}
+      target="_blank"
+      rel="noreferrer"
+      title="Open in new tab"
+      className="flex items-center justify-center w-7 h-7 rounded-lg text-text-muted hover:text-ink hover:bg-surface transition-colors"
+    >
+      <Maximize2 className="h-3.5 w-3.5" />
+    </a>
+  );
+
+  const statusBar = (
+    <div className="flex items-center justify-between px-3 py-2 border-t border-border bg-surface shrink-0 text-[11px]">
+      <span className="font-mono-ui text-text-muted truncate max-w-[70%]">{previewUrl ?? "—"}</span>
+      <span className={buildingPreview ? "text-[oklch(0.65_0.18_60)]" : "text-[oklch(0.6_0.18_145)]"}>
+        ● {buildingPreview ? "Building" : "Connected"}
+      </span>
+    </div>
+  );
+
+  // -------------------------------------------------------------------------
+  // Next.js → browser frame with a resizable viewport
+  // -------------------------------------------------------------------------
+  if (isWeb) {
+    const width = WEB_WIDTHS[webWidth];
+    return (
+      <div className="flex flex-col h-full rounded-xl border border-border overflow-hidden shadow-warm-xs bg-card/60">
+        {/* Browser chrome */}
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-surface shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="h-2.5 w-2.5 rounded-full bg-[#3a3633]" />
+            <span className="h-2.5 w-2.5 rounded-full bg-[#3a3633]" />
+            <span className="h-2.5 w-2.5 rounded-full bg-[#3a3633]" />
+          </div>
+          <div className="flex-1 min-w-0 px-2.5 py-1 rounded-md bg-card border border-border">
+            <p className="text-[11px] font-mono-ui text-text-muted truncate">
+              {previewUrl ?? "building…"}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Viewport width selector */}
+            <div className="flex items-center rounded-lg border border-border p-0.5">
+              {(Object.keys(WEB_WIDTHS) as WebWidth[]).map((w) => (
+                <button
+                  key={w}
+                  onClick={() => setWebWidth(w)}
+                  className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                    webWidth === w ? "bg-accent/15 text-accent" : "text-text-muted hover:text-ink"
+                  }`}
+                >
+                  {WEB_WIDTHS[w].label}
+                </button>
+              ))}
+            </div>
+            {reloadButton}
+            {openButton}
+          </div>
         </div>
-        <p className="text-[11px] font-mono-ui text-text-muted truncate max-w-[200px]">
-          {previewUrl}
-        </p>
-        <div className="flex items-center gap-2">
-          {!isAppetize && (
-            <button
-              onClick={() => setRefreshKey((k) => k + 1)}
-              title="Refresh"
-              className="flex items-center justify-center w-6 h-6 rounded-lg text-text-muted hover:text-ink hover:bg-surface transition-colors"
-            >
-              <svg
-                className="h-3.5 w-3.5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <polyline points="23 4 23 10 17 10" />
-                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-              </svg>
-            </button>
-          )}
-          <a
-            href={previewUrl}
-            target="_blank"
-            rel="noreferrer"
-            title="Open in new tab"
-            className="flex items-center justify-center w-6 h-6 rounded-lg text-text-muted hover:text-ink hover:bg-surface transition-colors"
+
+        {/* Stage */}
+        <div className="flex-1 min-h-0 flex justify-center overflow-hidden p-3 bg-[#f5f5f5] dark:bg-[#151312]">
+          <div
+            className="h-full overflow-hidden rounded-lg border border-border bg-white shadow-warm-xs transition-[width] duration-200"
+            style={{ width: width.w ?? "100%", maxWidth: "100%" }}
           >
-            <svg
-              className="h-3.5 w-3.5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-              <polyline points="15 3 21 3 21 9" />
-              <line x1="10" y1="14" x2="21" y2="3" />
-            </svg>
-          </a>
+            {previewUrl ? (
+              <iframe
+                key={refreshKey}
+                src={previewUrl}
+                className="w-full h-full border-0"
+                title="App preview"
+                allow="camera; microphone"
+                sandbox={IFRAME_SANDBOX}
+              />
+            ) : (
+              buildingScreen
+            )}
+          </div>
+        </div>
+
+        {statusBar}
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Flutter / React Native → phone device frame
+  // -------------------------------------------------------------------------
+  const frame = DEVICE_FRAMES[device];
+
+  return (
+    <div className="flex flex-col h-full rounded-xl border border-border overflow-hidden shadow-warm-xs bg-card/60">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-surface shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <span
+            className={`h-2 w-2 rounded-full shrink-0 ${
+              buildingPreview
+                ? "bg-[oklch(0.65_0.18_60)] animate-pulse"
+                : "bg-[oklch(0.6_0.18_145)]"
+            }`}
+          />
+          <span className="text-[12px] font-medium text-ink truncate">
+            {buildingPreview ? "Deploying preview…" : "Live Preview"}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Device selector — not shown for Appetize (it picks its own device) */}
+          {!isAppetize && previewUrl && (
+            <div className="flex items-center rounded-lg border border-border p-0.5">
+              {(Object.keys(DEVICE_FRAMES) as PreviewDevice[]).map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setDevice(d)}
+                  className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                    device === d ? "bg-accent/15 text-accent" : "text-text-muted hover:text-ink"
+                  }`}
+                >
+                  {DEVICE_FRAMES[d].label}
+                </button>
+              ))}
+            </div>
+          )}
+          {!isAppetize && reloadButton}
+          {openButton}
         </div>
       </div>
-      <div className="flex items-center justify-center w-full flex-1 overflow-hidden bg-[#f5f5f5] dark:bg-[#1a1a1a]">
-        <iframe
-          key={refreshKey}
-          src={iframeUrl}
-          className="flex justify-center item-center w-[100%] h-full border-0"
-          title="App preview"
-          allow="camera; microphone"
-          sandbox={
-            isAppetize
-              ? "allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-              : "allow-scripts allow-same-origin allow-forms allow-popups"
-          }
-        />
+
+      {/* Device stage */}
+      <div className="flex-1 min-h-0 flex items-center justify-center overflow-hidden p-4 bg-[radial-gradient(circle_at_center,theme(colors.surface),transparent)]">
+        {isAppetize ? (
+          // Appetize renders its own device — show it edge to edge.
+          <iframe
+            key={refreshKey}
+            src={iframeUrl!}
+            className="w-full h-full border-0 rounded-xl"
+            title="App preview"
+            allow="camera; microphone"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+          />
+        ) : (
+          // Height-driven: the phone fills the available height and derives its
+          // width from the device aspect ratio, so it always fits the panel
+          // without scrolling. maxWidth keeps it inside a narrow panel too.
+          <div
+            className="relative h-full max-h-full"
+            style={{ aspectRatio: `${frame.w} / ${frame.h}`, maxWidth: "100%" }}
+          >
+            {/* Phone body */}
+            <div
+              className="relative w-full h-full bg-[#0b0a09] border-[6px] border-[#1c1917] shadow-warm-lg overflow-hidden"
+              style={{ borderRadius: frame.radius }}
+            >
+              {/* Notch / camera */}
+              {device === "ios" && (
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[30%] h-[3.5%] bg-[#0b0a09] rounded-b-2xl z-20" />
+              )}
+              {device === "android" && (
+                <div className="absolute top-[1.2%] left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-[#0b0a09] ring-2 ring-black/40 rounded-full z-20" />
+              )}
+
+              {/* Screen */}
+              <div className="w-full h-full bg-white dark:bg-[#111] overflow-hidden">
+                {previewUrl ? (
+                  <iframe
+                    key={refreshKey}
+                    src={iframeUrl!}
+                    className="w-full h-full border-0"
+                    title="App preview"
+                    allow="camera; microphone"
+                    sandbox={IFRAME_SANDBOX}
+                  />
+                ) : (
+                  buildingScreen
+                )}
+              </div>
+
+              {/* Home indicator (iOS) */}
+              {device === "ios" && (
+                <div className="absolute bottom-[1%] left-1/2 -translate-x-1/2 w-[26%] h-[0.7%] min-h-[3px] bg-black/30 rounded-full z-20" />
+              )}
+            </div>
+
+            {/* Side buttons (visual only) — percentage offsets so they scale */}
+            <div className="absolute -right-1.5 top-[22%] w-1.5 h-[11%] bg-[#1c1917] rounded-r-md" />
+            <div className="absolute -left-1.5 top-[16%] w-1.5 h-[7%] bg-[#1c1917] rounded-l-md" />
+            <div className="absolute -left-1.5 top-[26%] w-1.5 h-[7%] bg-[#1c1917] rounded-l-md" />
+          </div>
+        )}
       </div>
+
+      {statusBar}
     </div>
   );
 }
@@ -2481,6 +2649,7 @@ function ProjectEditorPage() {
                 buildingPreview={buildingPreview}
                 canBuildPreview={!!project.github_url && !isBuilding}
                 onBuildPreview={handleBuildPreview}
+                templateKey={project.template_key}
               />
             ) : (
               <CodePanel projectId={projectId} />
