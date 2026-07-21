@@ -98,6 +98,19 @@ function TokenExhaustedModal({ event, onDismiss }: { event: QuotaEvent; onDismis
 }
 
 // ---------------------------------------------------------------------------
+// Discord community link — the invite URL. Replace with your real invite.
+// ---------------------------------------------------------------------------
+const DISCORD_INVITE_URL = "https://discord.gg/qUBuccNjC";
+
+function DiscordIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M20.317 4.369A19.79 19.79 0 0 0 15.885 3c-.196.35-.42.82-.573 1.192a18.27 18.27 0 0 0-5.63 0A12.9 12.9 0 0 0 9.1 3c-1.54.266-3.02.73-4.432 1.369C1.845 8.62 1.062 12.77 1.4 16.86a19.94 19.94 0 0 0 6.06 3.06c.492-.67.93-1.38 1.307-2.13-.72-.27-1.41-.605-2.06-.99.173-.127.343-.26.506-.397a14.24 14.24 0 0 0 12.174 0c.165.14.335.27.506.397-.65.385-1.34.72-2.06.99.377.75.815 1.46 1.307 2.13a19.9 19.9 0 0 0 6.06-3.06c.4-4.74-.68-8.85-2.847-12.49ZM8.02 14.33c-1.18 0-2.157-1.085-2.157-2.42 0-1.334.955-2.42 2.157-2.42 1.21 0 2.178 1.096 2.157 2.42 0 1.335-.955 2.42-2.157 2.42Zm7.96 0c-1.18 0-2.157-1.085-2.157-2.42 0-1.334.955-2.42 2.157-2.42 1.21 0 2.178 1.096 2.157 2.42 0 1.335-.947 2.42-2.157 2.42Z" />
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Sidebar nav item
 // ---------------------------------------------------------------------------
 
@@ -267,6 +280,17 @@ function AuthLayout() {
             <NavItem to="/settings" icon={Settings}>
               Settings
             </NavItem>
+            <a
+              href={DISCORD_INVITE_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] text-text-secondary hover:text-[#5865F2] hover:bg-[#5865F2]/10 transition-all duration-150 w-full group"
+            >
+              <span className="flex items-center justify-center w-[26px] h-[26px] rounded-lg bg-transparent group-hover:bg-[#5865F2]/15 transition-colors shrink-0">
+                <DiscordIcon className="h-[14px] w-[14px]" />
+              </span>
+              Join our Discord
+            </a>
           </div>
           <div className="px-4 py-3 border-t border-border/40 flex items-center justify-between">
             <ThemeToggle />
