@@ -2,7 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Sparkles, X, ArrowUp, Trash2, Loader2, SquarePen, MessagesSquare, ArrowLeft } from "lucide-react";
+import {
+  Sparkles,
+  X,
+  ArrowUp,
+  Trash2,
+  Loader2,
+  SquarePen,
+  MessagesSquare,
+  ArrowLeft,
+  ChevronDown,
+} from "lucide-react";
 import { apiFetch, getToken, setTokens } from "@/lib/api";
 import { oauthErrorMessage, signInWithOAuth, type OAuthProviderName } from "@/lib/firebase";
 
@@ -358,16 +368,19 @@ export function AssistantWidget() {
     }
   }
 
-  // On first open for a signed-in user, resume the most recent thread.
+  // Refresh the thread list every time the panel opens (so it's always current)
+  // and, only the very first time, resume the most recent thread.
   useEffect(() => {
-    if (!open || loadedOnce) return;
-    setLoadedOnce(true);
-    if (!getToken()) return;
+    if (!open || !getToken()) return;
     void (async () => {
       const list = await loadConversations();
-      if (list.length) await switchTo(list[0].id);
+      if (list.length && !loadedOnce) {
+        setLoadedOnce(true);
+        await switchTo(list[0].id);
+      }
     })();
-  }, [open, loadedOnce]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   useEffect(() => {
     if (open) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -542,6 +555,9 @@ export function AssistantWidget() {
 
   if (isHidden(pathname)) return null;
 
+  const currentTitle =
+    (conversationId && conversations.find((c) => c.id === conversationId)?.title) || "Assistant";
+
   return (
     <>
       {/* Launcher */}
@@ -567,6 +583,24 @@ export function AssistantWidget() {
                 <ArrowLeft className="w-4 h-4" />
                 Chats
               </button>
+            ) : authed ? (
+              /* Clickable switcher: shows the current chat and opens the list. */
+              <button
+                onClick={() => {
+                  void loadConversations();
+                  setView("list");
+                }}
+                aria-label="Switch chat"
+                className="flex items-center gap-1.5 min-w-0 px-1.5 h-8 rounded-lg hover:bg-surface transition-colors group"
+              >
+                <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-accent/10 text-accent shrink-0">
+                  <MessagesSquare className="w-4 h-4" />
+                </span>
+                <span className="font-display text-[15px] text-ink truncate max-w-[180px]">
+                  {currentTitle}
+                </span>
+                <ChevronDown className="w-3.5 h-3.5 text-text-muted shrink-0" />
+              </button>
             ) : (
               <div className="flex items-center gap-2 px-1">
                 <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-accent/10 text-accent">
@@ -575,116 +609,150 @@ export function AssistantWidget() {
                 <span className="font-display text-[15px] text-ink">Assistant</span>
               </div>
             )}
-            {authed && (
-              <div className="flex items-center gap-0.5">
-                <button
-                  onClick={newChat}
-                  aria-label="New chat"
-                  title="New chat"
-                  className="flex items-center justify-center w-8 h-8 rounded-lg text-text-muted hover:text-ink hover:bg-surface transition-colors"
-                >
-                  <SquarePen className="w-4 h-4" />
-                </button>
-                {view === "chat" && (
-                  <button
-                    onClick={() => {
-                      void loadConversations();
-                      setView("list");
-                    }}
-                    aria-label="Your chats"
-                    title="Your chats"
-                    className="flex items-center justify-center w-8 h-8 rounded-lg text-text-muted hover:text-ink hover:bg-surface transition-colors"
-                  >
-                    <MessagesSquare className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Messages */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-            {messages.map((m) => (
-              <div
-                key={m.id}
-                className={m.role === "user" ? "flex justify-end" : "flex justify-start"}
+            {authed && view === "chat" && (
+              <button
+                onClick={newChat}
+                aria-label="New chat"
+                title="New chat"
+                className="flex items-center justify-center gap-1.5 h-8 px-2.5 rounded-lg text-[12px] font-medium text-accent hover:bg-accent/10 transition-colors btn-press shrink-0"
               >
-                <div
-                  className={[
-                    "max-w-[85%] rounded-2xl px-3 py-2",
-                    m.role === "user"
-                      ? "bg-accent text-accent-foreground"
-                      : m.role === "error"
-                        ? "bg-destructive/10 text-destructive"
-                        : "bg-surface text-ink",
-                  ].join(" ")}
-                >
-                  {m.role === "assistant" ? (
-                    <Md>{m.text}</Md>
-                  ) : (
-                    <p className="text-[13px] leading-relaxed whitespace-pre-wrap">{m.text}</p>
-                  )}
-                  {m.links && (
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {m.links.map((l) => (
-                        <button
-                          key={l.to}
-                          onClick={() => followLink(l.to)}
-                          className="text-[12px] px-2.5 py-1 rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-colors btn-press"
-                        >
-                          {l.label} →
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-            {sending && (
-              <div className="flex justify-start">
-                <div className="rounded-2xl px-3 py-2 bg-surface text-text-muted">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                </div>
-              </div>
+                <SquarePen className="w-4 h-4" />
+                New
+              </button>
             )}
           </div>
 
-          {/* Composer or inline auth */}
-          {showAuth ? (
-            <div className="shrink-0 border-t border-border/60">
-              <AuthPanel onAuthed={onAuthed} />
+          {view === "list" ? (
+            /* Thread switcher */
+            <div className="flex-1 overflow-y-auto p-2">
+              <button
+                onClick={newChat}
+                className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-[13px] font-medium text-accent hover:bg-accent/10 transition-colors btn-press"
+              >
+                <SquarePen className="w-4 h-4" />
+                New chat
+              </button>
+              {conversations.length === 0 ? (
+                <p className="text-[12px] text-text-muted text-center py-8">
+                  No conversations yet.
+                </p>
+              ) : (
+                <div className="mt-1 space-y-0.5">
+                  {conversations.map((c) => (
+                    <div key={c.id} className="group flex items-center gap-1">
+                      <button
+                        onClick={() => void switchTo(c.id)}
+                        className={[
+                          "flex-1 min-w-0 text-left px-3 py-2 rounded-xl transition-colors",
+                          c.id === conversationId
+                            ? "bg-accent/10 text-accent"
+                            : "hover:bg-surface text-ink",
+                        ].join(" ")}
+                      >
+                        <p className="text-[13px] truncate">{c.title}</p>
+                        {c.updated_at && (
+                          <p className="text-[11px] text-text-muted">{timeAgo(c.updated_at)}</p>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => void deleteConversation(c.id)}
+                        aria-label="Delete chat"
+                        className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-7 h-7 rounded-lg text-text-muted hover:text-destructive hover:bg-destructive/10 transition-all shrink-0"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
-            <div className="shrink-0 border-t border-border/60 p-2.5">
-              <div className="flex items-end gap-2 rounded-xl border border-border bg-background px-2.5 py-1.5">
-                <textarea
-                  ref={inputRef}
-                  value={input}
-                  rows={1}
-                  placeholder="Ask anything…"
-                  onChange={(e) => {
-                    setInput(e.target.value);
-                    e.target.style.height = "auto";
-                    e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      void handleSend();
-                    }
-                  }}
-                  className="flex-1 resize-none bg-transparent text-[13px] text-ink placeholder:text-text-muted outline-none max-h-[120px] py-1"
-                />
-                <button
-                  onClick={() => void handleSend()}
-                  disabled={!input.trim() || sending}
-                  aria-label="Send"
-                  className="flex items-center justify-center w-8 h-8 rounded-lg bg-accent text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity btn-press shrink-0"
-                >
-                  <ArrowUp className="w-4 h-4" />
-                </button>
+            <>
+              {/* Messages */}
+              <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+                {messages.map((m) => (
+                  <div
+                    key={m.id}
+                    className={m.role === "user" ? "flex justify-end" : "flex justify-start"}
+                  >
+                    <div
+                      className={[
+                        "max-w-[85%] rounded-2xl px-3 py-2",
+                        m.role === "user"
+                          ? "bg-accent text-accent-foreground"
+                          : m.role === "error"
+                            ? "bg-destructive/10 text-destructive"
+                            : "bg-surface text-ink",
+                      ].join(" ")}
+                    >
+                      {m.role === "assistant" ? (
+                        <Md>{m.text}</Md>
+                      ) : (
+                        <p className="text-[13px] leading-relaxed whitespace-pre-wrap">{m.text}</p>
+                      )}
+                      {m.links && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {m.links.map((l) => (
+                            <button
+                              key={l.to}
+                              onClick={() => followLink(l.to)}
+                              className="text-[12px] px-2.5 py-1 rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-colors btn-press"
+                            >
+                              {l.label} →
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {sending && (
+                  <div className="flex justify-start">
+                    <div className="rounded-2xl px-3 py-2 bg-surface text-text-muted">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
+
+              {/* Composer or inline auth */}
+              {showAuth ? (
+                <div className="shrink-0 border-t border-border/60">
+                  <AuthPanel onAuthed={onAuthed} />
+                </div>
+              ) : (
+                <div className="shrink-0 border-t border-border/60 p-2.5">
+                  <div className="flex items-end gap-2 rounded-xl border border-border bg-background px-2.5 py-1.5">
+                    <textarea
+                      ref={inputRef}
+                      value={input}
+                      rows={1}
+                      placeholder="Ask anything…"
+                      onChange={(e) => {
+                        setInput(e.target.value);
+                        e.target.style.height = "auto";
+                        e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          void handleSend();
+                        }
+                      }}
+                      className="flex-1 resize-none bg-transparent text-[13px] text-ink placeholder:text-text-muted outline-none max-h-[120px] py-1"
+                    />
+                    <button
+                      onClick={() => void handleSend()}
+                      disabled={!input.trim() || sending}
+                      aria-label="Send"
+                      className="flex items-center justify-center w-8 h-8 rounded-lg bg-accent text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity btn-press shrink-0"
+                    >
+                      <ArrowUp className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
