@@ -10,6 +10,7 @@ import {
 import { useEffect } from "react";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { Toaster } from "@/components/ui/sonner";
+import { AssistantWidget } from "@/components/assistant-widget";
 import { registerServiceWorker } from "@/lib/register-sw";
 
 import appCss from "../styles.css?url";
@@ -170,6 +171,9 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <Outlet />
+        {/* App-wide help assistant — works for anonymous visitors and signed-in
+            users; hides itself on the auth screens and the project editor. */}
+        <AssistantWidget />
         <Toaster richColors position="bottom-right" closeButton />
       </ThemeProvider>
     </QueryClientProvider>
