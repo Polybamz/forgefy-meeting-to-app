@@ -12,6 +12,9 @@ import {
   MessagesSquare,
   ArrowLeft,
   ChevronDown,
+  MessageCircle,
+  Hammer,
+  Check,
 } from "lucide-react";
 import { apiFetch, getToken, setTokens } from "@/lib/api";
 import { oauthErrorMessage, signInWithOAuth, type OAuthProviderName } from "@/lib/firebase";
@@ -33,9 +36,10 @@ interface AssistantLink {
 }
 
 interface AssistantAction {
-  type: "none" | "start_session" | "auth_required";
+  type: "none" | "start_session" | "build_app" | "auth_required";
   platform?: string | null;
   meeting_url?: string | null;
+  description?: string | null;
 }
 
 interface AssistantMessage {
@@ -283,6 +287,75 @@ function AuthPanel({ onAuthed }: { onAuthed: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
+// Mode selector — Chat (ask/guide) vs Build (describe an app, we build it).
+// ---------------------------------------------------------------------------
+type AssistantMode = "chat" | "build";
+
+const MODES: { key: AssistantMode; label: string; desc: string; icon: typeof MessageCircle }[] = [
+  { key: "chat", label: "Chat", desc: "Ask questions and get guidance", icon: MessageCircle },
+  { key: "build", label: "Build", desc: "Describe an app and I'll build it", icon: Hammer },
+];
+
+function ModeMenu({
+  mode,
+  onChange,
+}: {
+  mode: AssistantMode;
+  onChange: (m: AssistantMode) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = MODES.find((m) => m.key === mode) ?? MODES[0];
+  const CurrentIcon = current.icon;
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 h-7 pl-2 pr-1.5 rounded-lg text-[12px] font-medium text-ink border border-border bg-background hover:bg-surface transition-colors"
+      >
+        <CurrentIcon className="w-3.5 h-3.5 text-accent" />
+        {current.label}
+        <ChevronDown className="w-3 h-3 text-text-muted" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute bottom-full left-0 mb-1.5 z-50 w-60 rounded-xl border border-border bg-card shadow-warm-xl p-1">
+            <p className="px-2.5 py-1.5 text-[10px] font-medium uppercase tracking-[0.08em] text-text-muted">
+              Mode
+            </p>
+            {MODES.map((m) => {
+              const Icon = m.icon;
+              return (
+                <button
+                  key={m.key}
+                  type="button"
+                  onClick={() => {
+                    onChange(m.key);
+                    setOpen(false);
+                  }}
+                  className="w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg hover:bg-surface text-left transition-colors"
+                >
+                  <Icon className="w-4 h-4 mt-0.5 text-accent shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[13px] font-medium text-ink">{m.label}</span>
+                      {mode === m.key && <Check className="w-3.5 h-3.5 text-accent shrink-0" />}
+                    </div>
+                    <p className="text-[11px] text-text-muted leading-snug">{m.desc}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Widget
 // ---------------------------------------------------------------------------
 export function AssistantWidget() {
@@ -300,7 +373,9 @@ export function AssistantWidget() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [view, setView] = useState<"chat" | "list">("chat");
-  const pendingRef = useRef<string | null>(null);
+  const [mode, setMode] = useState<AssistantMode>("chat");
+  // A message held back behind sign-in, replayed after auth (chat or build).
+  const pendingRef = useRef<{ kind: AssistantMode; text: string } | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -442,10 +517,12 @@ export function AssistantWidget() {
 
       const action = data.action;
       if (action?.type === "auth_required") {
-        pendingRef.current = text;
+        pendingRef.current = { kind: "chat", text };
         setShowAuth(true);
       } else if (action?.type === "start_session" && getToken()) {
         await startSession(action);
+      } else if (action?.type === "build_app" && getToken()) {
+        await buildApp(action);
       }
     } catch {
       setMessages((prev) => [
@@ -470,6 +547,18 @@ export function AssistantWidget() {
     if (!text || sending) return;
     setInput("");
     if (inputRef.current) inputRef.current.style.height = "auto";
+
+    if (mode === "build") {
+      // Build mode: the message IS the app spec — go straight to building it.
+      setMessages((prev) => [...prev, { id: `u-${Date.now()}`, role: "user", text }]);
+      if (!getToken()) {
+        pendingRef.current = { kind: "build", text };
+        setShowAuth(true);
+        return;
+      }
+      await runBuild(text);
+      return;
+    }
     await submit(text);
   }
 
@@ -532,6 +621,64 @@ export function AssistantWidget() {
     }
   }
 
+  // Kick off a full prompt → blueprint → build run, then open the build page.
+  // Shared by Build mode and the model's build_app action.
+  async function runBuild(description: string) {
+    const desc = description.trim();
+    if (desc.length < 8) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `e-${Date.now()}`,
+          role: "error",
+          text: "Tell me a bit more about the app you'd like to build.",
+        },
+      ]);
+      return;
+    }
+    setSending(true);
+    try {
+      const res = await apiFetch("/api/v1/assistant/build", {
+        method: "POST",
+        body: JSON.stringify({ description: desc }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `e-${Date.now()}`,
+            role: "error",
+            text: (d as { detail?: string }).detail ?? "Couldn't start the build.",
+          },
+        ]);
+        return;
+      }
+      const data = (await res.json()) as { project_id: string };
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `build-${Date.now()}`,
+          role: "assistant",
+          text: "✓ Building your app now — opening the build page so you can watch it come together.",
+        },
+      ]);
+      setOpen(false);
+      navigate({ to: "/projects/$projectId", params: { projectId: data.project_id } });
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        { id: `e-${Date.now()}`, role: "error", text: "Network error starting the build." },
+      ]);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function buildApp(action: AssistantAction) {
+    await runBuild(action.description ?? "");
+  }
+
   function onAuthed() {
     setAuthed(true);
     setShowAuth(false);
@@ -542,7 +689,8 @@ export function AssistantWidget() {
       ...prev,
       { id: `s-${Date.now()}`, role: "assistant", text: "You're signed in — let me handle that." },
     ]);
-    if (pending) void runChat(pending);
+    if (pending?.kind === "build") void runBuild(pending.text);
+    else if (pending) void runChat(pending.text);
   }
 
   function followLink(to: string) {
@@ -721,13 +869,23 @@ export function AssistantWidget() {
                   <AuthPanel onAuthed={onAuthed} />
                 </div>
               ) : (
-                <div className="shrink-0 border-t border-border/60 p-2.5">
+                <div className="shrink-0 border-t border-border/60 p-2.5 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <ModeMenu mode={mode} onChange={setMode} />
+                    <span className="text-[10px] text-text-muted truncate">
+                      {mode === "build"
+                        ? "Describe an app — I'll design & build it"
+                        : "Ask anything about Forgefy"}
+                    </span>
+                  </div>
                   <div className="flex items-end gap-2 rounded-xl border border-border bg-background px-2.5 py-1.5">
                     <textarea
                       ref={inputRef}
                       value={input}
                       rows={1}
-                      placeholder="Ask anything…"
+                      placeholder={
+                        mode === "build" ? "Describe the app to build…" : "Ask anything…"
+                      }
                       onChange={(e) => {
                         setInput(e.target.value);
                         e.target.style.height = "auto";
@@ -744,10 +902,14 @@ export function AssistantWidget() {
                     <button
                       onClick={() => void handleSend()}
                       disabled={!input.trim() || sending}
-                      aria-label="Send"
+                      aria-label={mode === "build" ? "Build app" : "Send"}
                       className="flex items-center justify-center w-8 h-8 rounded-lg bg-accent text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity btn-press shrink-0"
                     >
-                      <ArrowUp className="w-4 h-4" />
+                      {mode === "build" ? (
+                        <Hammer className="w-4 h-4" />
+                      ) : (
+                        <ArrowUp className="w-4 h-4" />
+                      )}
                     </button>
                   </div>
                 </div>
