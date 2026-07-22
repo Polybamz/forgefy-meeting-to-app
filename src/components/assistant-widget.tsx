@@ -12,9 +12,16 @@ import {
   MessagesSquare,
   ArrowLeft,
   ChevronDown,
+  MessageCircle,
+  Hammer,
+  Check,
 } from "lucide-react";
-import { apiFetch, getToken, setTokens } from "@/lib/api";
+import { apiFetch, connectWs, getToken, setTokens } from "@/lib/api";
 import { oauthErrorMessage, signInWithOAuth, type OAuthProviderName } from "@/lib/firebase";
+
+// Minimum characters for a Build-mode prompt — enough to actually describe the
+// kind of app the user wants (what it does / who it's for), not just "a gym app".
+const MIN_BUILD_PROMPT = 30;
 
 // ---------------------------------------------------------------------------
 // Global "help me with my task" assistant.
@@ -33,9 +40,10 @@ interface AssistantLink {
 }
 
 interface AssistantAction {
-  type: "none" | "start_session" | "auth_required";
+  type: "none" | "start_session" | "build_app" | "auth_required";
   platform?: string | null;
   meeting_url?: string | null;
+  description?: string | null;
 }
 
 interface AssistantMessage {
@@ -43,6 +51,13 @@ interface AssistantMessage {
   role: "user" | "assistant" | "error";
   text: string;
   links?: AssistantLink[];
+}
+
+interface ChatReply {
+  response: string;
+  links?: AssistantLink[];
+  action?: AssistantAction | null;
+  conversation_id?: string | null;
 }
 
 interface Conversation {
@@ -283,6 +298,75 @@ function AuthPanel({ onAuthed }: { onAuthed: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
+// Mode selector — Chat (ask/guide) vs Build (describe an app, we build it).
+// ---------------------------------------------------------------------------
+type AssistantMode = "chat" | "build";
+
+const MODES: { key: AssistantMode; label: string; desc: string; icon: typeof MessageCircle }[] = [
+  { key: "chat", label: "Chat", desc: "Ask questions and get guidance", icon: MessageCircle },
+  { key: "build", label: "Build", desc: "Describe an app and I'll build it", icon: Hammer },
+];
+
+function ModeMenu({
+  mode,
+  onChange,
+}: {
+  mode: AssistantMode;
+  onChange: (m: AssistantMode) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = MODES.find((m) => m.key === mode) ?? MODES[0];
+  const CurrentIcon = current.icon;
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 h-7 pl-2 pr-1.5 rounded-lg text-[12px] font-medium text-ink border border-border bg-background hover:bg-surface transition-colors"
+      >
+        <CurrentIcon className="w-3.5 h-3.5 text-accent" />
+        {current.label}
+        <ChevronDown className="w-3 h-3 text-text-muted" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute bottom-full left-0 mb-1.5 z-50 w-60 rounded-xl border border-border bg-card shadow-warm-xl p-1">
+            <p className="px-2.5 py-1.5 text-[10px] font-medium uppercase tracking-[0.08em] text-text-muted">
+              Mode
+            </p>
+            {MODES.map((m) => {
+              const Icon = m.icon;
+              return (
+                <button
+                  key={m.key}
+                  type="button"
+                  onClick={() => {
+                    onChange(m.key);
+                    setOpen(false);
+                  }}
+                  className="w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg hover:bg-surface text-left transition-colors"
+                >
+                  <Icon className="w-4 h-4 mt-0.5 text-accent shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[13px] font-medium text-ink">{m.label}</span>
+                      {mode === m.key && <Check className="w-3.5 h-3.5 text-accent shrink-0" />}
+                    </div>
+                    <p className="text-[11px] text-text-muted leading-snug">{m.desc}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Widget
 // ---------------------------------------------------------------------------
 export function AssistantWidget() {
@@ -294,21 +378,67 @@ export function AssistantWidget() {
   const [messages, setMessages] = useState<AssistantMessage[]>([GREETING]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [authed, setAuthed] = useState(false);
+  const [thinking, setThinking] = useState(false);
+  const [authed, setAuthed] = useState(() => !!getToken());
   const [showAuth, setShowAuth] = useState(false);
   // Conversation threads (signed-in only).
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [view, setView] = useState<"chat" | "list">("chat");
-  const pendingRef = useRef<string | null>(null);
+  const [mode, setMode] = useState<AssistantMode>("chat");
+  // A message held back behind sign-in, replayed after auth (chat or build).
+  const pendingRef = useRef<{ kind: AssistantMode; text: string } | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Persistent chat WebSocket + the resolver for the in-flight request. Chat is
+  // strictly sequential (composer disabled while sending), so one slot suffices.
+  const chatWsRef = useRef<WebSocket | null>(null);
+  const replyResolverRef = useRef<{
+    resolve: (d: ChatReply) => void;
+    reject: (e?: unknown) => void;
+  } | null>(null);
 
   // Auth state comes from the stored token (client-only).
   useEffect(() => {
     setAuthed(!!getToken());
   }, [open, pathname]);
+
+  // Keep a chat WebSocket open while the panel is open. Replies are matched to
+  // the pending request via replyResolverRef; runChat falls back to HTTP if the
+  // socket isn't available.
+  useEffect(() => {
+    if (!open) return;
+    const dispose = connectWs("/ws/assistant/chat", (ws) => {
+      chatWsRef.current = ws;
+      ws.onmessage = (e) => {
+        let msg: { type?: string } & Partial<ChatReply>;
+        try {
+          msg = JSON.parse(e.data as string);
+        } catch {
+          return;
+        }
+        if (!msg || msg.type === "ping" || msg.type === "thinking") return;
+        const pending = replyResolverRef.current;
+        if (msg.type === "reply") {
+          replyResolverRef.current = null;
+          pending?.resolve(msg as ChatReply);
+        } else if (msg.type === "error") {
+          replyResolverRef.current = null;
+          pending?.reject(new Error("ws error"));
+        }
+      };
+    });
+    return () => {
+      dispose();
+      chatWsRef.current = null;
+      replyResolverRef.current?.reject(new Error("closed"));
+      replyResolverRef.current = null;
+    };
+    // Reconnect on auth change so the socket picks up the new token (e.g. after
+    // signing in via the in-panel auth), otherwise it stays anonymous.
+  }, [open, authed]);
 
   // Fetch the thread list; returns it so callers can act on the newest.
   async function loadConversations(): Promise<Conversation[]> {
@@ -392,11 +522,47 @@ export function AssistantWidget() {
 
   // Send a turn and handle the reply's action. Does NOT add the user bubble —
   // callers do that so an auth-gated retry doesn't duplicate it.
+  // Send a turn over the chat WebSocket, resolving with the reply. Rejects if
+  // the socket isn't open or the server errors — callers fall back to HTTP.
+  function sendChatViaWs(payload: Record<string, unknown>): Promise<ChatReply> {
+    return new Promise((resolve, reject) => {
+      const ws = chatWsRef.current;
+      if (!ws || ws.readyState !== WebSocket.OPEN || replyResolverRef.current) {
+        reject(new Error("ws unavailable"));
+        return;
+      }
+      const timer = setTimeout(() => {
+        if (replyResolverRef.current) {
+          replyResolverRef.current = null;
+          reject(new Error("ws timeout"));
+        }
+      }, 30_000);
+      replyResolverRef.current = {
+        resolve: (d) => {
+          clearTimeout(timer);
+          resolve(d);
+        },
+        reject: (e) => {
+          clearTimeout(timer);
+          reject(e);
+        },
+      };
+      try {
+        ws.send(JSON.stringify(payload));
+      } catch (e) {
+        clearTimeout(timer);
+        replyResolverRef.current = null;
+        reject(e);
+      }
+    });
+  }
+
   async function runChat(text: string) {
     setSending(true);
+    setThinking(true); // "Thinking…" indicator, cleared once the reply arrives
     try {
       const loggedIn = !!getToken();
-      const body: Record<string, unknown> = { message: text, page: pathname };
+      const body: Record<string, unknown> = { message: text, page: pathname, mode };
       if (loggedIn) {
         if (conversationId) body.conversation_id = conversationId;
       } else {
@@ -407,23 +573,30 @@ export function AssistantWidget() {
           .map((m) => ({ role: m.role, text: m.text }));
       }
 
-      const res = await apiFetch("/api/v1/assistant/chat", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        setMessages((prev) => [
-          ...prev,
-          { id: `e-${Date.now()}`, role: "error", text: "Something went wrong. Please try again." },
-        ]);
-        return;
+      // Prefer the live WebSocket; fall back to HTTP if it isn't available.
+      let data: ChatReply;
+      try {
+        data = await sendChatViaWs(body);
+      } catch {
+        const res = await apiFetch("/api/v1/assistant/chat", {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `e-${Date.now()}`,
+              role: "error",
+              text: "Something went wrong. Please try again.",
+            },
+          ]);
+          return;
+        }
+        data = (await res.json()) as ChatReply;
       }
-      const data = (await res.json()) as {
-        response: string;
-        links?: AssistantLink[];
-        action?: AssistantAction | null;
-        conversation_id?: string | null;
-      };
+      setThinking(false); // reply received — any following action shows its own status
+
       // Adopt the thread id (a new thread is created on the first message) and
       // refresh the switcher so its title/ordering stays current.
       if (data.conversation_id && data.conversation_id !== conversationId) {
@@ -442,10 +615,12 @@ export function AssistantWidget() {
 
       const action = data.action;
       if (action?.type === "auth_required") {
-        pendingRef.current = text;
+        pendingRef.current = { kind: "chat", text };
         setShowAuth(true);
       } else if (action?.type === "start_session" && getToken()) {
         await startSession(action);
+      } else if (action?.type === "build_app" && getToken()) {
+        await buildApp(action);
       }
     } catch {
       setMessages((prev) => [
@@ -454,6 +629,7 @@ export function AssistantWidget() {
       ]);
     } finally {
       setSending(false);
+      setThinking(false);
       if (!showAuth) inputRef.current?.focus();
     }
   }
@@ -468,8 +644,11 @@ export function AssistantWidget() {
   async function handleSend() {
     const text = input.trim();
     if (!text || sending) return;
+    if (mode === "build" && text.length < MIN_BUILD_PROMPT) return; // too short to build
     setInput("");
     if (inputRef.current) inputRef.current.style.height = "auto";
+    // Both modes go through the assistant. In build mode it asks any clarifying
+    // questions, then emits a build_app action (handled in runChat → runBuild).
     await submit(text);
   }
 
@@ -532,9 +711,117 @@ export function AssistantWidget() {
     }
   }
 
+  // Replace one message in place — used to live-update the build status line.
+  function updateMessage(id: string, role: AssistantMessage["role"], text: string) {
+    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, role, text } : m)));
+  }
+
+  // Stream build progress over the project's logs WebSocket, updating a single
+  // status line, and navigate once the blueprint is ready. Resolves when done.
+  function streamBuild(projectId: string, statusId: string): Promise<void> {
+    return new Promise((resolve) => {
+      let settled = false;
+      let dispose = () => {};
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        dispose();
+        resolve();
+      };
+      const goToProject = (text: string) => {
+        updateMessage(statusId, "assistant", text);
+        setOpen(false);
+        navigate({ to: "/projects/$projectId", params: { projectId } });
+        finish();
+      };
+      // Safety net: if the blueprint signal never arrives, open the app anyway.
+      const timer = setTimeout(
+        () => goToProject("Still designing — opening your app; it'll keep updating as it builds."),
+        180_000,
+      );
+      dispose = connectWs(`/ws/projects/${projectId}/logs`, (ws) => {
+        ws.onmessage = (e) => {
+          let msg: { type?: string; message?: string };
+          try {
+            msg = JSON.parse(e.data as string);
+          } catch {
+            return;
+          }
+          if (!msg || msg.type === "ping") return;
+          if (msg.type === "blueprint_ready") {
+            goToProject("✓ Blueprint ready — opening your app so you can watch it build.");
+          } else if (msg.type === "error") {
+            updateMessage(
+              statusId,
+              "error",
+              msg.message ??
+                "I couldn't design an app from that idea — try describing it differently.",
+            );
+            finish();
+          } else if (msg.message) {
+            updateMessage(statusId, "assistant", msg.message);
+          }
+        };
+      });
+    });
+  }
+
+  // Kick off a full prompt → blueprint → build run. Streams progress live and
+  // only navigates once the blueprint exists. Shared by Build mode and the
+  // model's build_app action.
+  async function runBuild(description: string) {
+    const desc = description.trim();
+    if (desc.length < MIN_BUILD_PROMPT) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `e-${Date.now()}`,
+          role: "error",
+          text: "Tell me a bit more about the app you'd like to build.",
+        },
+      ]);
+      return;
+    }
+    setSending(true);
+    const statusId = `build-${Date.now()}`;
+    setMessages((prev) => [
+      ...prev,
+      { id: statusId, role: "assistant", text: "Designing your app — generating the blueprint…" },
+    ]);
+    try {
+      const res = await apiFetch("/api/v1/assistant/build", {
+        method: "POST",
+        body: JSON.stringify({ description: desc }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        updateMessage(
+          statusId,
+          "error",
+          (d as { detail?: string }).detail ?? "Couldn't start the build.",
+        );
+        return;
+      }
+      const data = (await res.json()) as { project_id: string };
+      await streamBuild(data.project_id, statusId);
+    } catch {
+      updateMessage(statusId, "error", "Network error starting the build.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function buildApp(action: AssistantAction) {
+    await runBuild(action.description ?? "");
+  }
+
   function onAuthed() {
     setAuthed(true);
     setShowAuth(false);
+    // Drop the anonymous socket so the replayed message goes over HTTP (which
+    // uses the fresh token); the effect then reconnects an authenticated WS.
+    chatWsRef.current = null;
     void loadConversations();
     const pending = pendingRef.current;
     pendingRef.current = null;
@@ -542,7 +829,8 @@ export function AssistantWidget() {
       ...prev,
       { id: `s-${Date.now()}`, role: "assistant", text: "You're signed in — let me handle that." },
     ]);
-    if (pending) void runChat(pending);
+    if (pending?.kind === "build") void runBuild(pending.text);
+    else if (pending) void runChat(pending.text);
   }
 
   function followLink(to: string) {
@@ -557,6 +845,8 @@ export function AssistantWidget() {
 
   const currentTitle =
     (conversationId && conversations.find((c) => c.id === conversationId)?.title) || "Assistant";
+  const trimmedLen = input.trim().length;
+  const buildTooShort = mode === "build" && trimmedLen > 0 && trimmedLen < MIN_BUILD_PROMPT;
 
   return (
     <>
@@ -706,10 +996,15 @@ export function AssistantWidget() {
                     </div>
                   </div>
                 ))}
-                {sending && (
+                {thinking && (
                   <div className="flex justify-start">
-                    <div className="rounded-2xl px-3 py-2 bg-surface text-text-muted">
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                    <div className="flex items-center gap-2 rounded-2xl px-3 py-2 bg-surface text-text-secondary text-[13px]">
+                      <span>Thinking</span>
+                      <span className="flex gap-0.5">
+                        <span className="w-1 h-1 rounded-full bg-text-muted animate-bounce [animation-delay:-0.3s]" />
+                        <span className="w-1 h-1 rounded-full bg-text-muted animate-bounce [animation-delay:-0.15s]" />
+                        <span className="w-1 h-1 rounded-full bg-text-muted animate-bounce" />
+                      </span>
                     </div>
                   </div>
                 )}
@@ -721,13 +1016,32 @@ export function AssistantWidget() {
                   <AuthPanel onAuthed={onAuthed} />
                 </div>
               ) : (
-                <div className="shrink-0 border-t border-border/60 p-2.5">
+                <div className="shrink-0 border-t border-border/60 p-2.5 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <ModeMenu mode={mode} onChange={setMode} />
+                    <span
+                      className={[
+                        "text-[10px] truncate",
+                        buildTooShort ? "text-destructive" : "text-text-muted",
+                      ].join(" ")}
+                    >
+                      {mode === "build"
+                        ? buildTooShort
+                          ? `Describe your app a bit more… (${trimmedLen}/${MIN_BUILD_PROMPT})`
+                          : "Describe what the app does & who it's for"
+                        : "Ask anything about Forgefy"}
+                    </span>
+                  </div>
                   <div className="flex items-end gap-2 rounded-xl border border-border bg-background px-2.5 py-1.5">
                     <textarea
                       ref={inputRef}
                       value={input}
                       rows={1}
-                      placeholder="Ask anything…"
+                      placeholder={
+                        mode === "build"
+                          ? "e.g. A fitness app to log workouts and track weekly progress…"
+                          : "Ask anything…"
+                      }
                       onChange={(e) => {
                         setInput(e.target.value);
                         e.target.style.height = "auto";
@@ -743,11 +1057,15 @@ export function AssistantWidget() {
                     />
                     <button
                       onClick={() => void handleSend()}
-                      disabled={!input.trim() || sending}
-                      aria-label="Send"
+                      disabled={!input.trim() || sending || buildTooShort}
+                      aria-label={mode === "build" ? "Build app" : "Send"}
                       className="flex items-center justify-center w-8 h-8 rounded-lg bg-accent text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity btn-press shrink-0"
                     >
-                      <ArrowUp className="w-4 h-4" />
+                      {mode === "build" ? (
+                        <Hammer className="w-4 h-4" />
+                      ) : (
+                        <ArrowUp className="w-4 h-4" />
+                      )}
                     </button>
                   </div>
                 </div>
