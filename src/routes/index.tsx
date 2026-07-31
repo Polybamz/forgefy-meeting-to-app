@@ -502,7 +502,7 @@ function Index() {
               className="h-8 w-8"
               width={40}
               height={40}
-              />
+            />
             {/* ============================== 
               <svg
                 className="w-3.5 h-3.5 text-accent-foreground"
