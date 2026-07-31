@@ -147,8 +147,8 @@ export default function Terms() {
               <strong>Settings → Privacy &amp; Data</strong> (or by emailing privacy@forgefy.dev).
               Deletion removes your account, meetings, transcripts, blueprints, and projects from
               our systems; code already pushed to your own GitHub repositories is yours and remains
-              untouched. You can also export a copy of your data from the same place before
-              deleting — see our{" "}
+              untouched. You can also export a copy of your data from the same place before deleting
+              — see our{" "}
               <Link to="/privacy" className="text-accent hover:underline">
                 Privacy Policy
               </Link>{" "}

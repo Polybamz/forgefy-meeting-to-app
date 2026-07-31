@@ -188,9 +188,11 @@ export default function Privacy() {
               </li>
               <li>
                 <strong>Right to opt out of sale or sharing</strong> — Forgefy{" "}
-                <strong>does not sell your personal information and does not share it for
-                cross-context behavioral advertising</strong>, and has not done so in the preceding
-                12 months, so there is nothing to opt out of.
+                <strong>
+                  does not sell your personal information and does not share it for cross-context
+                  behavioral advertising
+                </strong>
+                , and has not done so in the preceding 12 months, so there is nothing to opt out of.
               </li>
               <li>
                 <strong>Right to limit use of sensitive personal information</strong> — the only
@@ -204,17 +206,17 @@ export default function Privacy() {
               </li>
             </ul>
             <p className="mt-2">
-              In CCPA terms, the categories we collect are: identifiers (email address),
-              commercial information (subscription tier, billing status), internet activity (usage
-              counts), audio/electronic information (meeting recordings and transcripts you choose
-              to process), and professional information incidentally contained in those meetings.
+              In CCPA terms, the categories we collect are: identifiers (email address), commercial
+              information (subscription tier, billing status), internet activity (usage counts),
+              audio/electronic information (meeting recordings and transcripts you choose to
+              process), and professional information incidentally contained in those meetings.
             </p>
             <p className="mt-2">
               To exercise any right, use <strong>Settings → Privacy &amp; Data</strong> or email
-              privacy@forgefy.dev. You may use an authorized agent; we will verify the request
-              (and, for agents, written authorization) before acting on it. We will confirm receipt
-              within 10 business days and respond within 45 days, extendable once by a further 45
-              days with notice.
+              privacy@forgefy.dev. You may use an authorized agent; we will verify the request (and,
+              for agents, written authorization) before acting on it. We will confirm receipt within
+              10 business days and respond within 45 days, extendable once by a further 45 days with
+              notice.
             </p>
           </div>
 

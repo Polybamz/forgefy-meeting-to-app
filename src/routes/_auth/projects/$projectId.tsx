@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Database, X, Zap, Smartphone, RotateCw, Maximize2, Loader2, Monitor } from "lucide-react";
 import { apiFetch, connectWs, type BillingStatus, type Project } from "@/lib/api";
+import { playAlertSound } from "@/lib/sound";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -147,7 +148,9 @@ function AgentActivityBlock({
                 <p className="text-[#7A6F65] leading-snug pb-1">{plan.summary}</p>
                 {fileItems.map((f) => (
                   <div key={f.path} className="flex items-start gap-2 leading-[1.6]">
-                    <span className={`shrink-0 ${f.done ? "text-[oklch(0.6_0.18_145)]" : "text-[#5a5249]"}`}>
+                    <span
+                      className={`shrink-0 ${f.done ? "text-[oklch(0.6_0.18_145)]" : "text-[#5a5249]"}`}
+                    >
                       {f.done ? "✓" : "○"}
                     </span>
                     <div className="min-w-0 flex-1">
@@ -183,30 +186,30 @@ function AgentActivityBlock({
             // status verb and any process not in LOG_ICONS).
             const isProcessing = isActive && i === logs.length - 1;
             return (
-            <div key={entry.ts} className="flex items-start gap-2 leading-[1.6]">
-              <span className={`shrink-0 ${LOG_COLORS[entry.type] ?? "text-[#7A6F65]"}`}>
-                {isProcessing ? (
-                  <span
-                    className="inline-block h-2.5 w-2.5 rounded-full border-[1.5px] border-current border-t-transparent animate-spin align-middle"
-                    role="status"
-                    aria-label="Processing"
-                  />
-                ) : (
-                  LOG_ICONS[entry.type] ?? "·"
-                )}
-              </span>
-              {entry.type === "text" || entry.type === "done" ? (
-                <Md
-                  className={`${LOG_COLORS[entry.type] ?? "text-[#7A6F65]"} text-[11px] break-words`}
-                >
-                  {entry.message}
-                </Md>
-              ) : (
-                <span className={`${LOG_COLORS[entry.type] ?? "text-[#7A6F65]"} break-words`}>
-                  {entry.message}
+              <div key={entry.ts} className="flex items-start gap-2 leading-[1.6]">
+                <span className={`shrink-0 ${LOG_COLORS[entry.type] ?? "text-[#7A6F65]"}`}>
+                  {isProcessing ? (
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-full border-[1.5px] border-current border-t-transparent animate-spin align-middle"
+                      role="status"
+                      aria-label="Processing"
+                    />
+                  ) : (
+                    (LOG_ICONS[entry.type] ?? "·")
+                  )}
                 </span>
-              )}
-            </div>
+                {entry.type === "text" || entry.type === "done" ? (
+                  <Md
+                    className={`${LOG_COLORS[entry.type] ?? "text-[#7A6F65]"} text-[11px] break-words`}
+                  >
+                    {entry.message}
+                  </Md>
+                ) : (
+                  <span className={`${LOG_COLORS[entry.type] ?? "text-[#7A6F65]"} break-words`}>
+                    {entry.message}
+                  </span>
+                )}
+              </div>
             );
           })}
           <div ref={endRef} />
@@ -225,7 +228,10 @@ function AgentActivityBlock({
 // Appetize URLs already render their own device, so they are shown frame-less.
 type PreviewDevice = "ios" | "android";
 
-const DEVICE_FRAMES: Record<PreviewDevice, { label: string; w: number; h: number; radius: string }> = {
+const DEVICE_FRAMES: Record<
+  PreviewDevice,
+  { label: string; w: number; h: number; radius: string }
+> = {
   ios: { label: "iPhone", w: 300, h: 620, radius: "2.6rem" },
   android: { label: "Android", w: 300, h: 620, radius: "1.9rem" },
 };
@@ -334,7 +340,9 @@ function PreviewPanel({
   const statusBar = (
     <div className="flex items-center justify-between px-3 py-2 border-t border-border bg-surface shrink-0 text-[11px]">
       <span className="font-mono-ui text-text-muted truncate max-w-[70%]">{previewUrl ?? "—"}</span>
-      <span className={buildingPreview ? "text-[oklch(0.65_0.18_60)]" : "text-[oklch(0.6_0.18_145)]"}>
+      <span
+        className={buildingPreview ? "text-[oklch(0.65_0.18_60)]" : "text-[oklch(0.6_0.18_145)]"}
+      >
         ● {buildingPreview ? "Building" : "Connected"}
       </span>
     </div>
@@ -1709,6 +1717,7 @@ function ProjectEditorPage() {
             if (wasUpdating && !updated.is_updating) {
               setBuildingPreview(false);
               loadTokenBalance();
+              playAlertSound();
             }
 
             if (

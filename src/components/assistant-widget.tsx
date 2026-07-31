@@ -15,9 +15,15 @@ import {
   MessageCircle,
   Hammer,
   Check,
+  Mic,
+  Square,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { apiFetch, connectWs, getToken, setTokens } from "@/lib/api";
 import { oauthErrorMessage, signInWithOAuth, type OAuthProviderName } from "@/lib/firebase";
+import { playAlertSound } from "@/lib/sound";
+import { useVoice } from "@/hooks/use-voice";
 
 // Minimum characters for a Build-mode prompt — enough to actually describe the
 // kind of app the user wants (what it does / who it's for), not just "a gym app".
@@ -100,7 +106,7 @@ const PLATFORM_LABELS: Record<string, string> = {
 // session page, so it is never auto-joined.
 const ONLINE_PLATFORMS = new Set(["meet", "zoom", "teams"]);
 
-function Md({ children }: { children: string }) {
+function Md({ children, onNavigate }: { children: string; onNavigate?: (to: string) => void }) {
   return (
     <div className="text-[13px] leading-relaxed [&_a]:underline [&_a]:underline-offset-2">
       <ReactMarkdown
@@ -118,16 +124,34 @@ function Md({ children }: { children: string }) {
               {children}
             </code>
           ),
-          a: ({ href, children }) => (
-            <a
-              href={href}
-              target="_blank"
-              rel="noreferrer"
-              className="opacity-90 hover:opacity-100"
-            >
-              {children}
-            </a>
-          ),
+          a: ({ href, children }) => {
+            const to = href ?? "";
+            // Internal routes navigate in-app (SPA) instead of opening a new tab.
+            if (to.startsWith("/") && onNavigate) {
+              return (
+                <a
+                  href={to}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onNavigate(to);
+                  }}
+                  className="text-accent hover:opacity-80"
+                >
+                  {children}
+                </a>
+              );
+            }
+            return (
+              <a
+                href={to}
+                target="_blank"
+                rel="noreferrer"
+                className="opacity-90 hover:opacity-100"
+              >
+                {children}
+              </a>
+            );
+          },
         }}
       >
         {children}
@@ -389,6 +413,24 @@ export function AssistantWidget() {
   // A message held back behind sign-in, replayed after auth (chat or build).
   const pendingRef = useRef<{ kind: AssistantMode; text: string } | null>(null);
 
+  // Voice chat: mic → text (speech recognition) and spoken replies (synthesis).
+  const voice = useVoice();
+  // Whether assistant replies are read aloud. Turned on automatically when the
+  // user talks to it, toggleable via the speaker button. Mirrored to a ref so
+  // the reply handler sees the latest value synchronously within one turn.
+  const [speakReplies, setSpeakReplies] = useState(false);
+  const speakRepliesRef = useRef(false);
+  function setSpeak(on: boolean) {
+    speakRepliesRef.current = on;
+    setSpeakReplies(on);
+    if (!on) voice.cancelSpeaking();
+  }
+  // Hands-free: true while the last turn came from the mic, so after the reply
+  // is spoken we reopen the mic automatically. Typing a turn switches it off.
+  const lastInputVoiceRef = useRef(false);
+  // Mirror of `open` for use inside async speech callbacks.
+  const openRef = useRef(false);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -404,6 +446,16 @@ export function AssistantWidget() {
   useEffect(() => {
     setAuthed(!!getToken());
   }, [open, pathname]);
+
+  // Silence the mic and any spoken reply when the panel is closed.
+  useEffect(() => {
+    openRef.current = open;
+    if (!open) {
+      voice.stopListening();
+      voice.cancelSpeaking();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   // Keep a chat WebSocket open while the panel is open. Replies are matched to
   // the pending request via replyResolverRef; runChat falls back to HTTP if the
@@ -596,6 +648,22 @@ export function AssistantWidget() {
         data = (await res.json()) as ChatReply;
       }
       setThinking(false); // reply received — any following action shows its own status
+      // Speak the reply in voice mode; otherwise chime that it's done. After a
+      // spoken reply to a voice turn, reopen the mic for a hands-free back-and-forth.
+      if (speakRepliesRef.current && voice.ttsSupported) {
+        voice.speak(data.response, () => {
+          if (
+            openRef.current &&
+            lastInputVoiceRef.current &&
+            speakRepliesRef.current &&
+            voice.sttSupported
+          ) {
+            voice.startListening(handleVoiceResult, (t) => setInput(t));
+          }
+        });
+      } else {
+        playAlertSound();
+      }
 
       // Adopt the thread id (a new thread is created on the first message) and
       // refresh the switcher so its title/ordering stays current.
@@ -645,11 +713,38 @@ export function AssistantWidget() {
     const text = input.trim();
     if (!text || sending) return;
     if (mode === "build" && text.length < MIN_BUILD_PROMPT) return; // too short to build
+    lastInputVoiceRef.current = false; // typed turn → stop auto-reopening the mic
     setInput("");
     if (inputRef.current) inputRef.current.style.height = "auto";
     // Both modes go through the assistant. In build mode it asks any clarifying
     // questions, then emits a build_app action (handled in runChat → runBuild).
     await submit(text);
+  }
+
+  // A finished voice utterance from the mic. Talking to the assistant turns on
+  // spoken replies so the conversation stays hands-free.
+  function handleVoiceResult(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    setSpeak(true);
+    lastInputVoiceRef.current = true; // keep the conversation hands-free
+    // A build prompt too short to act on: drop it in the box to keep dictating.
+    if (mode === "build" && trimmed.length < MIN_BUILD_PROMPT) {
+      setInput(trimmed);
+      return;
+    }
+    setInput("");
+    void submit(trimmed);
+  }
+
+  // Mic button: stop if we're listening, otherwise start a fresh capture.
+  function toggleMic() {
+    if (voice.listening) {
+      voice.stopListening();
+      return;
+    }
+    if (sending) return;
+    voice.startListening(handleVoiceResult, (t) => setInput(t));
   }
 
   // Create the session, join the meeting automatically (for online platforms),
@@ -727,6 +822,7 @@ export function AssistantWidget() {
         settled = true;
         clearTimeout(timer);
         dispose();
+        playAlertSound(); // chime when the build run ends (ready, error, or timeout)
         resolve();
       };
       const goToProject = (text: string) => {
@@ -837,8 +933,9 @@ export function AssistantWidget() {
     setOpen(false);
     // Links are validated server-side against the real route list, so this
     // runtime string is a safe destination even though `to` is typed as a
-    // route literal.
-    navigate({ to: to as never });
+    // route literal. Split off any "#anchor" so section deep-links scroll.
+    const [path, hash] = to.split("#");
+    navigate({ to: path as never, hash: hash || undefined });
   }
 
   if (isHidden(pathname)) return null;
@@ -976,7 +1073,7 @@ export function AssistantWidget() {
                       ].join(" ")}
                     >
                       {m.role === "assistant" ? (
-                        <Md>{m.text}</Md>
+                        <Md onNavigate={followLink}>{m.text}</Md>
                       ) : (
                         <p className="text-[13px] leading-relaxed whitespace-pre-wrap">{m.text}</p>
                       )}
@@ -1022,15 +1119,46 @@ export function AssistantWidget() {
                     <span
                       className={[
                         "text-[10px] truncate",
-                        buildTooShort ? "text-destructive" : "text-text-muted",
+                        voice.listening
+                          ? "text-accent"
+                          : buildTooShort
+                            ? "text-destructive"
+                            : "text-text-muted",
                       ].join(" ")}
                     >
-                      {mode === "build"
-                        ? buildTooShort
-                          ? `Describe your app a bit more… (${trimmedLen}/${MIN_BUILD_PROMPT})`
-                          : "Describe what the app does & who it's for"
-                        : "Ask anything about Forgefy"}
+                      {voice.listening
+                        ? "Listening…"
+                        : voice.speaking
+                          ? "Speaking…"
+                          : mode === "build"
+                            ? buildTooShort
+                              ? `Describe your app a bit more… (${trimmedLen}/${MIN_BUILD_PROMPT})`
+                              : "Describe what the app does & who it's for"
+                            : "Ask anything about Forgefy"}
                     </span>
+                    {voice.ttsSupported && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (voice.speaking) voice.cancelSpeaking();
+                          setSpeak(!speakReplies);
+                        }}
+                        aria-label={speakReplies ? "Mute spoken replies" : "Speak replies aloud"}
+                        title={speakReplies ? "Mute spoken replies" : "Speak replies aloud"}
+                        className={[
+                          "ml-auto flex items-center justify-center w-7 h-7 rounded-lg transition-colors shrink-0",
+                          speakReplies
+                            ? "text-accent bg-accent/10 hover:bg-accent/20"
+                            : "text-text-muted hover:text-ink hover:bg-surface",
+                        ].join(" ")}
+                      >
+                        {speakReplies ? (
+                          <Volume2 className="w-4 h-4" />
+                        ) : (
+                          <VolumeX className="w-4 h-4" />
+                        )}
+                      </button>
+                    )}
                   </div>
                   <div className="flex items-end gap-2 rounded-xl border border-border bg-background px-2.5 py-1.5">
                     <textarea
@@ -1055,6 +1183,26 @@ export function AssistantWidget() {
                       }}
                       className="flex-1 resize-none bg-transparent text-[13px] text-ink placeholder:text-text-muted outline-none max-h-[120px] py-1"
                     />
+                    {voice.sttSupported && (
+                      <button
+                        onClick={toggleMic}
+                        disabled={sending && !voice.listening}
+                        aria-label={voice.listening ? "Stop listening" : "Speak"}
+                        title={voice.listening ? "Stop listening" : "Speak"}
+                        className={[
+                          "flex items-center justify-center w-8 h-8 rounded-lg transition-colors btn-press shrink-0",
+                          voice.listening
+                            ? "bg-destructive text-destructive-foreground animate-pulse"
+                            : "text-text-muted hover:text-ink hover:bg-surface disabled:opacity-40 disabled:cursor-not-allowed",
+                        ].join(" ")}
+                      >
+                        {voice.listening ? (
+                          <Square className="w-4 h-4" />
+                        ) : (
+                          <Mic className="w-4 h-4" />
+                        )}
+                      </button>
+                    )}
                     <button
                       onClick={() => void handleSend()}
                       disabled={!input.trim() || sending || buildTooShort}

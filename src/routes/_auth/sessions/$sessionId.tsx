@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { apiFetch, ensureFreshToken, getWsUrl, updateStoredSession } from "@/lib/api";
+import { playAlertSound } from "@/lib/sound";
 import {
   ChevronDown,
   Mic,
@@ -1140,6 +1141,7 @@ function SessionPage() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const dbTranscriptLoadedRef = useRef(false);
   const wsErrorToastedRef = useRef(false);
+  const prevStatusRef = useRef<SessionStatus | null>(null);
 
   const fetchSession = useCallback(async () => {
     try {
@@ -1271,6 +1273,18 @@ function SessionPage() {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [session?.status, fetchSession]);
+
+  // Chime when the analysis process finishes — the transcript has been turned
+  // into a blueprint (BLUEPRINT_READY) or the run gave up (FAILED).
+  useEffect(() => {
+    const status = session?.status;
+    if (!status) return;
+    const prev = prevStatusRef.current;
+    if (prev && prev !== status && (status === "BLUEPRINT_READY" || status === "FAILED")) {
+      playAlertSound();
+    }
+    prevStatusRef.current = status;
+  }, [session?.status]);
 
   useEffect(() => {
     if (!session) return;
