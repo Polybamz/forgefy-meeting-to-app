@@ -20,6 +20,7 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
+import { useConversation } from "@elevenlabs/react";
 import { apiFetch, connectWs, getToken, setTokens } from "@/lib/api";
 import { oauthErrorMessage, signInWithOAuth, type OAuthProviderName } from "@/lib/firebase";
 import { playAlertSound } from "@/lib/sound";
@@ -415,6 +416,31 @@ export function AssistantWidget() {
 
   // Voice chat: mic → text (speech recognition) and spoken replies (synthesis).
   const voice = useVoice();
+
+  // ElevenLabs Conversational AI — preferred over browser STT/TTS when available.
+  // 'idle' → 'connecting' (fetching signed URL + starting session) → 'active'
+  const [elevenLabsStatus, setElevenLabsStatus] = useState<"idle" | "connecting" | "active">("idle");
+
+  const elevenLabsConv = useConversation({
+    onConnect: () => setElevenLabsStatus("active"),
+    onDisconnect: () => setElevenLabsStatus("idle"),
+    onMessage: ({ message, role }: { message: string; role: "user" | "agent" }) => {
+      if (!message) return;
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `ev-${role}-${Date.now()}`,
+          role: role === "agent" ? "assistant" : "user",
+          text: message,
+        },
+      ]);
+    },
+    onError: (err: string) => {
+      console.error("ElevenLabs voice error:", err);
+      setElevenLabsStatus("idle");
+    },
+  });
+
   // Whether assistant replies are read aloud. Turned on automatically when the
   // user talks to it, toggleable via the speaker button. Mirrored to a ref so
   // the reply handler sees the latest value synchronously within one turn.
@@ -737,14 +763,44 @@ export function AssistantWidget() {
     void submit(trimmed);
   }
 
-  // Mic button: stop if we're listening, otherwise start a fresh capture.
+  async function startElevenLabsVoice() {
+    if (!authed) {
+      setShowAuth(true);
+      return;
+    }
+    setElevenLabsStatus("connecting");
+    try {
+      const res = await apiFetch("/api/v1/voice/assistant-session");
+      if (!res.ok) throw new Error("Failed to get voice session");
+      const { signed_url } = (await res.json()) as { signed_url: string };
+      await elevenLabsConv.startSession({ signedUrl: signed_url });
+    } catch (err) {
+      console.error("ElevenLabs start failed:", err);
+      setElevenLabsStatus("idle");
+      // Fall back to browser STT
+      if (voice.sttSupported) {
+        voice.startListening(handleVoiceResult, (t) => setInput(t));
+      }
+    }
+  }
+
+  async function stopElevenLabsVoice() {
+    await elevenLabsConv.endSession();
+    setElevenLabsStatus("idle");
+  }
+
+  // Mic button: ElevenLabs preferred; falls back to browser STT.
   function toggleMic() {
+    if (elevenLabsStatus === "active" || elevenLabsStatus === "connecting") {
+      void stopElevenLabsVoice();
+      return;
+    }
     if (voice.listening) {
       voice.stopListening();
       return;
     }
     if (sending) return;
-    voice.startListening(handleVoiceResult, (t) => setInput(t));
+    void startElevenLabsVoice();
   }
 
   // Create the session, join the meeting automatically (for online platforms),
@@ -1160,15 +1216,37 @@ export function AssistantWidget() {
                       </button>
                     )}
                   </div>
+                  {/* ElevenLabs voice active banner */}
+                  {elevenLabsStatus !== "idle" && (
+                    <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-accent/8 border border-accent/20 mb-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse shrink-0" />
+                      <p className="text-[11px] text-accent font-medium flex-1 min-w-0 truncate">
+                        {elevenLabsStatus === "connecting"
+                          ? "Connecting voice…"
+                          : elevenLabsConv.isSpeaking
+                            ? "Speaking…"
+                            : "Listening…"}
+                      </p>
+                      <button
+                        onClick={() => void stopElevenLabsVoice()}
+                        className="text-[11px] text-accent/70 hover:text-accent transition-colors shrink-0"
+                      >
+                        End
+                      </button>
+                    </div>
+                  )}
+
                   <div className="flex items-end gap-2 rounded-xl border border-border bg-background px-2.5 py-1.5">
                     <textarea
                       ref={inputRef}
                       value={input}
                       rows={1}
                       placeholder={
-                        mode === "build"
-                          ? "e.g. A fitness app to log workouts and track weekly progress…"
-                          : "Ask anything…"
+                        elevenLabsStatus === "active"
+                          ? "Speak or type…"
+                          : mode === "build"
+                            ? "e.g. A fitness app to log workouts and track weekly progress…"
+                            : "Ask anything…"
                       }
                       onChange={(e) => {
                         setInput(e.target.value);
@@ -1186,17 +1264,29 @@ export function AssistantWidget() {
                     {voice.sttSupported && (
                       <button
                         onClick={toggleMic}
-                        disabled={sending && !voice.listening}
-                        aria-label={voice.listening ? "Stop listening" : "Speak"}
-                        title={voice.listening ? "Stop listening" : "Speak"}
+                        disabled={sending && elevenLabsStatus === "idle" && !voice.listening}
+                        aria-label={
+                          elevenLabsStatus !== "idle" || voice.listening
+                            ? "Stop voice chat"
+                            : "Voice chat"
+                        }
+                        title={
+                          elevenLabsStatus !== "idle" || voice.listening
+                            ? "Stop voice chat"
+                            : "Voice chat"
+                        }
                         className={[
                           "flex items-center justify-center w-8 h-8 rounded-lg transition-colors btn-press shrink-0",
-                          voice.listening
-                            ? "bg-destructive text-destructive-foreground animate-pulse"
-                            : "text-text-muted hover:text-ink hover:bg-surface disabled:opacity-40 disabled:cursor-not-allowed",
+                          elevenLabsStatus === "active"
+                            ? "bg-accent/20 text-accent"
+                            : voice.listening
+                              ? "bg-destructive text-destructive-foreground animate-pulse"
+                              : "text-text-muted hover:text-ink hover:bg-surface disabled:opacity-40 disabled:cursor-not-allowed",
                         ].join(" ")}
                       >
-                        {voice.listening ? (
+                        {elevenLabsStatus === "connecting" ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : elevenLabsStatus === "active" || voice.listening ? (
                           <Square className="w-4 h-4" />
                         ) : (
                           <Mic className="w-4 h-4" />
