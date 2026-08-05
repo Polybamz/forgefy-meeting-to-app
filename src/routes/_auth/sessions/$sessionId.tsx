@@ -13,6 +13,7 @@ import {
   ArrowLeft,
   Info,
   AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_auth/sessions/$sessionId")({
@@ -122,7 +123,17 @@ function StatusBadge({ status }: { status: SessionStatus }) {
 // ---------------------------------------------------------------------------
 // AlertCard — persistent error/warning banner at the top of the session page
 // ---------------------------------------------------------------------------
-function AlertCard({ alert, onDismiss }: { alert: SessionAlert; onDismiss?: () => void }) {
+function AlertCard({
+  alert,
+  onDismiss,
+  action,
+}: {
+  alert: SessionAlert;
+  onDismiss?: () => void;
+  // Rendered under the description, for alerts the user can act on rather
+  // than only acknowledge.
+  action?: React.ReactNode;
+}) {
   const isError = alert.variant === "error";
   return (
     <div
@@ -152,6 +163,7 @@ function AlertCard({ alert, onDismiss }: { alert: SessionAlert; onDismiss?: () =
             {alert.description}
           </p>
         )}
+        {action && <div className="mt-3">{action}</div>}
       </div>
       {onDismiss && (
         <button
@@ -1339,6 +1351,36 @@ function SessionPage() {
     }
   }
 
+  async function handleRegenerateBlueprint() {
+    if (!session) return;
+    setActionLoading(true);
+    setPageAlert(null);
+    try {
+      const res = await apiFetch(`/api/v1/voxa/session/${session.id}/regenerate-blueprint`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setPageAlert({
+          variant: "error",
+          title: d.detail ?? "Could not restart blueprint generation.",
+        });
+        return;
+      }
+      // Comes back PROCESSING, which swaps the failure banner for the
+      // existing progress UI; the poller then picks up the outcome.
+      await fetchSession();
+      toast.success("Regenerating blueprint…");
+    } catch {
+      setPageAlert({
+        variant: "error",
+        title: "Network error — could not restart blueprint generation.",
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   async function handleStartLive() {
     if (!session) return;
     setActionLoading(true);
@@ -1428,10 +1470,30 @@ function SessionPage() {
             variant: "error",
             title: "Blueprint generation failed for this session.",
             description:
-              "No requirements could be extracted — the recording may be too short, silent, " +
-              "or not contain product discussion. Start a new session with a clear conversation " +
-              "about the app you want to build.",
+              "This is often temporary — try again first. If it keeps failing, the recording " +
+              "may be too short, silent, or not contain product discussion, in which case " +
+              "start a new session with a clear conversation about the app you want to build.",
           }}
+          action={
+            <button
+              type="button"
+              onClick={handleRegenerateBlueprint}
+              disabled={actionLoading}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-accent text-accent-foreground text-[13px] font-medium transition-colors hover:bg-[oklch(0.55_0.135_45)] disabled:opacity-60 btn-press"
+            >
+              {actionLoading ? (
+                <>
+                  <div className="w-3.5 h-3.5 rounded-full border-2 border-accent-foreground/40 border-t-accent-foreground animate-spin" />
+                  Restarting…
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Try again
+                </>
+              )}
+            </button>
+          }
         />
       )}
 

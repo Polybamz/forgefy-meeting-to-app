@@ -159,6 +159,156 @@ function GitHubSection() {
 }
 
 // ---------------------------------------------------------------------------
+// Zoom section
+// ---------------------------------------------------------------------------
+// Zoom requires an OBF token to let our bot into meetings hosted on someone
+// else's account, and that token can only be minted from the host's own OAuth
+// grant. So a host who wants the notetaker in their meetings has to link once.
+function ZoomSection() {
+  const [status, setStatus] = useState<{ linked: boolean; email?: string | null } | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  function refresh() {
+    apiFetch("/api/v1/zoom/status")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setStatus(d))
+      .catch(() => {});
+  }
+
+  useEffect(() => {
+    refresh();
+
+    // The backend callback redirects here with the outcome appended.
+    const params = new URLSearchParams(window.location.search);
+    const error = params.get("zoom_error");
+
+    if (params.get("zoom") === "connected") {
+      setStatus({ linked: true });
+      window.history.replaceState({}, "", window.location.pathname);
+      toast.success("Zoom connected successfully.");
+      // The email only exists after the profile lookup, so re-read it.
+      refresh();
+    } else if (error) {
+      window.history.replaceState({}, "", window.location.pathname);
+      toast.error(ZOOM_ERRORS[error] ?? "Could not connect Zoom. Please try again.");
+    }
+  }, []);
+
+  async function connect() {
+    setLoading(true);
+    try {
+      const res = await apiFetch("/api/v1/zoom/authorize");
+      if (res.ok) {
+        const data = await res.json();
+        // The endpoint reports misconfiguration in-band rather than as a 4xx.
+        if (data.error) {
+          toast.error(data.error);
+        } else if (data.url) {
+          window.location.href = data.url;
+          return;
+        }
+      } else {
+        toast.error("Could not start Zoom authorization. Please try again.");
+      }
+    } catch {
+      toast.error("Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function disconnect() {
+    setLoading(true);
+    try {
+      const res = await apiFetch("/api/v1/zoom/disconnect", { method: "POST" });
+      if (res.ok) {
+        setStatus({ linked: false });
+        toast.success("Zoom disconnected.");
+      } else {
+        toast.error("Could not disconnect Zoom.");
+      }
+    } catch {
+      toast.error("Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Section
+      title="Zoom"
+      description="Connect your Zoom account so the notetaker can join meetings you host."
+    >
+      <Row
+        label="Connection status"
+        sublabel={
+          status?.linked
+            ? "The notetaker can join meetings you host."
+            : "Without this, the notetaker can only join meetings on Forgefy's own Zoom account."
+        }
+      >
+        {status === null ? (
+          <span className="text-[13px] text-text-muted">Checking…</span>
+        ) : status.linked ? (
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[oklch(0.45_0.18_145)] bg-[oklch(0.55_0.18_145)]/10 px-3 py-1.5 rounded-xl">
+              <svg
+                className="h-3.5 w-3.5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              {status.email || "Connected"}
+            </span>
+            <button
+              onClick={disconnect}
+              disabled={loading}
+              className="px-3 py-2 rounded-xl border border-border text-[13px] font-medium text-text-muted hover:text-ink hover:bg-muted/50 transition-colors disabled:opacity-60 btn-press"
+            >
+              Disconnect
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={connect}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0B5CFF] text-white text-[13px] font-medium hover:bg-[#0847cc] transition-colors disabled:opacity-60 btn-press"
+          >
+            {loading ? (
+              <>
+                <div className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                Connecting…
+              </>
+            ) : (
+              <>
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M4.5 6.5h9A2.5 2.5 0 0 1 16 9v6.5a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 2 15.5V9a2.5 2.5 0 0 1 2.5-2.5Zm13.9 3.2 3-2.1a.6.6 0 0 1 .95.49v8.32a.6.6 0 0 1-.95.49l-3-2.1a.6.6 0 0 1-.25-.49v-4.12a.6.6 0 0 1 .25-.49Z" />
+                </svg>
+                Connect Zoom
+              </>
+            )}
+          </button>
+        )}
+      </Row>
+    </Section>
+  );
+}
+
+// Maps the callback's ?zoom_error= codes onto something a user can act on.
+const ZOOM_ERRORS: Record<string, string> = {
+  declined: "You declined the Zoom authorization request.",
+  missing_code: "Zoom did not return an authorization code. Please try again.",
+  invalid_state: "That authorization link expired. Please try connecting again.",
+  exchange_failed: "Zoom rejected the authorization. Please try again.",
+  server_error: "Something went wrong connecting Zoom. Please try again.",
+};
+
+// ---------------------------------------------------------------------------
 // Build model section
 // ---------------------------------------------------------------------------
 const BUILD_MODEL_OPTIONS = [
@@ -429,6 +579,7 @@ function SettingsPage() {
 
       <div className="space-y-4">
         <GitHubSection />
+        <ZoomSection />
         <BuildModelSection />
         <AppearanceSection />
         <PrivacySection onDeleted={handleSignOut} />

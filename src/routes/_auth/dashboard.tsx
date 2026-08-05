@@ -441,7 +441,14 @@ function DashboardPage() {
         <p className="label-eyebrow mb-1">Dashboard</p>
         <h1 className="font-display text-[32px] text-ink leading-tight">Overview</h1>
       </div>
-
+      {/* <div>
+        {Array.from({ length: 10 }).map((_, i) => (
+        <svg key={i}>
+          <circle rx="10%" cx="10%" cy="10%" r="2%" fill="#24292e" />
+        </svg>
+      ))}
+      </div> */}
+      
       <GitHubConnectBanner />
 
       <NewSessionCard />
