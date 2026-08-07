@@ -1,0 +1,48 @@
+{
+  // Cloudflare Workers deployment. vercel.json is untouched — independent targets.
+  //
+  // "Missing entry-point to Worker script or to assets directory" means wrangler
+  // deploy found neither `main` nor `assets`. Both are declared below.
+  //
+  // This app is a SPA, not SSR: vite.config.ts sets spa.enabled, and the build
+  // log ends with "[prerender] Prerendered 1 pages: /". dist/server/server.js
+  // exists only so the build can prerender that shell — it is not the thing we
+  // serve. What ships is dist/client, with _shell.html as the entry document.
+  //
+  // No trailing commas: comments are documented for wrangler.jsonc, trailing
+  // commas are not. See .prettierignore.
+  "$schema": "./node_modules/wrangler/config-schema.json",
+
+  // MUST match the Workers project name in the dashboard exactly.
+  "name": "forgefy",
+  "compatibility_date": "2026-08-07",
+
+  // The Worker does two things static hosting cannot: proxy /api and /ws to the
+  // backend (as vercel.json rewrites do), and serve _shell.html for client-side
+  // routes. Without it you would also have to set VITE_API_URL to an absolute
+  // origin, since src/lib/api.ts defaults to relative /api paths.
+  "main": "./worker/index.ts",
+
+  "assets": {
+    // Client bundle, confirmed from the build log.
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+
+    // NOT "single-page-application": that mode hardcodes /index.html, which this
+    // build does not produce. "none" lets unmatched requests reach the Worker,
+    // which serves _shell.html explicitly.
+    "not_found_handling": "none",
+
+    // Worker runs first only for the proxied paths; everything else takes the
+    // fast asset-first path.
+    "run_worker_first": ["/api/*", "/ws/*"]
+  },
+
+  "vars": {
+    "API_ORIGIN": "https://forgefy.onrender.com"
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}
