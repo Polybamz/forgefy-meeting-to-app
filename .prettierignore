@@ -3,7 +3,5 @@ dist
 .vinxi
 node_modules
 
-# Prettier adds trailing commas (trailingComma: "all"), and trailing-comma
-# support is not documented for wrangler.jsonc. Keep the file out of reach so a
-# `npm run format` cannot quietly break the deploy config.
-wrangler.jsonc
+# Deploy config — keep formatters away from it.
+wrangler.toml
