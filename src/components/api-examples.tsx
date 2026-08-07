@@ -12,7 +12,7 @@ import { HighlightedCode } from "@/components/highlighted-code";
 
 function makeExamples(base: string): { id: string; label: string; code: string }[] {
   const transcript = "We need Google login before launch. Sarah owns billing.";
-
+////
   return [
     {
       id: "curl",

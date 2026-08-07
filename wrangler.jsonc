@@ -1,0 +1,50 @@
+{
+  // Cloudflare Workers deployment. Vercel remains configured in vercel.json —
+  // the two are independent and neither reads the other's settings.
+  //
+  // Why a Worker rather than plain static hosting: vercel.json rewrites /api and
+  // /ws to the Render backend, and static assets alone cannot proxy to another
+  // origin. The Worker reproduces those rewrites.
+  //
+  // No trailing commas here on purpose. Comments are documented as supported
+  // (Cloudflare's own samples use //), but trailing-comma support is not stated
+  // anywhere in the config reference — so this file is listed in .prettierignore
+  // to stop `npm run format` from adding them back.
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "forgefy",
+  "main": "./worker/index.ts",
+  "compatibility_date": "2026-08-07",
+
+  "assets": {
+    // TanStack Start with spa.enabled writes the client build here.
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+
+    // NOT "single-page-application": that mode serves /index.html, and this
+    // build has no index.html — its shell is _shell.html. "none" lets unmatched
+    // requests fall through to the Worker, which serves the shell explicitly.
+    "not_found_handling": "none",
+
+    // Run the Worker before asset matching for the proxied paths only.
+    // Everything else stays on the fast asset-first path.
+    "run_worker_first": ["/api/*", "/ws/*"]
+  },
+
+  "vars": {
+    // Same origin vercel.json rewrites to. Override per environment below.
+    "API_ORIGIN": "https://forgefy.onrender.com"
+  },
+
+  "observability": {
+    "enabled": true
+  },
+
+  "env": {
+    "staging": {
+      "name": "forgefy",
+      "vars": {
+        "API_ORIGIN": "https://forgefy.onrender.com"
+      }
+    }
+  }
+}

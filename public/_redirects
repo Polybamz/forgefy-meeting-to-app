@@ -1,0 +1,13 @@
+# SPA fallback for Cloudflare.
+#
+# Note the filename: Cloudflare reads `_redirects` (plural). The existing
+# `_redirect` in this directory is NOT read by anything — it is just served as a
+# static file — which is why client-side routes 404 in the current deployment.
+#
+# The target is /_shell.html, not /index.html. TanStack Start's SPA mode
+# (spa.enabled in vite.config.ts) emits _shell.html and produces no index.html,
+# so an /index.html fallback resolves to nothing.
+#
+# The Worker in worker/index.ts does the same thing for the Workers deployment;
+# this file covers a Pages-based project, where no Worker runs.
+/*    /_shell.html   200
