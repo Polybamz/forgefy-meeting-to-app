@@ -419,7 +419,9 @@ export function AssistantWidget() {
 
   // ElevenLabs Conversational AI — preferred over browser STT/TTS when available.
   // 'idle' → 'connecting' (fetching signed URL + starting session) → 'active'
-  const [elevenLabsStatus, setElevenLabsStatus] = useState<"idle" | "connecting" | "active">("idle");
+  const [elevenLabsStatus, setElevenLabsStatus] = useState<"idle" | "connecting" | "active">(
+    "idle",
+  );
 
   const elevenLabsConv = useConversation({
     onConnect: () => setElevenLabsStatus("active"),
