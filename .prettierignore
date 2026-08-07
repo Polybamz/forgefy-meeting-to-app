@@ -3,5 +3,6 @@ dist
 .vinxi
 node_modules
 
-# Deploy config — keep formatters away from it.
-wrangler.toml
+# Deploy config — prettier would add trailing commas, which are not documented
+# as supported in wrangler.jsonc.
+wrangler.jsonc
