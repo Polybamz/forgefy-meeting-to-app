@@ -448,7 +448,7 @@ function DashboardPage() {
         </svg>
       ))}
       </div> */}
-      
+
       <GitHubConnectBanner />
 
       <NewSessionCard />
