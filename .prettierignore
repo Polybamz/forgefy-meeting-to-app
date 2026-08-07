@@ -1,8 +1,9 @@
-node_modules
 dist
 .output
 .vinxi
-pnpm-lock.yaml
-package-lock.json
-bun.lock
-routeTree.gen.ts
+node_modules
+
+# Prettier adds trailing commas (trailingComma: "all"), and trailing-comma
+# support is not documented for wrangler.jsonc. Keep the file out of reach so a
+# `npm run format` cannot quietly break the deploy config.
+wrangler.jsonc
