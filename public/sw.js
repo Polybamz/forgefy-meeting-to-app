@@ -9,7 +9,14 @@
  *    in the filename makes them immutable.
  *  - /api/ and /ws/ are never touched.
  */
-const VERSION = "v1";
+// Bumped v1 -> v2 to evict poisoned entries. While the `/*` catch-all in
+// _redirects was live, /assets/*.js answered 200 with the HTML shell; cacheFirst
+// only checks res.ok, so it stored HTML under the script URLs. Build hashes are
+// content-derived and the source did not change, so the repaired build reuses
+// the same filenames and those clients would keep reading the cached HTML. The
+// activate handler deletes every forgefy-* cache that is not the current pair,
+// so changing VERSION is what actually clears them.
+const VERSION = "v2";
 const SHELL_CACHE = `forgefy-shell-${VERSION}`;
 const ASSET_CACHE = `forgefy-assets-${VERSION}`;
 const SHELL_KEY = "/__shell";

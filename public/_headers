@@ -4,13 +4,19 @@
 # connect-src stays on 'self' because /api and /ws are proxied through this
 # origin (worker/index.ts) rather than called cross-origin. The backend host is
 # listed as well so a direct call still works if the proxy is ever bypassed.
+#
+# static.cloudflareinsights.com / cloudflareinsights.com appear here and not in
+# vercel.json on purpose: Cloudflare injects its Web Analytics beacon into HTML
+# responses itself, so only this deployment ever loads it. Without them every
+# page logs a CSP violation for a script the app never asked for. Drop both if
+# Web Analytics is turned off for this site.
 
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   X-Frame-Options: DENY
   Permissions-Policy: camera=(), microphone=(self), geolocation=()
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://apis.google.com https://*.gstatic.com https://*.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://forgefy.onrender.com wss://forgefy.onrender.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://apis.google.com https://www.googleapis.com; frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://apis.google.com https://*.pages.dev https://appetize.io https://*.appetize.io https://snack.expo.dev; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://apis.google.com https://*.gstatic.com https://*.google.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://forgefy.onrender.com wss://forgefy.onrender.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://apis.google.com https://www.googleapis.com https://cloudflareinsights.com; frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://apis.google.com https://*.pages.dev https://appetize.io https://*.appetize.io https://snack.expo.dev; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
 
 # The service worker must never be cached, or clients pin an old build.
 /sw.js

@@ -1,13 +1,23 @@
-# SPA fallback for Cloudflare.
+# Deliberately empty: there is NO catch-all rule here.
 #
-# Note the filename: Cloudflare reads `_redirects` (plural). The existing
-# `_redirect` in this directory is NOT read by anything — it is just served as a
-# static file — which is why client-side routes 404 in the current deployment.
+# This deployment is a Worker with an assets binding (see wrangler.jsonc), and
+# worker/index.ts already performs the SPA fallback to _shell.html. It does so
+# conditionally — only for navigation requests, and only after the asset server
+# has answered 404.
 #
-# The target is /_shell.html, not /index.html. TanStack Start's SPA mode
-# (spa.enabled in vite.config.ts) emits _shell.html and produces no index.html,
-# so an /index.html fallback resolves to nothing.
+# A `/*  /_shell.html  200` rule here is not a second opinion, it is a veto: the
+# asset server applies _redirects before matching files, so the catch-all
+# matched /assets/*.js, /theme-init.js, /manifest.webmanifest and every other
+# real file and answered each one with the HTML shell. The browser then refused
+# them all on MIME grounds ("Expected a JavaScript-or-Wasm module script but the
+# server responded with a MIME type of text/html") and nothing on the page
+# booted. Do not reintroduce it while worker/index.ts is the entry point.
 #
-# The Worker in worker/index.ts does the same thing for the Workers deployment;
-# this file covers a Pages-based project, where no Worker runs.
-/*    /_shell.html   200
+# If this app is ever deployed to Pages instead — no Worker, no fallback — the
+# rule below is what it needs, and it is safe there because nothing else does
+# the job:
+#
+#   /*    /_shell.html   200
+#
+# Note _shell.html, not index.html: TanStack Start's SPA mode (spa.enabled in
+# vite.config.ts) emits no index.html at all.
