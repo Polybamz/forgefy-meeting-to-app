@@ -33,6 +33,14 @@
     // which serves _shell.html explicitly.
     "not_found_handling": "none",
 
+    // MUST be "none". The default ("auto-trailing-slash") rewrites HTML asset
+    // URLs to their extensionless form, so a request for /_shell.html answers
+    // 307 -> /_shell rather than returning the document. /_shell is not a real
+    // asset path, so it falls through to the Worker, which asks for
+    // /_shell.html again -> 307 -> /_shell: an infinite redirect loop on every
+    // client-side route. With "none" the asset server serves the file as named.
+    "html_handling": "none",
+
     // Worker runs first only for the proxied paths; everything else takes the
     // fast asset-first path.
     "run_worker_first": ["/api/*", "/ws/*"]

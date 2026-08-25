@@ -49,6 +49,40 @@ function isNavigation(request: Request): boolean {
   return (request.headers.get("Accept") ?? "").includes("text/html");
 }
 
+/**
+ * Fetch the SPA shell document, following the asset server's own redirects
+ * rather than passing them to the browser.
+ *
+ * `html_handling: "none"` in wrangler.jsonc means /_shell.html is served as
+ * named, so the first fetch normally wins. This loop is the belt to that
+ * braces: any asset-serving mode that answers a redirect here would otherwise
+ * bounce the browser to a path that lands right back on this Worker, and the
+ * result is an infinite redirect on every client-side route. Following it
+ * in-Worker keeps the failure mode to a bad page instead of a dead site.
+ */
+async function fetchShell(env: Env, origin: string): Promise<Response> {
+  let target = new URL("/_shell.html", origin);
+
+  for (let hop = 0; hop < 3; hop++) {
+    const res = await env.ASSETS.fetch(target);
+    const location = res.status >= 300 && res.status < 400 ? res.headers.get("Location") : null;
+    if (!location) return res;
+    target = new URL(location, origin);
+  }
+
+  return new Response("Unable to load application shell.", {
+    status: 500,
+    headers: { "Content-Type": "text/plain" },
+  });
+}
+
+/** Drop Location so a followed redirect's headers cannot re-trigger one. */
+function stripLocation(headers: Headers): Headers {
+  const copy = new Headers(headers);
+  copy.delete("Location");
+  return copy;
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -67,10 +101,10 @@ export default {
     }
 
     // Client-side route: serve the shell and let the router resolve it.
-    const shell = await env.ASSETS.fetch(new URL("/_shell.html", url.origin));
+    const shell = await fetchShell(env, url.origin);
     return new Response(shell.body, {
       status: 200,
-      headers: shell.headers,
+      headers: stripLocation(shell.headers),
     });
   },
 } satisfies ExportedHandler<Env>;
