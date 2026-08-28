@@ -40,17 +40,22 @@ const LOG_ICONS: Record<string, string> = {
   validating: "◈",
 };
 
+// Every colour resolves to an --agent-log-* token defined for BOTH themes in
+// src/styles.css. Values are chosen for >= 4.5:1 on --agent-surface in each
+// theme; do not reintroduce a literal here.
 const LOG_COLORS: Record<string, string> = {
   started: "text-accent",
-  info: "text-[#7A6F65]",
-  thinking: "text-[#9A8F85]",
-  tool: "text-[oklch(0.6_0.18_145)]",
-  text: "text-[#C8BFB5]",
-  warning: "text-[oklch(0.65_0.18_60)]",
-  error: "text-red-400",
-  done: "text-[oklch(0.6_0.18_145)]",
-  validating: "text-[oklch(0.65_0.15_280)]",
+  info: "text-agent-log-info",
+  thinking: "text-agent-log-thinking",
+  tool: "text-agent-log-tool",
+  text: "text-agent-log-text",
+  warning: "text-agent-log-warning",
+  error: "text-agent-log-error",
+  done: "text-agent-log-done",
+  validating: "text-agent-log-validating",
 };
+
+const LOG_FALLBACK_COLOR = "text-agent-text-muted";
 
 // ---------------------------------------------------------------------------
 // AgentActivityBlock
@@ -98,16 +103,16 @@ function AgentActivityBlock({
 
   return (
     <div className="flex justify-start">
-      <div className="w-full text-[11px] font-mono-ui border border-[#2a2522] rounded-xl bg-[#100e0c] overflow-hidden">
+      <div className="w-full text-[11px] font-mono-ui border border-agent-border rounded-xl bg-agent-surface overflow-hidden">
         {/* Header */}
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-[#2a2522]">
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-agent-border">
           {isActive ? (
             <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse shrink-0" />
           ) : (
-            <span className="text-[oklch(0.6_0.18_145)]">✓</span>
+            <span className="text-agent-log-done">✓</span>
           )}
-          <span className="text-[#7A6F65]">forgefy agent</span>
-          {isActive && <span className="ml-auto text-[10px] text-[#5a5249]">running</span>}
+          <span className="text-agent-text-muted">forgefy agent</span>
+          {isActive && <span className="ml-auto text-[10px] text-agent-text-dim">running</span>}
         </div>
 
         {/* Plan section */}
@@ -115,35 +120,38 @@ function AgentActivityBlock({
           <>
             <button
               onClick={() => setPlanOpen((o) => !o)}
-              className="w-full flex items-center justify-between px-3 py-2 hover:bg-[#1a1714] transition-colors border-b border-[#2a2522]"
+              aria-expanded={planOpen}
+              className="w-full flex items-center justify-between px-3 py-2 hover:bg-agent-border/40 transition-colors border-b border-agent-border"
             >
-              <span className="text-[#5a5249] uppercase tracking-wider text-[9px]">
+              <span className="text-agent-text-dim uppercase tracking-wider text-[9px]">
                 plan · {fileItems.filter((f) => f.done).length}/{fileItems.length} files
               </span>
-              <span className="text-[#3a3633] text-[9px]">{planOpen ? "▲" : "▼"}</span>
+              <span className="text-agent-text-dim text-[9px]">{planOpen ? "▲" : "▼"}</span>
             </button>
             {planOpen && (
-              <div className="px-3 py-2 space-y-1 border-b border-[#2a2522]">
-                <p className="text-[#7A6F65] leading-snug pb-1">{plan.summary}</p>
+              <div className="px-3 py-2 space-y-1 border-b border-agent-border">
+                <p className="text-agent-text-muted leading-snug pb-1">{plan.summary}</p>
                 {fileItems.map((f) => (
                   <div key={f.path} className="flex items-start gap-2 leading-[1.6]">
                     <span
-                      className={`shrink-0 ${f.done ? "text-[oklch(0.6_0.18_145)]" : "text-[#5a5249]"}`}
+                      className={`shrink-0 ${f.done ? "text-agent-log-done" : "text-agent-text-dim"}`}
                     >
                       {f.done ? "✓" : "○"}
                     </span>
                     <div className="min-w-0 flex-1">
                       <span
-                        className={`${f.done ? "text-[#5a5249] line-through" : "text-[#C8BFB5]"}`}
+                        className={f.done ? "text-agent-text-dim line-through" : "text-agent-text"}
                       >
                         {f.desc || f.path}
                       </span>
                       {f.desc && (
-                        <span className="block text-[9px] text-[#5a5249] break-all">{f.path}</span>
+                        <span className="block text-[9px] text-agent-text-dim break-all">
+                          {f.path}
+                        </span>
                       )}
                     </div>
                     <span
-                      className={`shrink-0 text-[9px] ${f.badge === "+" ? "text-[oklch(0.6_0.18_145)]" : "text-[oklch(0.65_0.18_60)]"}`}
+                      className={`shrink-0 text-[9px] ${f.badge === "+" ? "text-agent-log-done" : "text-agent-log-warning"}`}
                     >
                       {f.badge}
                     </span>
@@ -157,16 +165,17 @@ function AgentActivityBlock({
         {/* Log stream */}
         <div className="max-h-52 overflow-y-auto px-3 py-2 space-y-0.5">
           {logs.length === 0 && isActive && (
-            <span className="text-[#5a5249] italic">Connecting…</span>
+            <span className="text-agent-text-dim italic">Connecting…</span>
           )}
           {logs.map((entry, i) => {
             // The last line while the agent is running is the step in progress —
             // show a spinning loader for it, whatever its type (covers every
             // status verb and any process not in LOG_ICONS).
             const isProcessing = isActive && i === logs.length - 1;
+            const color = LOG_COLORS[entry.type] ?? LOG_FALLBACK_COLOR;
             return (
               <div key={entry.ts} className="flex items-start gap-2 leading-[1.6]">
-                <span className={`shrink-0 ${LOG_COLORS[entry.type] ?? "text-[#7A6F65]"}`}>
+                <span className={`shrink-0 ${color}`}>
                   {isProcessing ? (
                     <span
                       className="inline-block h-2.5 w-2.5 rounded-full border-[1.5px] border-current border-t-transparent animate-spin align-middle"
@@ -178,15 +187,9 @@ function AgentActivityBlock({
                   )}
                 </span>
                 {entry.type === "text" || entry.type === "done" ? (
-                  <Md
-                    className={`${LOG_COLORS[entry.type] ?? "text-[#7A6F65]"} text-[11px] break-words`}
-                  >
-                    {entry.message}
-                  </Md>
+                  <Md className={`${color} text-[11px] break-words`}>{entry.message}</Md>
                 ) : (
-                  <span className={`${LOG_COLORS[entry.type] ?? "text-[#7A6F65]"} break-words`}>
-                    {entry.message}
-                  </span>
+                  <span className={`${color} break-words`}>{entry.message}</span>
                 )}
               </div>
             );
