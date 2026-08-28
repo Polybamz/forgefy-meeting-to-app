@@ -1,6 +1,18 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Database, X, Zap, Smartphone, RotateCw, Maximize2, Loader2, Monitor } from "lucide-react";
+import {
+  Check,
+  Copy,
+  Database,
+  Loader2,
+  Maximize2,
+  Monitor,
+  Pencil,
+  RotateCw,
+  Smartphone,
+  X,
+  Zap,
+} from "lucide-react";
 import { apiFetch, connectWs, type BillingStatus, type Project } from "@/lib/api";
 import {
   appendLog,
@@ -40,6 +52,25 @@ const LOG_FLUSH_FRAMES = 3;
 
 // How close to the bottom still counts as "following along".
 const SCROLL_PIN_SLACK_PX = 80;
+
+// Chat pane width. 380px was fixed, and markdown with code blocks and file
+// paths does not fit in it — break-all on the plan rows was the symptom.
+const CHAT_WIDTH_KEY = "forgefy_chat_width";
+const CHAT_WIDTH_DEFAULT = 380;
+const CHAT_WIDTH_MIN = 320;
+const CHAT_WIDTH_MAX = 720;
+
+function loadChatWidth(): number {
+  try {
+    const saved = Number(localStorage.getItem(CHAT_WIDTH_KEY));
+    if (Number.isFinite(saved) && saved >= CHAT_WIDTH_MIN && saved <= CHAT_WIDTH_MAX) {
+      return saved;
+    }
+  } catch {
+    /* private mode / storage disabled */
+  }
+  return CHAT_WIDTH_DEFAULT;
+}
 
 const TEMPLATE_LABELS: Record<string, string> = {
   flutter: "Flutter",
@@ -1115,20 +1146,77 @@ function Md({ children, className = "" }: { children: string; className?: string
 // useCallback'd at the call site, so the memo actually holds.
 const ChatBubble = React.memo(function ChatBubble({
   message,
+  canEdit,
   onAddDatabase,
   onDeclineDatabase,
   onSelectOption,
+  onRetry,
+  onEdit,
 }: {
   message: ChatMessage;
+  /** True for the user's most recent message — the only one worth re-editing. */
+  canEdit?: boolean;
   onAddDatabase?: () => void;
   onDeclineDatabase?: () => void;
   onSelectOption?: (messageId: string, option: string) => void;
+  onRetry?: (text: string) => void;
+  onEdit?: (text: string) => void;
 }) {
   const isUser = message.role === "user";
   const isError = message.role === "error";
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(message.text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard can be denied; silently leave the button unchanged rather
+      // than throwing an error bubble for a copy.
+    }
+  }
+
+  const actions = (
+    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+      {!isUser && !isError && (
+        <button
+          onClick={copy}
+          title={copied ? "Copied" : "Copy message"}
+          aria-label={copied ? "Copied" : "Copy message"}
+          className="flex items-center justify-center w-6 h-6 rounded-md text-text-muted hover:text-ink hover:bg-surface transition-colors"
+        >
+          {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+        </button>
+      )}
+      {isError && message.retryPrompt && (
+        <button
+          onClick={() => onRetry?.(message.retryPrompt!)}
+          title="Retry"
+          aria-label="Retry sending this message"
+          className="flex items-center justify-center gap-1 h-6 px-2 rounded-md text-[11px] text-text-muted hover:text-ink hover:bg-surface transition-colors"
+        >
+          <RotateCw className="h-3 w-3" />
+          Retry
+        </button>
+      )}
+      {isUser && canEdit && (
+        <button
+          onClick={() => onEdit?.(message.text)}
+          title="Edit and resend"
+          aria-label="Edit and resend this message"
+          className="flex items-center justify-center w-6 h-6 rounded-md text-text-muted hover:text-ink hover:bg-surface transition-colors"
+        >
+          <Pencil className="h-3 w-3" />
+        </button>
+      )}
+    </div>
+  );
+
   return (
-    <div className={`flex flex-col gap-1.5 ${isUser ? "items-end" : "items-start"}`}>
-      <div className={`flex w-full ${isUser ? "justify-end" : "justify-start"}`}>
+    <div className={`group flex flex-col gap-1.5 ${isUser ? "items-end" : "items-start"}`}>
+      <div className={`flex w-full items-end gap-1 ${isUser ? "justify-end" : "justify-start"}`}>
+        {isUser && actions}
         <div
           className={[
             "max-w-[88%] px-4 py-3 text-[13px] leading-[1.65]",
@@ -1153,6 +1241,7 @@ const ChatBubble = React.memo(function ChatBubble({
             })}
           </p>
         </div>
+        {!isUser && actions}
       </div>
       {message.needsDatabase && !isUser && (
         <div className="flex items-center gap-2 pl-1">
@@ -1784,7 +1873,6 @@ function ProjectEditorPage() {
   // Messages typed while the agent was busy, waiting their turn. Ordered.
   const [queue, setQueue] = useState<QueuedMessage[]>([]);
   const [stopping, setStopping] = useState(false);
-  const [sendError, setSendError] = useState("");
   const [errorDismissed, setErrorDismissed] = useState(false);
 
   // Live activity for the run currently in flight. `runOwnerId` names the
@@ -1816,6 +1904,8 @@ function ProjectEditorPage() {
   const [tokenBalance, setTokenBalance] = useState<BillingStatus | null>(null);
   const [buildingPreview, setBuildingPreview] = useState(false);
   const [rightTab, setRightTab] = useState<"preview" | "code">("preview");
+  const [chatWidth, setChatWidth] = useState(loadChatWidth);
+  const [draggingSplit, setDraggingSplit] = useState(false);
   const navigate = useNavigate();
   const pendingTransferRef = useRef(false);
 
@@ -2412,7 +2502,6 @@ function ProjectEditorPage() {
   async function sendMessage(text: string) {
     if (!text || sending || project?.is_updating) return;
 
-    setSendError("");
     setSending(true);
 
     const userMsg: ChatMessage = {
@@ -2434,10 +2523,15 @@ function ProjectEditorPage() {
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         const errText = (d as { detail?: string }).detail ?? "Request failed.";
-        setSendError(errText);
         setMessages((prev) => [
           ...prev,
-          { id: newId("err"), role: "error", text: errText, timestamp: new Date() },
+          {
+            id: newId("err"),
+            role: "error",
+            text: errText,
+            timestamp: new Date(),
+            retryPrompt: text,
+          },
         ]);
         startRun(null);
       } else {
@@ -2474,11 +2568,15 @@ function ProjectEditorPage() {
         }
       }
     } catch {
-      const errText = "Network error. Please try again.";
-      setSendError(errText);
       setMessages((prev) => [
         ...prev,
-        { id: newId("err"), role: "error", text: errText, timestamp: new Date() },
+        {
+          id: newId("err"),
+          role: "error",
+          text: "Network error. Please try again.",
+          timestamp: new Date(),
+          retryPrompt: text,
+        },
       ]);
       startRun(null);
     } finally {
@@ -2549,10 +2647,65 @@ function ProjectEditorPage() {
     sendMessageRef.current = sendMessage;
   });
 
+  // Only the newest user message offers edit-and-resend; editing an older one
+  // would rewrite history the agent has already acted on.
+  const lastUserMessageId = messages.reduce<string | null>(
+    (found, m) => (m.role === "user" ? m.id : found),
+    null,
+  );
+
+  // Split drag. Pointer capture on the handle means the drag survives the
+  // pointer crossing the iframe in the preview pane, which would otherwise
+  // swallow the move events.
+  const startSplitDrag = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const handle = e.currentTarget;
+    handle.setPointerCapture(e.pointerId);
+    setDraggingSplit(true);
+
+    const move = (ev: PointerEvent) => {
+      const next = Math.min(CHAT_WIDTH_MAX, Math.max(CHAT_WIDTH_MIN, ev.clientX));
+      setChatWidth(next);
+    };
+    const up = (ev: PointerEvent) => {
+      handle.releasePointerCapture(ev.pointerId);
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", up);
+      setDraggingSplit(false);
+      setChatWidth((w) => {
+        try {
+          localStorage.setItem(CHAT_WIDTH_KEY, String(w));
+        } catch {
+          /* ignore */
+        }
+        return w;
+      });
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", up);
+  }, []);
+
   const handleAddDatabase = useCallback(() => setDbModalOpen(true), []);
 
   const handleDeclineDatabase = useCallback(() => {
     sendMessageRef.current("No, continue without a database for now.");
+  }, []);
+
+  const handleRetry = useCallback((text: string) => {
+    sendMessageRef.current(text);
+  }, []);
+
+  // Edit-and-resend puts the text back in the composer rather than sending it
+  // blind — the point of editing is to change it first.
+  const handleEditMessage = useCallback((text: string) => {
+    setPrompt(text);
+    const el = textareaRef.current;
+    if (el) {
+      el.focus();
+      el.style.height = "auto";
+      el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+      el.setSelectionRange(text.length, text.length);
+    }
   }, []);
 
   const handleSelectOption = useCallback((messageId: string, option: string) => {
@@ -2830,7 +2983,10 @@ function ProjectEditorPage() {
       {/* ── Split body ── */}
       <div className="flex flex-1 min-h-0">
         {/* ── Left: Chat ── */}
-        <div className="flex flex-col w-full md:w-[380px] md:max-w-[380px] shrink-0 border-r border-border bg-background">
+        <div
+          className="flex flex-col w-full shrink-0 border-r border-border bg-background md:w-(--chat-w) md:max-w-(--chat-w)"
+          style={{ "--chat-w": `${chatWidth}px` } as React.CSSProperties}
+        >
           {/* Error banner */}
           {hasBuildError && (
             <div className="shrink-0 mx-3 mt-3 px-4 py-3 rounded-xl bg-amber-500/[0.07] border border-amber-400/20 space-y-1.5">
@@ -2949,9 +3105,12 @@ function ProjectEditorPage() {
                   <div key={msg.id} className="space-y-2">
                     <ChatBubble
                       message={msg}
+                      canEdit={msg.id === lastUserMessageId}
                       onAddDatabase={handleAddDatabase}
                       onDeclineDatabase={handleDeclineDatabase}
                       onSelectOption={handleSelectOption}
+                      onRetry={handleRetry}
+                      onEdit={handleEditMessage}
                     />
                     {/* The run this message owns, rendered in place. Live while it
                       is in flight, then frozen onto the message forever. */}
@@ -3022,12 +3181,6 @@ function ProjectEditorPage() {
               </button>
             )}
           </div>
-
-          {sendError && (
-            <p role="alert" className="px-4 pb-1 text-[12px] text-amber-600 dark:text-amber-400">
-              {sendError}
-            </p>
-          )}
 
           {/* Input */}
           {!isBuilding && (
@@ -3133,6 +3286,29 @@ function ProjectEditorPage() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Split handle */}
+        <div
+          onPointerDown={startSplitDrag}
+          onDoubleClick={() => {
+            setChatWidth(CHAT_WIDTH_DEFAULT);
+            try {
+              localStorage.setItem(CHAT_WIDTH_KEY, String(CHAT_WIDTH_DEFAULT));
+            } catch {
+              /* ignore */
+            }
+          }}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize chat panel"
+          title="Drag to resize · double-click to reset"
+          className={`hidden md:block relative w-1 shrink-0 cursor-col-resize transition-colors ${
+            draggingSplit ? "bg-accent" : "bg-transparent hover:bg-accent/40"
+          }`}
+        >
+          {/* Widen the grab target without widening the visual line. */}
+          <span className="absolute inset-y-0 -left-1 -right-1" />
         </div>
 
         {/* ── Right: Preview / Code ── */}

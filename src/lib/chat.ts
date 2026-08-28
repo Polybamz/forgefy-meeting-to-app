@@ -56,6 +56,12 @@ export interface ChatMessage {
   activity?: TurnActivity;
   /** Set once a clarify option has been chosen, so the row cannot fire twice. */
   answeredOption?: string;
+  /**
+   * On an error bubble: the message whose send failed, so Retry has something
+   * to resend. Absent on errors that did not come from a send (a build that
+   * failed on its own), where there is nothing to retry from here.
+   */
+  retryPrompt?: string;
 }
 
 /**
