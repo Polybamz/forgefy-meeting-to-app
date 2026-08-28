@@ -15,27 +15,24 @@ import {
 } from "lucide-react";
 import { apiFetch, connectWs, type BillingStatus, type Project } from "@/lib/api";
 import {
-  appendLog,
-  decodeStoredMessages,
-  encodeMessagesForPersist,
   formatDuration,
   groupBySeverity,
   newId,
   parseFindings,
   parseTodos,
   parseToolEvent,
-  resolveSubmit,
   type ChatMessage,
   type FindingSeverity,
   type FindingsReport,
   type LogEntry,
   type PlanData,
   type PlanFile,
-  type StoredMessage,
   type TodoItem,
   type ToolEvent,
-  type TurnActivity,
 } from "@/lib/chat";
+import { useAgentActivity } from "@/hooks/use-agent-activity";
+import { useChat } from "@/hooks/use-chat";
+import { useProjectIntegrations } from "@/hooks/use-project-integrations";
 import { playAlertSound } from "@/lib/sound";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -44,14 +41,6 @@ export const Route = createFileRoute("/_auth/projects/$projectId")({
   component: ProjectEditorPage,
   head: () => ({ meta: [{ title: "Project — Forgefy" }] }),
 });
-
-// Coalesce log-driven repaints over this many animation frames. Log ticks
-// arrive several per second; one setState each re-rendered the transcript per
-// message.
-const LOG_FLUSH_FRAMES = 3;
-
-// How close to the bottom still counts as "following along".
-const SCROLL_PIN_SLACK_PX = 80;
 
 // Chat pane width. 380px was fixed, and markdown with code blocks and file
 // paths does not fit in it — break-all on the plan rows was the symptom.
@@ -77,12 +66,6 @@ const TEMPLATE_LABELS: Record<string, string> = {
   react_native: "React Native",
   next: "Next.js",
 };
-
-/** A message the user sent while the agent was busy, waiting to go out. */
-interface QueuedMessage {
-  id: string;
-  text: string;
-}
 
 const LOG_ICONS: Record<string, string> = {
   started: "▶",
@@ -1861,211 +1844,23 @@ function StopButton({ stopping, onClick }: { stopping: boolean; onClick: () => v
 // ---------------------------------------------------------------------------
 function ProjectEditorPage() {
   const { projectId } = Route.useParams();
+  const navigate = useNavigate();
+
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState("");
-
-  const chatStorageKey = `forgefy_chat_${projectId}`;
-  const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    try {
-      const raw = localStorage.getItem(chatStorageKey);
-      if (raw) return decodeStoredMessages(JSON.parse(raw) as StoredMessage[]);
-    } catch {
-      /* ignore */
-    }
-    return [];
-  });
-  const [prompt, setPrompt] = useState("");
-  const [sending, setSending] = useState(false);
-  // Messages typed while the agent was busy, waiting their turn. Ordered.
-  const [queue, setQueue] = useState<QueuedMessage[]>([]);
-  const [stopping, setStopping] = useState(false);
   const [errorDismissed, setErrorDismissed] = useState(false);
-
-  // Live activity for the run currently in flight. `runOwnerId` names the
-  // message this run belongs to, so the transcript can render the block in
-  // place instead of pinning one shared block to the bottom of the panel.
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [currentPlan, setCurrentPlan] = useState<PlanData | null>(null);
-  const [writtenFiles, setWrittenFiles] = useState<Set<string>>(new Set());
-  const [runOwnerId, setRunOwnerId] = useState<string | null>(null);
-
-  const [githubLinked, setGithubLinked] = useState<boolean | null>(null);
-  const [transferring, setTransferring] = useState(false);
-  const [transferError, setTransferError] = useState("");
-  const [supabaseLinked, setSupabaseLinked] = useState<boolean | null>(null);
-  const [connectingSupabase, setConnectingSupabase] = useState(false);
-  const [supabaseError, setSupabaseError] = useState("");
-  const [supabaseOrgs, setSupabaseOrgs] = useState<{ id: string; name: string }[] | null>(null);
-  const [connectingNeon, setConnectingNeon] = useState(false);
-  const [neonError, setNeonError] = useState("");
-  const [firebaseLinked, setFirebaseLinked] = useState<boolean | null>(null);
-  const [connectingFirebase, setConnectingFirebase] = useState(false);
-  const [firebaseError, setFirebaseError] = useState("");
-  const [dbModalOpen, setDbModalOpen] = useState(false);
-  const [skippingDb, setSkippingDb] = useState(false);
-  const [skipDbError, setSkipDbError] = useState("");
-  const [wireInPrompt, setWireInPrompt] = useState<string | null>(null);
-  const [wiringIn, setWiringIn] = useState(false);
-  const [wireInError, setWireInError] = useState("");
   const [tokenBalance, setTokenBalance] = useState<BillingStatus | null>(null);
   const [buildingPreview, setBuildingPreview] = useState(false);
   const [rightTab, setRightTab] = useState<"preview" | "code">("preview");
   const [chatWidth, setChatWidth] = useState(loadChatWidth);
   const [draggingSplit, setDraggingSplit] = useState(false);
-  const navigate = useNavigate();
-  const pendingTransferRef = useRef(false);
 
   const wsRef = useRef<WebSocket | null>(null);
-  const wsLogsRef = useRef<WebSocket | null>(null);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-  const chatScrollRef = useRef<HTMLDivElement>(null);
+  // Shared with useChat: a send that queues an update sets this so the socket
+  // does not miss the leading edge of the run.
   const prevUpdatingRef = useRef(false);
   const prevUpdatedAtRef = useRef<string | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const dbSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Mirrors of the live activity state. The WebSocket handler that detects the
-  // end of a run is a stable closure, so it reads the snapshot from refs.
-  const logsRef = useRef<LogEntry[]>([]);
-  const planRef = useRef<PlanData | null>(null);
-  const writtenFilesRef = useRef<Set<string>>(new Set());
-  const runOwnerIdRef = useRef<string | null>(null);
-  const runStartedAtRef = useRef<number>(0);
-  const drainingRef = useRef(false);
-  const sendMessageRef = useRef<(text: string) => void>(() => {});
-
-  // logsRef is the source of truth, not a mirror: log ticks arrive several per
-  // second and a setState each would re-render the whole transcript per
-  // message. Events land in the ref immediately and are flushed to state at
-  // most once per LOG_FLUSH_FRAMES animation frames.
-  const flushHandleRef = useRef<number | null>(null);
-  const framesWaitedRef = useRef(0);
-
-  const scheduleLogFlush = useCallback(() => {
-    if (flushHandleRef.current !== null) return;
-    framesWaitedRef.current = 0;
-    const tick = () => {
-      framesWaitedRef.current += 1;
-      if (framesWaitedRef.current < LOG_FLUSH_FRAMES) {
-        flushHandleRef.current = requestAnimationFrame(tick);
-        return;
-      }
-      flushHandleRef.current = null;
-      setLogs(logsRef.current);
-    };
-    flushHandleRef.current = requestAnimationFrame(tick);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (flushHandleRef.current !== null) cancelAnimationFrame(flushHandleRef.current);
-    };
-  }, []);
-
-  useEffect(() => {
-    planRef.current = currentPlan;
-  }, [currentPlan]);
-  useEffect(() => {
-    writtenFilesRef.current = writtenFiles;
-  }, [writtenFiles]);
-
-  // Begin a new run: the previous run's activity is already frozen onto its own
-  // message, so clearing the live buffers here loses nothing.
-  const startRun = useCallback((ownerId: string | null) => {
-    runOwnerIdRef.current = ownerId;
-    runStartedAtRef.current = Date.now();
-    if (flushHandleRef.current !== null) {
-      cancelAnimationFrame(flushHandleRef.current);
-      flushHandleRef.current = null;
-    }
-    logsRef.current = [];
-    setRunOwnerId(ownerId);
-    setLogs([]);
-    setCurrentPlan(null);
-    setWrittenFiles(new Set());
-  }, []);
-
-  // Take everything the run produced and hand it to the message that owns it.
-  const takeActivitySnapshot = useCallback((): TurnActivity => {
-    const startedAt = runStartedAtRef.current || Date.now();
-    return {
-      logs: logsRef.current,
-      plan: planRef.current,
-      writtenFiles: [...writtenFilesRef.current],
-      startedAt,
-      endedAt: Date.now(),
-    };
-  }, []);
-
-  // Auto-scroll only while the user is actually at the bottom. Log ticks arrive
-  // several per second, and scrolling up to re-read the plan was impossible
-  // while every one of them yanked the view back down.
-  const [pinnedToBottom, setPinnedToBottom] = useState(true);
-  const [hasUnseenActivity, setHasUnseenActivity] = useState(false);
-  const pinnedRef = useRef(true);
-
-  const handleChatScroll = useCallback(() => {
-    const el = chatScrollRef.current;
-    if (!el) return;
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= SCROLL_PIN_SLACK_PX;
-    pinnedRef.current = atBottom;
-    setPinnedToBottom(atBottom);
-    if (atBottom) setHasUnseenActivity(false);
-  }, []);
-
-  const scrollToBottom = useCallback(() => {
-    pinnedRef.current = true;
-    setPinnedToBottom(true);
-    setHasUnseenActivity(false);
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
-
-  useEffect(() => {
-    if (pinnedRef.current) {
-      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    } else {
-      setHasUnseenActivity(true);
-    }
-  }, [messages, logs]);
-
-  useEffect(() => {
-    apiFetch(`/api/v1/projects/${projectId}/chat-history`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: { messages: StoredMessage[] } | null) => {
-        if (data?.messages?.length) {
-          setMessages(decodeStoredMessages(data.messages));
-          localStorage.setItem(chatStorageKey, JSON.stringify(data.messages));
-        }
-      })
-      .catch(() => {
-        /* keep localStorage version */
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(chatStorageKey, JSON.stringify(encodeMessagesForPersist(messages)));
-    } catch {
-      /* ignore quota errors */
-    }
-  }, [messages, chatStorageKey]);
-
-  useEffect(() => {
-    const payload = encodeMessagesForPersist(messages);
-    if (payload.length === 0) return;
-    if (dbSaveTimerRef.current) clearTimeout(dbSaveTimerRef.current);
-    dbSaveTimerRef.current = setTimeout(() => {
-      apiFetch(`/api/v1/projects/${projectId}/chat-history`, {
-        method: "POST",
-        body: JSON.stringify({ messages: payload }),
-      }).catch(() => {});
-    }, 1000);
-    return () => {
-      if (dbSaveTimerRef.current) clearTimeout(dbSaveTimerRef.current);
-    };
-  }, [messages, projectId]);
 
   const fetchProject = useCallback(async () => {
     try {
@@ -2102,57 +1897,88 @@ function ProjectEditorPage() {
     loadTokenBalance();
   }, [loadTokenBalance]);
 
-  useEffect(() => {
-    apiFetch("/api/v1/auth/github/status")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d && setGithubLinked(d.linked))
-      .catch(() => {});
+  // ── Feature hooks ─────────────────────────────────────────────────────────
+  const activity = useAgentActivity(projectId);
+  const chat = useChat({ projectId, project, setProject, activity, prevUpdatingRef });
+  const integrations = useProjectIntegrations({
+    projectId,
+    project,
+    setProject,
+    fetchProject,
+  });
 
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("github") === "connected") {
-      setGithubLinked(true);
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-    if (params.get("pending_transfer") === "true") {
-      setGithubLinked(true);
-      pendingTransferRef.current = true;
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-  }, []);
+  const {
+    logs,
+    currentPlan,
+    writtenFiles,
+    runOwnerId,
+    startRun,
+    takeActivitySnapshot,
+    claimRunOwner,
+  } = activity;
 
-  useEffect(() => {
-    apiFetch("/api/v1/auth/supabase/status")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d && setSupabaseLinked(d.linked))
-      .catch(() => {});
+  const {
+    messages,
+    setMessages,
+    prompt,
+    setPrompt,
+    sending,
+    stopping,
+    queue,
+    lastUserMessageId,
+    pinnedToBottom,
+    hasUnseenActivity,
+    textareaRef,
+    chatEndRef,
+    chatScrollRef,
+    handleSend,
+    handleStop,
+    handleKeyDown,
+    autoResize,
+    cancelQueued,
+    clearQueue,
+    handleChatScroll,
+    scrollToBottom,
+    handleDeclineDatabase,
+    handleRetry,
+    handleEditMessage,
+    handleSelectOption,
+  } = chat;
 
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("supabase") === "connected") {
-      setSupabaseLinked(true);
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-    if (params.get("supabase_error")) {
-      setSupabaseError("Could not connect your Supabase account. Please try again.");
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-  }, []);
-
-  useEffect(() => {
-    apiFetch("/api/v1/auth/firebase/status")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d && setFirebaseLinked(d.linked))
-      .catch(() => {});
-
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("firebase") === "connected") {
-      setFirebaseLinked(true);
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-    if (params.get("firebase_error")) {
-      setFirebaseError("Could not connect your Google account. Please try again.");
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-  }, []);
+  const {
+    githubLinked,
+    transferring,
+    transferError,
+    transferToGitHub,
+    connectGitHubForTransfer,
+    supabaseLinked,
+    connectingSupabase,
+    supabaseError,
+    supabaseOrgs,
+    connectSupabaseAccount,
+    startSupabaseConnect,
+    connectSupabaseProject,
+    dismissSupabaseOrgPicker,
+    connectingNeon,
+    neonError,
+    connectNeon,
+    firebaseLinked,
+    connectingFirebase,
+    firebaseError,
+    connectFirebaseAccount,
+    connectFirebaseProject,
+    dbModalOpen,
+    openDbModal,
+    closeDbModal,
+    skippingDb,
+    skipDbError,
+    skipDatabase,
+    wireInPrompt,
+    wiringIn,
+    wireInError,
+    wireDatabaseIn,
+    dismissWireInPrompt,
+  } = integrations;
 
   useEffect(() => {
     return connectWs("/ws/projects", (ws) => {
@@ -2186,12 +2012,12 @@ function ProjectEditorPage() {
             // anything clears it. Runs with no owner (the first build, a
             // preview build, a database wire-in) hand it to the message the
             // completion itself appends, so the record still has a home.
-            const activity = takeActivitySnapshot();
-            const owner = runOwnerIdRef.current;
-            runOwnerIdRef.current = null;
-            setRunOwnerId(null);
+            const snapshot = takeActivitySnapshot();
+            const owner = claimRunOwner();
             if (owner) {
-              setMessages((prev) => prev.map((m) => (m.id === owner ? { ...m, activity } : m)));
+              setMessages((prev) =>
+                prev.map((m) => (m.id === owner ? { ...m, activity: snapshot } : m)),
+              );
             }
 
             if (!updated.build_error && prevUpdatedAt !== updated.updated_at) {
@@ -2204,7 +2030,7 @@ function ProjectEditorPage() {
                     (updated as { last_summary?: string }).last_summary ||
                     "Your app has been updated successfully!",
                   timestamp: new Date(),
-                  activity: owner ? undefined : activity,
+                  activity: owner ? undefined : snapshot,
                 },
               ]);
             }
@@ -2218,7 +2044,7 @@ function ProjectEditorPage() {
                   role: "error",
                   text: `Update failed: ${updated.build_error}`,
                   timestamp: new Date(),
-                  activity: owner ? undefined : activity,
+                  activity: owner ? undefined : snapshot,
                 },
               ]);
             }
@@ -2229,253 +2055,7 @@ function ProjectEditorPage() {
       };
       ws.onerror = () => ws.close();
     });
-  }, [projectId, loadTokenBalance, takeActivitySnapshot]);
-
-  useEffect(() => {
-    return connectWs(`/ws/projects/${projectId}/logs`, (ws) => {
-      wsLogsRef.current = ws;
-
-      ws.onmessage = (e) => {
-        try {
-          const entry = JSON.parse(e.data);
-          if (entry.type === "ping") return;
-
-          if (entry.type === "plan") {
-            try {
-              setCurrentPlan(JSON.parse(entry.message) as PlanData);
-              setWrittenFiles(new Set());
-            } catch {
-              /* ignore malformed plan */
-            }
-            return;
-          }
-
-          if (entry.type === "file_written") {
-            if (entry.message)
-              setWrittenFiles((prev) => new Set([...prev, entry.message as string]));
-            return;
-          }
-
-          const newEntry = { ...entry, ts: Date.now() + Math.random() };
-          // Straight into the ref, then coalesce the repaint.
-          logsRef.current = appendLog(logsRef.current, newEntry);
-          scheduleLogFlush();
-        } catch {
-          /* ignore */
-        }
-      };
-
-      ws.onerror = () => ws.close();
-    });
-  }, [projectId, scheduleLogFlush]);
-
-  async function transferToGitHub() {
-    setTransferring(true);
-    setTransferError("");
-    try {
-      const res = await apiFetch(`/api/v1/projects/${projectId}/transfer-github`, {
-        method: "POST",
-      });
-      if (res.ok) {
-        setProject(await res.json());
-      } else {
-        const d = await res.json().catch(() => ({}));
-        setTransferError((d as { detail?: string }).detail ?? "Transfer failed. Please try again.");
-      }
-    } catch {
-      setTransferError("Network error. Please try again.");
-    } finally {
-      setTransferring(false);
-    }
-  }
-
-  async function connectGitHubForTransfer() {
-    localStorage.setItem(
-      "forgefy_github_pending_return",
-      `${window.location.pathname}?pending_transfer=true`,
-    );
-    const res = await apiFetch("/api/v1/auth/github/authorize");
-    if (res.ok) {
-      const { url } = await res.json();
-      if (url) window.location.href = url;
-    }
-  }
-
-  async function connectSupabaseAccount() {
-    const res = await apiFetch("/api/v1/auth/supabase/authorize");
-    if (res.ok) {
-      const { url } = await res.json();
-      if (url) window.location.href = url;
-    }
-  }
-
-  async function handleDbConnectResponse(res: Response, providerLabel: string) {
-    const data = (await res.json().catch(() => ({}))) as {
-      build_queued?: boolean;
-      prompt_wire_in?: boolean;
-    };
-    await fetchProject();
-    if (data.prompt_wire_in) {
-      setDbModalOpen(false);
-      setWireInPrompt(providerLabel);
-    } else if (data.build_queued) {
-      setDbModalOpen(false);
-    }
-  }
-
-  async function connectSupabaseProject(organizationId: string) {
-    setConnectingSupabase(true);
-    setSupabaseError("");
-    setSupabaseOrgs(null);
-    try {
-      const res = await apiFetch(`/api/v1/projects/${projectId}/supabase/connect`, {
-        method: "POST",
-        body: JSON.stringify({ organization_id: organizationId }),
-      });
-      if (res.ok) {
-        await handleDbConnectResponse(res, "Supabase");
-      } else {
-        const d = await res.json().catch(() => ({}));
-        setSupabaseError(
-          (d as { detail?: string }).detail ?? "Could not provision a database. Please try again.",
-        );
-      }
-    } catch {
-      setSupabaseError("Network error. Please try again.");
-    } finally {
-      setConnectingSupabase(false);
-    }
-  }
-
-  async function startSupabaseConnect() {
-    setSupabaseError("");
-    setConnectingSupabase(true);
-    try {
-      const res = await apiFetch("/api/v1/auth/supabase/organizations");
-      if (!res.ok) {
-        setSupabaseError("Could not list your Supabase organizations. Please try again.");
-        return;
-      }
-      const orgs: { id: string; name: string }[] = await res.json();
-      if (orgs.length === 0) {
-        setSupabaseError("No Supabase organizations found on your account.");
-      } else if (orgs.length === 1) {
-        await connectSupabaseProject(orgs[0].id);
-        return;
-      } else {
-        setSupabaseOrgs(orgs);
-      }
-    } catch {
-      setSupabaseError("Network error. Please try again.");
-    } finally {
-      setConnectingSupabase(false);
-    }
-  }
-
-  async function connectNeon() {
-    setConnectingNeon(true);
-    setNeonError("");
-    try {
-      const res = await apiFetch(`/api/v1/projects/${projectId}/neon/connect`, {
-        method: "POST",
-      });
-      if (res.ok) {
-        await handleDbConnectResponse(res, "Neon");
-      } else {
-        const d = await res.json().catch(() => ({}));
-        setNeonError(
-          (d as { detail?: string }).detail ?? "Could not provision a database. Please try again.",
-        );
-      }
-    } catch {
-      setNeonError("Network error. Please try again.");
-    } finally {
-      setConnectingNeon(false);
-    }
-  }
-
-  async function connectFirebaseAccount() {
-    const res = await apiFetch("/api/v1/auth/firebase/authorize");
-    if (res.ok) {
-      const { url } = await res.json();
-      if (url) window.location.href = url;
-    }
-  }
-
-  async function connectFirebaseProject() {
-    setConnectingFirebase(true);
-    setFirebaseError("");
-    try {
-      const res = await apiFetch(`/api/v1/projects/${projectId}/firebase/connect`, {
-        method: "POST",
-      });
-      if (res.ok) {
-        await handleDbConnectResponse(res, "Firebase");
-      } else {
-        const d = await res.json().catch(() => ({}));
-        setFirebaseError(
-          (d as { detail?: string }).detail ?? "Could not provision a database. Please try again.",
-        );
-      }
-    } catch {
-      setFirebaseError("Network error. Please try again.");
-    } finally {
-      setConnectingFirebase(false);
-    }
-  }
-
-  async function skipDatabase() {
-    setSkippingDb(true);
-    setSkipDbError("");
-    try {
-      const res = await apiFetch(`/api/v1/projects/${projectId}/skip-database`, {
-        method: "POST",
-      });
-      if (res.ok) {
-        await fetchProject();
-      } else {
-        const d = await res.json().catch(() => ({}));
-        setSkipDbError(
-          (d as { detail?: string }).detail ?? "Could not continue. Please try again.",
-        );
-      }
-    } catch {
-      setSkipDbError("Network error. Please try again.");
-    } finally {
-      setSkippingDb(false);
-    }
-  }
-
-  async function wireDatabaseIn() {
-    setWiringIn(true);
-    setWireInError("");
-    try {
-      const res = await apiFetch(`/api/v1/projects/${projectId}/wire-database`, {
-        method: "POST",
-      });
-      if (res.ok) {
-        setWireInPrompt(null);
-        await fetchProject();
-      } else {
-        const d = await res.json().catch(() => ({}));
-        setWireInError(
-          (d as { detail?: string }).detail ?? "Could not queue the update. Please try again.",
-        );
-      }
-    } catch {
-      setWireInError("Network error. Please try again.");
-    } finally {
-      setWiringIn(false);
-    }
-  }
-
-  useEffect(() => {
-    if (pendingTransferRef.current && project && !project.is_updating) {
-      pendingTransferRef.current = false;
-      transferToGitHub();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project]);
+  }, [projectId, loadTokenBalance, takeActivitySnapshot, claimRunOwner, setMessages]);
 
   async function handleBuildPreview() {
     if (buildingPreview || project?.is_updating) return;
@@ -2505,161 +2085,6 @@ function ProjectEditorPage() {
       setBuildingPreview(false);
     }
   }
-
-  async function sendMessage(text: string) {
-    if (!text || sending || project?.is_updating) return;
-
-    setSending(true);
-
-    const userMsg: ChatMessage = {
-      id: newId("user"),
-      role: "user",
-      text,
-      timestamp: new Date(),
-    };
-    setMessages((prev) => [...prev, userMsg]);
-    // Provisional owner: if this turn queues a build, the assistant reply takes
-    // over below. If it does not, the user message keeps the activity.
-    startRun(userMsg.id);
-
-    try {
-      const res = await apiFetch(`/api/v1/projects/${projectId}/chat`, {
-        method: "POST",
-        body: JSON.stringify({ message: text }),
-      });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        const errText = (d as { detail?: string }).detail ?? "Request failed.";
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: newId("err"),
-            role: "error",
-            text: errText,
-            timestamp: new Date(),
-            retryPrompt: text,
-          },
-        ]);
-        startRun(null);
-      } else {
-        const data = (await res.json()) as {
-          type: string;
-          response: string;
-          update_queued: boolean;
-          needs_database?: boolean;
-          clarify_options?: string[] | null;
-        };
-        const assistantId = newId("assistant");
-        if (data.response) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: assistantId,
-              role: "assistant",
-              text: data.response,
-              timestamp: new Date(),
-              needsDatabase: data.needs_database,
-              clarifyOptions: data.clarify_options ?? undefined,
-            },
-          ]);
-        }
-        if (data.update_queued) {
-          // The agent reply is what the run belongs to — hand ownership over.
-          runOwnerIdRef.current = data.response ? assistantId : userMsg.id;
-          setRunOwnerId(runOwnerIdRef.current);
-          setProject((prev) => (prev ? { ...prev, is_updating: true, build_error: null } : prev));
-          prevUpdatingRef.current = true;
-        } else {
-          // Nothing queued — this turn owns no activity.
-          startRun(null);
-        }
-      }
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: newId("err"),
-          role: "error",
-          text: "Network error. Please try again.",
-          timestamp: new Date(),
-          retryPrompt: text,
-        },
-      ]);
-      startRun(null);
-    } finally {
-      setSending(false);
-    }
-  }
-
-  // A build takes 1–3 minutes. Rather than refusing the message, hold it and
-  // send it the moment the agent frees up — the user gets to keep typing and
-  // the follow-up is not lost to a dead input.
-  function handleSend() {
-    const text = prompt.trim();
-    if (!text) return;
-    setPrompt("");
-    if (textareaRef.current) textareaRef.current.style.height = "auto";
-
-    if (sending || project?.is_updating || queue.length > 0) {
-      setQueue((q) => [...q, { id: newId("queued"), text }]);
-      return;
-    }
-    sendMessage(text);
-  }
-
-  function cancelQueued(id: string) {
-    setQueue((q) => q.filter((m) => m.id !== id));
-  }
-
-  async function handleStop() {
-    if (stopping) return;
-    setStopping(true);
-    try {
-      await apiFetch(`/api/v1/projects/${projectId}/stop`, { method: "POST" });
-      setProject((prev) => (prev ? { ...prev, is_updating: false } : prev));
-    } catch {
-      // swallow
-    } finally {
-      setStopping(false);
-    }
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    const action = resolveSubmit(
-      {
-        key: e.key,
-        shiftKey: e.shiftKey,
-        metaKey: e.metaKey,
-        ctrlKey: e.ctrlKey,
-        isComposing: e.nativeEvent.isComposing,
-      },
-      { hasText: prompt.trim().length > 0, busy: sending || !!project?.is_updating },
-    );
-    // "newline" and "ignore" both mean: let the textarea have the key.
-    if (action !== "send" && action !== "queue") return;
-    e.preventDefault();
-    handleSend();
-  }
-
-  function autoResize(e: React.ChangeEvent<HTMLTextAreaElement>) {
-    setPrompt(e.target.value);
-    e.target.style.height = "auto";
-    e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
-  }
-
-  // Stable identities for the bubble callbacks, so React.memo on ChatBubble is
-  // not defeated by a fresh closure on every render. sendMessage is redeclared
-  // each render, so it is reached through a ref.
-  useEffect(() => {
-    sendMessageRef.current = sendMessage;
-  });
-
-  // Only the newest user message offers edit-and-resend; editing an older one
-  // would rewrite history the agent has already acted on.
-  const lastUserMessageId = messages.reduce<string | null>(
-    (found, m) => (m.role === "user" ? m.id : found),
-    null,
-  );
 
   // Split drag. Pointer capture on the handle means the drag survives the
   // pointer crossing the iframe in the preview pane, which would otherwise
@@ -2691,59 +2116,6 @@ function ProjectEditorPage() {
     handle.addEventListener("pointermove", move);
     handle.addEventListener("pointerup", up);
   }, []);
-
-  const handleAddDatabase = useCallback(() => setDbModalOpen(true), []);
-
-  const handleDeclineDatabase = useCallback(() => {
-    sendMessageRef.current("No, continue without a database for now.");
-  }, []);
-
-  const handleRetry = useCallback((text: string) => {
-    sendMessageRef.current(text);
-  }, []);
-
-  // Edit-and-resend puts the text back in the composer rather than sending it
-  // blind — the point of editing is to change it first.
-  const handleEditMessage = useCallback((text: string) => {
-    setPrompt(text);
-    const el = textareaRef.current;
-    if (el) {
-      el.focus();
-      el.style.height = "auto";
-      el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
-      el.setSelectionRange(text.length, text.length);
-    }
-  }, []);
-
-  const handleSelectOption = useCallback((messageId: string, option: string) => {
-    // Record the choice before sending so the row locks immediately, not after
-    // the round trip.
-    setMessages((prev) =>
-      prev.map((m) => (m.id === messageId ? { ...m, answeredOption: option } : m)),
-    );
-    sendMessageRef.current(option);
-  }, []);
-
-  // Drain the queue one message at a time, in order, as soon as the agent is
-  // free. `draining` covers the window between dispatching and `sending`
-  // actually flipping, so a single message cannot go out twice.
-  useEffect(() => {
-    if (queue.length === 0) {
-      drainingRef.current = false;
-      return;
-    }
-    if (sending || project?.is_updating || drainingRef.current) return;
-
-    drainingRef.current = true;
-    const next = queue[0];
-    setQueue((q) => q.slice(1));
-    Promise.resolve(sendMessage(next.text)).finally(() => {
-      drainingRef.current = false;
-    });
-    // sendMessage is redeclared every render; drainingRef is what keeps this
-    // from re-firing, so it is deliberately not a dependency.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queue, sending, project?.is_updating]);
 
   if (loading) {
     return (
@@ -2912,7 +2284,7 @@ function ProjectEditorPage() {
             onSync={transferToGitHub}
           />
           <button
-            onClick={() => setDbModalOpen(true)}
+            onClick={openDbModal}
             title="Connect a database"
             aria-label="Connect a database"
             className="relative flex items-center justify-center w-8 h-8 rounded-xl border border-border text-text-muted hover:text-ink hover:border-text-muted transition-colors btn-press"
@@ -2956,7 +2328,7 @@ function ProjectEditorPage() {
           onConnectSupabaseAccount={connectSupabaseAccount}
           onStartSupabaseConnect={startSupabaseConnect}
           onPickSupabaseOrg={connectSupabaseProject}
-          onDismissSupabaseOrgPicker={() => setSupabaseOrgs(null)}
+          onDismissSupabaseOrgPicker={dismissSupabaseOrgPicker}
           connectingNeon={connectingNeon}
           neonError={neonError}
           onConnectNeon={connectNeon}
@@ -2965,7 +2337,7 @@ function ProjectEditorPage() {
           firebaseError={firebaseError}
           onConnectFirebaseAccount={connectFirebaseAccount}
           onConnectFirebaseProject={connectFirebaseProject}
-          onClose={() => setDbModalOpen(false)}
+          onClose={closeDbModal}
         />
       )}
 
@@ -2974,7 +2346,7 @@ function ProjectEditorPage() {
           reason={project.db_decision_reason}
           skipping={skippingDb}
           error={skipDbError}
-          onChooseProvider={() => setDbModalOpen(true)}
+          onChooseProvider={openDbModal}
           onSkip={skipDatabase}
         />
       )}
@@ -2985,7 +2357,7 @@ function ProjectEditorPage() {
           wiringIn={wiringIn}
           error={wireInError}
           onConfirm={wireDatabaseIn}
-          onDismiss={() => setWireInPrompt(null)}
+          onDismiss={dismissWireInPrompt}
         />
       )}
 
@@ -3116,7 +2488,7 @@ function ProjectEditorPage() {
                     <ChatBubble
                       message={msg}
                       canEdit={msg.id === lastUserMessageId}
-                      onAddDatabase={handleAddDatabase}
+                      onAddDatabase={openDbModal}
                       onDeclineDatabase={handleDeclineDatabase}
                       onSelectOption={handleSelectOption}
                       onRetry={handleRetry}
@@ -3203,7 +2575,7 @@ function ProjectEditorPage() {
                     {queue.length === 1 ? "message" : "messages"} queued
                   </p>
                   <button
-                    onClick={() => setQueue([])}
+                    onClick={clearQueue}
                     className="text-[11px] text-text-muted hover:text-ink transition-colors"
                   >
                     Clear
