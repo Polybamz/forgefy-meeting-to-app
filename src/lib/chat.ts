@@ -209,6 +209,32 @@ export function parseToolEvent(message: string): ToolEvent {
   return { action, subject, isPath, detail, label };
 }
 
+/** How many log lines a single run keeps in memory. */
+export const LOG_BUFFER_LIMIT = 200;
+
+/**
+ * Fold one incoming log event into the buffer.
+ *
+ * Pure so the collapsing rules can be tested directly. Two of them matter:
+ * an identical line never stacks twice (repeated retry warnings are already on
+ * screen), and consecutive `thinking` events replace each other rather than
+ * accumulating — the agent emits a lot of them and only the latest is useful.
+ */
+export function appendLog(
+  prev: LogEntry[],
+  entry: LogEntry,
+  cap: number = LOG_BUFFER_LIMIT,
+): LogEntry[] {
+  const sliced = prev.length > cap ? prev.slice(-cap) : prev;
+  const last = sliced[sliced.length - 1];
+
+  if (last && last.type === entry.type && last.message === entry.message) return sliced;
+  if (entry.type === "thinking" && last?.type === "thinking") {
+    return [...sliced.slice(0, -1), entry];
+  }
+  return [...sliced, entry];
+}
+
 /** Human duration for the per-turn stats line. */
 export function formatDuration(ms: number): string {
   if (!Number.isFinite(ms) || ms < 0) return "—";

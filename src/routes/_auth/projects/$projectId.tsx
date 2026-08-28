@@ -1,8 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Database, X, Zap, Smartphone, RotateCw, Maximize2, Loader2, Monitor } from "lucide-react";
 import { apiFetch, connectWs, type BillingStatus, type Project } from "@/lib/api";
 import {
+  appendLog,
   decodeStoredMessages,
   encodeMessagesForPersist,
   formatDuration,
@@ -31,6 +32,14 @@ export const Route = createFileRoute("/_auth/projects/$projectId")({
   component: ProjectEditorPage,
   head: () => ({ meta: [{ title: "Project — Forgefy" }] }),
 });
+
+// Coalesce log-driven repaints over this many animation frames. Log ticks
+// arrive several per second; one setState each re-rendered the transcript per
+// message.
+const LOG_FLUSH_FRAMES = 3;
+
+// How close to the bottom still counts as "following along".
+const SCROLL_PIN_SLACK_PX = 80;
 
 const TEMPLATE_LABELS: Record<string, string> = {
   flutter: "Flutter",
@@ -280,12 +289,11 @@ function AgentActivityBlock({
   /** Present only on a finished run. */
   stats?: { filesChanged: number; durationMs: number };
 }) {
-  const endRef = useRef<HTMLDivElement>(null);
   const [planOpen, setPlanOpen] = useState(true);
-
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [logs]);
+  // null = follow the run. The stream is open while the agent works and folds
+  // away when it finishes, unless the reader has said otherwise.
+  const [logsOpenOverride, setLogsOpenOverride] = useState<boolean | null>(null);
+  const logsOpen = logsOpenOverride ?? isActive;
 
   if (logs.length === 0 && !isActive && !plan) return null;
 
@@ -367,8 +375,22 @@ function AgentActivityBlock({
           </>
         )}
 
-        {/* Log stream */}
-        <div className="max-h-52 overflow-y-auto px-3 py-2 space-y-0.5">
+        {/* Log stream. No nested scroller: one inside the chat's own scroller
+            captured the wheel and read as the page refusing to scroll. The
+            block grows inline and collapses when the run finishes instead. */}
+        {!isActive && logs.length > 0 && (
+          <button
+            onClick={() => setLogsOpenOverride(!logsOpen)}
+            aria-expanded={logsOpen}
+            className="w-full flex items-center justify-between px-3 py-2 hover:bg-agent-border/40 transition-colors"
+          >
+            <span className="text-agent-text-dim uppercase tracking-wider text-[9px]">
+              activity · {logs.length} {logs.length === 1 ? "event" : "events"}
+            </span>
+            <span className="text-agent-text-dim text-[9px]">{logsOpen ? "▲" : "▼"}</span>
+          </button>
+        )}
+        <div className={`px-3 py-2 space-y-0.5 ${logsOpen ? "" : "hidden"}`}>
           {logs.length === 0 && isActive && (
             <span className="text-agent-text-dim italic">Connecting…</span>
           )}
@@ -429,7 +451,6 @@ function AgentActivityBlock({
               </PlainRow>
             );
           })}
-          <div ref={endRef} />
         </div>
 
         {/* Per-turn stats. No token count: the backend does not put one on the
@@ -1089,7 +1110,10 @@ function Md({ children, className = "" }: { children: string; className?: string
 // ---------------------------------------------------------------------------
 // ChatBubble
 // ---------------------------------------------------------------------------
-function ChatBubble({
+// memo, because every bubble re-parses its markdown on render and `messages`
+// changes on every log flush of every turn. The callbacks below are all
+// useCallback'd at the call site, so the memo actually holds.
+const ChatBubble = React.memo(function ChatBubble({
   message,
   onAddDatabase,
   onDeclineDatabase,
@@ -1098,7 +1122,7 @@ function ChatBubble({
   message: ChatMessage;
   onAddDatabase?: () => void;
   onDeclineDatabase?: () => void;
-  onSelectOption?: (option: string) => void;
+  onSelectOption?: (messageId: string, option: string) => void;
 }) {
   const isUser = message.role === "user";
   const isError = message.role === "error";
@@ -1148,20 +1172,36 @@ function ChatBubble({
       )}
       {!message.needsDatabase && message.clarifyOptions && !isUser && (
         <div className="flex flex-wrap items-center gap-2 pl-1">
-          {message.clarifyOptions.map((option) => (
-            <button
-              key={option}
-              onClick={() => onSelectOption?.(option)}
-              className="h-7 px-3 rounded-lg border border-border text-[12px] text-text-secondary hover:text-ink hover:border-text-secondary transition-colors btn-press"
-            >
-              {option}
-            </button>
-          ))}
+          {message.clarifyOptions.map((option) => {
+            // Once one option is chosen the whole row locks. Leaving it live
+            // meant a double click sent the answer twice.
+            const answered = !!message.answeredOption;
+            const chosen = message.answeredOption === option;
+            return (
+              <button
+                key={option}
+                onClick={() => onSelectOption?.(message.id, option)}
+                disabled={answered}
+                aria-pressed={chosen}
+                className={[
+                  "h-7 px-3 rounded-lg border text-[12px] transition-colors btn-press",
+                  chosen
+                    ? "border-accent bg-accent/10 text-accent font-medium"
+                    : "border-border text-text-secondary hover:text-ink hover:border-text-secondary",
+                  answered && !chosen ? "opacity-40" : "",
+                  answered ? "cursor-default" : "",
+                ].join(" ")}
+              >
+                {chosen && "✓ "}
+                {option}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // GitHub sync button
@@ -1782,6 +1822,7 @@ function ProjectEditorPage() {
   const wsRef = useRef<WebSocket | null>(null);
   const wsLogsRef = useRef<WebSocket | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
   const prevUpdatingRef = useRef(false);
   const prevUpdatedAtRef = useRef<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -1795,10 +1836,36 @@ function ProjectEditorPage() {
   const runOwnerIdRef = useRef<string | null>(null);
   const runStartedAtRef = useRef<number>(0);
   const drainingRef = useRef(false);
+  const sendMessageRef = useRef<(text: string) => void>(() => {});
+
+  // logsRef is the source of truth, not a mirror: log ticks arrive several per
+  // second and a setState each would re-render the whole transcript per
+  // message. Events land in the ref immediately and are flushed to state at
+  // most once per LOG_FLUSH_FRAMES animation frames.
+  const flushHandleRef = useRef<number | null>(null);
+  const framesWaitedRef = useRef(0);
+
+  const scheduleLogFlush = useCallback(() => {
+    if (flushHandleRef.current !== null) return;
+    framesWaitedRef.current = 0;
+    const tick = () => {
+      framesWaitedRef.current += 1;
+      if (framesWaitedRef.current < LOG_FLUSH_FRAMES) {
+        flushHandleRef.current = requestAnimationFrame(tick);
+        return;
+      }
+      flushHandleRef.current = null;
+      setLogs(logsRef.current);
+    };
+    flushHandleRef.current = requestAnimationFrame(tick);
+  }, []);
 
   useEffect(() => {
-    logsRef.current = logs;
-  }, [logs]);
+    return () => {
+      if (flushHandleRef.current !== null) cancelAnimationFrame(flushHandleRef.current);
+    };
+  }, []);
+
   useEffect(() => {
     planRef.current = currentPlan;
   }, [currentPlan]);
@@ -1811,6 +1878,11 @@ function ProjectEditorPage() {
   const startRun = useCallback((ownerId: string | null) => {
     runOwnerIdRef.current = ownerId;
     runStartedAtRef.current = Date.now();
+    if (flushHandleRef.current !== null) {
+      cancelAnimationFrame(flushHandleRef.current);
+      flushHandleRef.current = null;
+    }
+    logsRef.current = [];
     setRunOwnerId(ownerId);
     setLogs([]);
     setCurrentPlan(null);
@@ -1829,9 +1901,36 @@ function ProjectEditorPage() {
     };
   }, []);
 
-  useEffect(() => {
+  // Auto-scroll only while the user is actually at the bottom. Log ticks arrive
+  // several per second, and scrolling up to re-read the plan was impossible
+  // while every one of them yanked the view back down.
+  const [pinnedToBottom, setPinnedToBottom] = useState(true);
+  const [hasUnseenActivity, setHasUnseenActivity] = useState(false);
+  const pinnedRef = useRef(true);
+
+  const handleChatScroll = useCallback(() => {
+    const el = chatScrollRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= SCROLL_PIN_SLACK_PX;
+    pinnedRef.current = atBottom;
+    setPinnedToBottom(atBottom);
+    if (atBottom) setHasUnseenActivity(false);
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    pinnedRef.current = true;
+    setPinnedToBottom(true);
+    setHasUnseenActivity(false);
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, []);
+
+  useEffect(() => {
+    if (pinnedRef.current) {
+      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    } else {
+      setHasUnseenActivity(true);
+    }
+  }, [messages, logs]);
 
   useEffect(() => {
     apiFetch(`/api/v1/projects/${projectId}/chat-history`)
@@ -2061,19 +2160,9 @@ function ProjectEditorPage() {
           }
 
           const newEntry = { ...entry, ts: Date.now() + Math.random() };
-          setLogs((prev) => {
-            const sliced = prev.slice(-200);
-            const last = sliced[sliced.length - 1];
-            // Never stack the exact same line twice in a row (e.g. repeated
-            // retry warnings) — the copy is already on screen.
-            if (last && last.type === entry.type && last.message === entry.message) {
-              return sliced;
-            }
-            if (entry.type === "thinking" && last?.type === "thinking") {
-              return [...sliced.slice(0, -1), newEntry];
-            }
-            return [...sliced, newEntry];
-          });
+          // Straight into the ref, then coalesce the repaint.
+          logsRef.current = appendLog(logsRef.current, newEntry);
+          scheduleLogFlush();
         } catch {
           /* ignore */
         }
@@ -2081,7 +2170,7 @@ function ProjectEditorPage() {
 
       ws.onerror = () => ws.close();
     });
-  }, [projectId]);
+  }, [projectId, scheduleLogFlush]);
 
   async function transferToGitHub() {
     setTransferring(true);
@@ -2453,6 +2542,28 @@ function ProjectEditorPage() {
     e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
   }
 
+  // Stable identities for the bubble callbacks, so React.memo on ChatBubble is
+  // not defeated by a fresh closure on every render. sendMessage is redeclared
+  // each render, so it is reached through a ref.
+  useEffect(() => {
+    sendMessageRef.current = sendMessage;
+  });
+
+  const handleAddDatabase = useCallback(() => setDbModalOpen(true), []);
+
+  const handleDeclineDatabase = useCallback(() => {
+    sendMessageRef.current("No, continue without a database for now.");
+  }, []);
+
+  const handleSelectOption = useCallback((messageId: string, option: string) => {
+    // Record the choice before sending so the row locks immediately, not after
+    // the round trip.
+    setMessages((prev) =>
+      prev.map((m) => (m.id === messageId ? { ...m, answeredOption: option } : m)),
+    );
+    sendMessageRef.current(option);
+  }, []);
+
   // Drain the queue one message at a time, in order, as soon as the agent is
   // free. `draining` covers the window between dispatching and `sending`
   // actually flipping, so a single message cannot go out twice.
@@ -2802,96 +2913,114 @@ function ProjectEditorPage() {
           )}
 
           {/* Chat history */}
-          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-            {messages.length === 0 && !isBuilding && !isUpdating ? (
-              <div className="flex flex-col items-center justify-center h-full gap-3 text-text-muted py-12">
-                <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-surface border border-border">
-                  <svg
-                    className="h-5 w-5 opacity-40"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                  >
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
-                </div>
-                <div className="text-center">
-                  <p className="text-[13px] font-medium text-ink mb-1">
-                    Ask Forgefy to make a change
-                  </p>
-                  <p className="text-[12px] text-text-muted max-w-[200px]">
-                    e.g. "Change the primary colour to blue"
-                  </p>
-                </div>
-              </div>
-            ) : (
-              messages.map((msg) => (
-                <div key={msg.id} className="space-y-2">
-                  <ChatBubble
-                    message={msg}
-                    onAddDatabase={() => setDbModalOpen(true)}
-                    onDeclineDatabase={() =>
-                      sendMessage("No, continue without a database for now.")
-                    }
-                    onSelectOption={(option) => sendMessage(option)}
-                  />
-                  {/* The run this message owns, rendered in place. Live while it
-                      is in flight, then frozen onto the message forever. */}
-                  {msg.id === runOwnerId && (logs.length > 0 || currentPlan) ? (
-                    <AgentActivityBlock
-                      logs={logs}
-                      isActive={!!project?.is_updating}
-                      plan={currentPlan}
-                      writtenFiles={writtenFiles}
-                    />
-                  ) : msg.activity ? (
-                    <AgentActivityBlock
-                      logs={msg.activity.logs}
-                      isActive={false}
-                      plan={msg.activity.plan}
-                      writtenFiles={NO_FILES}
-                      stats={{
-                        filesChanged: msg.activity.writtenFiles.length,
-                        durationMs: msg.activity.endedAt - msg.activity.startedAt,
-                      }}
-                    />
-                  ) : null}
-                </div>
-              ))
-            )}
-            {/* Runs with no owning message yet — the very first build, or a
-                preview build started from the header. */}
-            {!runOwnerId && (logs.length > 0 || currentPlan) && (
-              <AgentActivityBlock
-                logs={logs}
-                isActive={!!project?.is_updating || buildingPreview}
-                plan={currentPlan}
-                writtenFiles={writtenFiles}
-              />
-            )}
-            {/* Queued follow-ups, shown where they will land. */}
-            {queue.map((q) => (
-              <div key={q.id} className="flex justify-end">
-                <div className="group max-w-[88%] flex items-start gap-1.5">
-                  <div className="px-4 py-3 rounded-2xl rounded-br-sm border border-dashed border-accent/40 bg-accent/[0.06] text-[13px] leading-[1.65] text-text-secondary">
-                    <p className="whitespace-pre-wrap">{q.text}</p>
-                    <p className="text-[10px] mt-2 text-text-muted">
-                      Queued — sends when the agent finishes
+          <div className="relative flex-1 min-h-0 flex flex-col">
+            <div
+              ref={chatScrollRef}
+              onScroll={handleChatScroll}
+              role="log"
+              aria-live="polite"
+              aria-label="Conversation"
+              className="flex-1 overflow-y-auto px-4 py-4 space-y-4"
+            >
+              {messages.length === 0 && !isBuilding && !isUpdating ? (
+                <div className="flex flex-col items-center justify-center h-full gap-3 text-text-muted py-12">
+                  <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-surface border border-border">
+                    <svg
+                      className="h-5 w-5 opacity-40"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                    >
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[13px] font-medium text-ink mb-1">
+                      Ask Forgefy to make a change
+                    </p>
+                    <p className="text-[12px] text-text-muted max-w-[200px]">
+                      e.g. "Change the primary colour to blue"
                     </p>
                   </div>
-                  <button
-                    onClick={() => cancelQueued(q.id)}
-                    aria-label="Cancel queued message"
-                    title="Cancel queued message"
-                    className="mt-1 flex items-center justify-center w-6 h-6 rounded-lg text-text-muted hover:text-ink hover:bg-surface transition-colors"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
                 </div>
-              </div>
-            ))}
-            <div ref={chatEndRef} />
+              ) : (
+                messages.map((msg) => (
+                  <div key={msg.id} className="space-y-2">
+                    <ChatBubble
+                      message={msg}
+                      onAddDatabase={handleAddDatabase}
+                      onDeclineDatabase={handleDeclineDatabase}
+                      onSelectOption={handleSelectOption}
+                    />
+                    {/* The run this message owns, rendered in place. Live while it
+                      is in flight, then frozen onto the message forever. */}
+                    {msg.id === runOwnerId && (logs.length > 0 || currentPlan) ? (
+                      <AgentActivityBlock
+                        logs={logs}
+                        isActive={!!project?.is_updating}
+                        plan={currentPlan}
+                        writtenFiles={writtenFiles}
+                      />
+                    ) : msg.activity ? (
+                      <AgentActivityBlock
+                        logs={msg.activity.logs}
+                        isActive={false}
+                        plan={msg.activity.plan}
+                        writtenFiles={NO_FILES}
+                        stats={{
+                          filesChanged: msg.activity.writtenFiles.length,
+                          durationMs: msg.activity.endedAt - msg.activity.startedAt,
+                        }}
+                      />
+                    ) : null}
+                  </div>
+                ))
+              )}
+              {/* Runs with no owning message yet — the very first build, or a
+                preview build started from the header. */}
+              {!runOwnerId && (logs.length > 0 || currentPlan) && (
+                <AgentActivityBlock
+                  logs={logs}
+                  isActive={!!project?.is_updating || buildingPreview}
+                  plan={currentPlan}
+                  writtenFiles={writtenFiles}
+                />
+              )}
+              {/* Queued follow-ups, shown where they will land. */}
+              {queue.map((q) => (
+                <div key={q.id} className="flex justify-end">
+                  <div className="group max-w-[88%] flex items-start gap-1.5">
+                    <div className="px-4 py-3 rounded-2xl rounded-br-sm border border-dashed border-accent/40 bg-accent/[0.06] text-[13px] leading-[1.65] text-text-secondary">
+                      <p className="whitespace-pre-wrap">{q.text}</p>
+                      <p className="text-[10px] mt-2 text-text-muted">
+                        Queued — sends when the agent finishes
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => cancelQueued(q.id)}
+                      aria-label="Cancel queued message"
+                      title="Cancel queued message"
+                      className="mt-1 flex items-center justify-center w-6 h-6 rounded-lg text-text-muted hover:text-ink hover:bg-surface transition-colors"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Shown only when the user has scrolled away from the bottom, so
+                new output announces itself instead of hijacking the view. */}
+            {!pinnedToBottom && hasUnseenActivity && (
+              <button
+                onClick={scrollToBottom}
+                className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 h-7 px-3 rounded-full bg-card border border-border shadow-warm-md text-[11px] text-text-secondary hover:text-ink transition-colors btn-press"
+              >
+                ↓ New activity
+              </button>
+            )}
           </div>
 
           {sendError && (

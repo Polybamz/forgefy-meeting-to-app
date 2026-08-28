@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  appendLog,
   decodeStoredMessages,
   encodeMessagesForPersist,
   formatDuration,
@@ -10,6 +11,7 @@ import {
   parseToolEvent,
   resolveSubmit,
   type ChatMessage,
+  type LogEntry,
   type StoredMessage,
 } from "@/lib/chat";
 
@@ -196,6 +198,57 @@ describe("parseTodos", () => {
     expect(parseTodos("[]")).toBeNull();
     expect(parseTodos("nope")).toBeNull();
     expect(parseTodos(JSON.stringify({ a: 1 }))).toBeNull();
+  });
+});
+
+describe("appendLog", () => {
+  const log = (type: string, message: string, ts = 1): LogEntry => ({ type, message, ts });
+
+  it("appends distinct events", () => {
+    const out = appendLog(appendLog([], log("info", "a", 1)), log("tool", "b", 2));
+    expect(out.map((e) => e.message)).toEqual(["a", "b"]);
+  });
+
+  it("never stacks the identical line twice in a row", () => {
+    const first = appendLog([], log("warning", "retrying", 1));
+    const second = appendLog(first, log("warning", "retrying", 2));
+    expect(second).toHaveLength(1);
+  });
+
+  it("still appends a repeat that is not consecutive", () => {
+    let out = appendLog([], log("warning", "retrying", 1));
+    out = appendLog(out, log("info", "other", 2));
+    out = appendLog(out, log("warning", "retrying", 3));
+    expect(out).toHaveLength(3);
+  });
+
+  it("replaces consecutive thinking events rather than accumulating them", () => {
+    let out = appendLog([], log("thinking", "first", 1));
+    out = appendLog(out, log("thinking", "second", 2));
+    out = appendLog(out, log("thinking", "third", 3));
+    expect(out).toHaveLength(1);
+    expect(out[0].message).toBe("third");
+  });
+
+  it("does not collapse thinking across an intervening event", () => {
+    let out = appendLog([], log("thinking", "first", 1));
+    out = appendLog(out, log("tool", "Reading `a.ts`", 2));
+    out = appendLog(out, log("thinking", "second", 3));
+    expect(out).toHaveLength(3);
+  });
+
+  it("caps the buffer", () => {
+    let out: LogEntry[] = [];
+    for (let i = 0; i < 25; i++) out = appendLog(out, log("info", `m${i}`, i), 10);
+    expect(out.length).toBeLessThanOrEqual(11);
+    expect(out[out.length - 1].message).toBe("m24");
+  });
+
+  it("does not mutate the input array", () => {
+    const prev = [log("info", "a", 1)];
+    const frozen = [...prev];
+    appendLog(prev, log("info", "b", 2));
+    expect(prev).toEqual(frozen);
   });
 });
 
