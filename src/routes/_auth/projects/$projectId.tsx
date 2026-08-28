@@ -2,6 +2,17 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Database, X, Zap, Smartphone, RotateCw, Maximize2, Loader2, Monitor } from "lucide-react";
 import { apiFetch, connectWs, type BillingStatus, type Project } from "@/lib/api";
+import {
+  decodeStoredMessages,
+  encodeMessagesForPersist,
+  newId,
+  type ChatMessage,
+  type LogEntry,
+  type PlanData,
+  type PlanFile,
+  type StoredMessage,
+  type TurnActivity,
+} from "@/lib/chat";
 import { playAlertSound } from "@/lib/sound";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -16,24 +27,6 @@ const TEMPLATE_LABELS: Record<string, string> = {
   react_native: "React Native",
   next: "Next.js",
 };
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-interface ChatMessage {
-  id: string;
-  role: "user" | "assistant" | "error";
-  text: string;
-  timestamp: Date;
-  needsDatabase?: boolean;
-  clarifyOptions?: string[];
-}
-
-interface LogEntry {
-  type: string;
-  message: string;
-  ts: number;
-}
 
 const LOG_ICONS: Record<string, string> = {
   started: "▶",
@@ -59,27 +52,13 @@ const LOG_COLORS: Record<string, string> = {
   validating: "text-[oklch(0.65_0.15_280)]",
 };
 
-interface PlanFile {
-  path: string;
-  purpose?: string;
-  changes?: string;
-}
-interface PlanDep {
-  package: string;
-  reason?: string;
-}
-interface PlanData {
-  summary: string;
-  files_to_create: PlanFile[];
-  files_to_modify: PlanFile[];
-  dependencies: PlanDep[];
-  steps: string[];
-  constraints?: string[];
-}
-
 // ---------------------------------------------------------------------------
 // AgentActivityBlock
 // ---------------------------------------------------------------------------
+// A finished run marks every planned file done, so a frozen block never reads
+// this set. One shared empty instance keeps it out of the render path.
+const NO_FILES: Set<string> = new Set();
+
 function AgentActivityBlock({
   logs,
   isActive,
@@ -799,56 +778,61 @@ function CodePanel({ projectId }: { projectId: string }) {
 // ---------------------------------------------------------------------------
 // Shared markdown renderer
 // ---------------------------------------------------------------------------
+// react-markdown v9 dropped the `className` prop — passing it is silently
+// ignored. The wrapper div is what carries the caller's classes now.
 function Md({ children, className = "" }: { children: string; className?: string }) {
   return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      className={className}
-      components={{
-        p: ({ children }) => <p className="mb-1.5 last:mb-0 leading-relaxed">{children}</p>,
-        ul: ({ children }) => <ul className="list-disc pl-4 mb-1.5 space-y-0.5">{children}</ul>,
-        ol: ({ children }) => <ol className="list-decimal pl-4 mb-1.5 space-y-0.5">{children}</ol>,
-        li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-        strong: ({ children }) => (
-          <strong className="font-semibold text-inherit">{children}</strong>
-        ),
-        em: ({ children }) => <em className="italic text-inherit">{children}</em>,
-        code: ({ children, className: cls }) => {
-          const isBlock = cls?.includes("language-");
-          return isBlock ? (
-            <code className="block bg-black/20 rounded px-2 py-1.5 text-[10px] font-mono overflow-x-auto my-1">
+    <div className={className}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          p: ({ children }) => <p className="mb-1.5 last:mb-0 leading-relaxed">{children}</p>,
+          ul: ({ children }) => <ul className="list-disc pl-4 mb-1.5 space-y-0.5">{children}</ul>,
+          ol: ({ children }) => (
+            <ol className="list-decimal pl-4 mb-1.5 space-y-0.5">{children}</ol>
+          ),
+          li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+          strong: ({ children }) => (
+            <strong className="font-semibold text-inherit">{children}</strong>
+          ),
+          em: ({ children }) => <em className="italic text-inherit">{children}</em>,
+          code: ({ children, className: cls }) => {
+            const isBlock = cls?.includes("language-");
+            return isBlock ? (
+              <code className="block bg-black/20 rounded px-2 py-1.5 text-[10px] font-mono overflow-x-auto my-1">
+                {children}
+              </code>
+            ) : (
+              <code className="bg-black/20 rounded px-1 py-0.5 text-[10px] font-mono">
+                {children}
+              </code>
+            );
+          },
+          pre: ({ children }) => <pre className="overflow-x-auto my-1">{children}</pre>,
+          h1: ({ children }) => <h1 className="font-semibold text-[14px] mb-1">{children}</h1>,
+          h2: ({ children }) => <h2 className="font-semibold text-[13px] mb-1">{children}</h2>,
+          h3: ({ children }) => <h3 className="font-medium text-[12px] mb-0.5">{children}</h3>,
+          a: ({ href, children }) => (
+            <a
+              href={href}
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2 opacity-80 hover:opacity-100"
+            >
               {children}
-            </code>
-          ) : (
-            <code className="bg-black/20 rounded px-1 py-0.5 text-[10px] font-mono">
+            </a>
+          ),
+          hr: () => <hr className="border-current opacity-20 my-2" />,
+          blockquote: ({ children }) => (
+            <blockquote className="border-l-2 border-current opacity-70 pl-2 my-1">
               {children}
-            </code>
-          );
-        },
-        pre: ({ children }) => <pre className="overflow-x-auto my-1">{children}</pre>,
-        h1: ({ children }) => <h1 className="font-semibold text-[14px] mb-1">{children}</h1>,
-        h2: ({ children }) => <h2 className="font-semibold text-[13px] mb-1">{children}</h2>,
-        h3: ({ children }) => <h3 className="font-medium text-[12px] mb-0.5">{children}</h3>,
-        a: ({ href, children }) => (
-          <a
-            href={href}
-            target="_blank"
-            rel="noreferrer"
-            className="underline underline-offset-2 opacity-80 hover:opacity-100"
-          >
-            {children}
-          </a>
-        ),
-        hr: () => <hr className="border-current opacity-20 my-2" />,
-        blockquote: ({ children }) => (
-          <blockquote className="border-l-2 border-current opacity-70 pl-2 my-1">
-            {children}
-          </blockquote>
-        ),
-      }}
-    >
-      {children}
-    </ReactMarkdown>
+            </blockquote>
+          ),
+        }}
+      >
+        {children}
+      </ReactMarkdown>
+    </div>
   );
 }
 
@@ -1499,15 +1483,7 @@ function ProjectEditorPage() {
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     try {
       const raw = localStorage.getItem(chatStorageKey);
-      if (raw) {
-        const arr = JSON.parse(raw) as Array<{
-          id: string;
-          role: string;
-          text: string;
-          timestamp: string;
-        }>;
-        return arr.map((m) => ({ ...m, timestamp: new Date(m.timestamp) })) as ChatMessage[];
-      }
+      if (raw) return decodeStoredMessages(JSON.parse(raw) as StoredMessage[]);
     } catch {
       /* ignore */
     }
@@ -1519,9 +1495,13 @@ function ProjectEditorPage() {
   const [sendError, setSendError] = useState("");
   const [errorDismissed, setErrorDismissed] = useState(false);
 
+  // Live activity for the run currently in flight. `runOwnerId` names the
+  // message this run belongs to, so the transcript can render the block in
+  // place instead of pinning one shared block to the bottom of the panel.
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [currentPlan, setCurrentPlan] = useState<PlanData | null>(null);
   const [writtenFiles, setWrittenFiles] = useState<Set<string>>(new Set());
+  const [runOwnerId, setRunOwnerId] = useState<string | null>(null);
 
   const [githubLinked, setGithubLinked] = useState<boolean | null>(null);
   const [transferring, setTransferring] = useState(false);
@@ -1555,6 +1535,47 @@ function ProjectEditorPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const dbSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Mirrors of the live activity state. The WebSocket handler that detects the
+  // end of a run is a stable closure, so it reads the snapshot from refs.
+  const logsRef = useRef<LogEntry[]>([]);
+  const planRef = useRef<PlanData | null>(null);
+  const writtenFilesRef = useRef<Set<string>>(new Set());
+  const runOwnerIdRef = useRef<string | null>(null);
+  const runStartedAtRef = useRef<number>(0);
+
+  useEffect(() => {
+    logsRef.current = logs;
+  }, [logs]);
+  useEffect(() => {
+    planRef.current = currentPlan;
+  }, [currentPlan]);
+  useEffect(() => {
+    writtenFilesRef.current = writtenFiles;
+  }, [writtenFiles]);
+
+  // Begin a new run: the previous run's activity is already frozen onto its own
+  // message, so clearing the live buffers here loses nothing.
+  const startRun = useCallback((ownerId: string | null) => {
+    runOwnerIdRef.current = ownerId;
+    runStartedAtRef.current = Date.now();
+    setRunOwnerId(ownerId);
+    setLogs([]);
+    setCurrentPlan(null);
+    setWrittenFiles(new Set());
+  }, []);
+
+  // Take everything the run produced and hand it to the message that owns it.
+  const takeActivitySnapshot = useCallback((): TurnActivity => {
+    const startedAt = runStartedAtRef.current || Date.now();
+    return {
+      logs: logsRef.current,
+      plan: planRef.current,
+      writtenFiles: [...writtenFilesRef.current],
+      startedAt,
+      endedAt: Date.now(),
+    };
+  }, []);
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -1562,22 +1583,12 @@ function ProjectEditorPage() {
   useEffect(() => {
     apiFetch(`/api/v1/projects/${projectId}/chat-history`)
       .then((r) => (r.ok ? r.json() : null))
-      .then(
-        (
-          data: {
-            messages: Array<{ id: string; role: string; text: string; timestamp: string }>;
-          } | null,
-        ) => {
-          if (data?.messages?.length) {
-            const serverMsgs = data.messages.map((m) => ({
-              ...m,
-              timestamp: new Date(m.timestamp),
-            })) as ChatMessage[];
-            setMessages(serverMsgs);
-            localStorage.setItem(chatStorageKey, JSON.stringify(serverMsgs));
-          }
-        },
-      )
+      .then((data: { messages: StoredMessage[] } | null) => {
+        if (data?.messages?.length) {
+          setMessages(decodeStoredMessages(data.messages));
+          localStorage.setItem(chatStorageKey, JSON.stringify(data.messages));
+        }
+      })
       .catch(() => {
         /* keep localStorage version */
       });
@@ -1586,19 +1597,20 @@ function ProjectEditorPage() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(chatStorageKey, JSON.stringify(messages.slice(-100)));
+      localStorage.setItem(chatStorageKey, JSON.stringify(encodeMessagesForPersist(messages)));
     } catch {
       /* ignore quota errors */
     }
   }, [messages, chatStorageKey]);
 
   useEffect(() => {
-    if (messages.length === 0) return;
+    const payload = encodeMessagesForPersist(messages);
+    if (payload.length === 0) return;
     if (dbSaveTimerRef.current) clearTimeout(dbSaveTimerRef.current);
     dbSaveTimerRef.current = setTimeout(() => {
       apiFetch(`/api/v1/projects/${projectId}/chat-history`, {
         method: "POST",
-        body: JSON.stringify({ messages: messages.slice(-100) }),
+        body: JSON.stringify({ messages: payload }),
       }).catch(() => {});
     }, 1000);
     return () => {
@@ -1714,40 +1726,50 @@ function ProjectEditorPage() {
 
             setProject(updated);
 
-            if (wasUpdating && !updated.is_updating) {
-              setBuildingPreview(false);
-              loadTokenBalance();
-              playAlertSound();
+            if (!wasUpdating || updated.is_updating) return;
+
+            // ── The run just finished ──
+            setBuildingPreview(false);
+            loadTokenBalance();
+            playAlertSound();
+
+            // Freeze the activity onto the message that owns this run before
+            // anything clears it. Runs with no owner (the first build, a
+            // preview build, a database wire-in) hand it to the message the
+            // completion itself appends, so the record still has a home.
+            const activity = takeActivitySnapshot();
+            const owner = runOwnerIdRef.current;
+            runOwnerIdRef.current = null;
+            setRunOwnerId(null);
+            if (owner) {
+              setMessages((prev) => prev.map((m) => (m.id === owner ? { ...m, activity } : m)));
             }
 
-            if (
-              wasUpdating &&
-              !updated.is_updating &&
-              !updated.build_error &&
-              prevUpdatedAt !== updated.updated_at
-            ) {
+            if (!updated.build_error && prevUpdatedAt !== updated.updated_at) {
               setMessages((prev) => [
                 ...prev,
                 {
-                  id: `assistant-${Date.now()}`,
+                  id: newId("assistant"),
                   role: "assistant",
                   text:
                     (updated as { last_summary?: string }).last_summary ||
                     "Your app has been updated successfully!",
                   timestamp: new Date(),
+                  activity: owner ? undefined : activity,
                 },
               ]);
             }
 
-            if (wasUpdating && !updated.is_updating && updated.build_error) {
+            if (updated.build_error) {
               setErrorDismissed(false);
               setMessages((prev) => [
                 ...prev,
                 {
-                  id: `err-${Date.now()}`,
+                  id: newId("err"),
                   role: "error",
                   text: `Update failed: ${updated.build_error}`,
                   timestamp: new Date(),
+                  activity: owner ? undefined : activity,
                 },
               ]);
             }
@@ -1758,7 +1780,7 @@ function ProjectEditorPage() {
       };
       ws.onerror = () => ws.close();
     });
-  }, [projectId, loadTokenBalance]);
+  }, [projectId, loadTokenBalance, takeActivitySnapshot]);
 
   useEffect(() => {
     return connectWs(`/ws/projects/${projectId}/logs`, (ws) => {
@@ -2019,7 +2041,7 @@ function ProjectEditorPage() {
   async function handleBuildPreview() {
     if (buildingPreview || project?.is_updating) return;
     setBuildingPreview(true);
-    setLogs([]);
+    startRun(null);
     try {
       const res = await apiFetch(`/api/v1/projects/${projectId}/build-preview`, { method: "POST" });
       if (!res.ok) {
@@ -2027,7 +2049,7 @@ function ProjectEditorPage() {
         const errText = (d as { detail?: string }).detail ?? "Preview build failed.";
         setMessages((prev) => [
           ...prev,
-          { id: `err-${Date.now()}`, role: "error", text: errText, timestamp: new Date() },
+          { id: newId("err"), role: "error", text: errText, timestamp: new Date() },
         ]);
         setBuildingPreview(false);
       }
@@ -2035,7 +2057,7 @@ function ProjectEditorPage() {
       setMessages((prev) => [
         ...prev,
         {
-          id: `err-${Date.now()}`,
+          id: newId("err"),
           role: "error",
           text: "Network error starting preview build.",
           timestamp: new Date(),
@@ -2050,17 +2072,17 @@ function ProjectEditorPage() {
 
     setSendError("");
     setSending(true);
-    setLogs([]);
-    setCurrentPlan(null);
-    setWrittenFiles(new Set());
 
     const userMsg: ChatMessage = {
-      id: `user-${Date.now()}`,
+      id: newId("user"),
       role: "user",
       text,
       timestamp: new Date(),
     };
     setMessages((prev) => [...prev, userMsg]);
+    // Provisional owner: if this turn queues a build, the assistant reply takes
+    // over below. If it does not, the user message keeps the activity.
+    startRun(userMsg.id);
 
     try {
       const res = await apiFetch(`/api/v1/projects/${projectId}/chat`, {
@@ -2073,8 +2095,9 @@ function ProjectEditorPage() {
         setSendError(errText);
         setMessages((prev) => [
           ...prev,
-          { id: `err-${Date.now()}`, role: "error", text: errText, timestamp: new Date() },
+          { id: newId("err"), role: "error", text: errText, timestamp: new Date() },
         ]);
+        startRun(null);
       } else {
         const data = (await res.json()) as {
           type: string;
@@ -2083,11 +2106,12 @@ function ProjectEditorPage() {
           needs_database?: boolean;
           clarify_options?: string[] | null;
         };
+        const assistantId = newId("assistant");
         if (data.response) {
           setMessages((prev) => [
             ...prev,
             {
-              id: `assistant-${Date.now()}`,
+              id: assistantId,
               role: "assistant",
               text: data.response,
               timestamp: new Date(),
@@ -2097,8 +2121,14 @@ function ProjectEditorPage() {
           ]);
         }
         if (data.update_queued) {
+          // The agent reply is what the run belongs to — hand ownership over.
+          runOwnerIdRef.current = data.response ? assistantId : userMsg.id;
+          setRunOwnerId(runOwnerIdRef.current);
           setProject((prev) => (prev ? { ...prev, is_updating: true, build_error: null } : prev));
           prevUpdatingRef.current = true;
+        } else {
+          // Nothing queued — this turn owns no activity.
+          startRun(null);
         }
       }
     } catch {
@@ -2106,8 +2136,9 @@ function ProjectEditorPage() {
       setSendError(errText);
       setMessages((prev) => [
         ...prev,
-        { id: `err-${Date.now()}`, role: "error", text: errText, timestamp: new Date() },
+        { id: newId("err"), role: "error", text: errText, timestamp: new Date() },
       ]);
+      startRun(null);
     } finally {
       setSending(false);
     }
@@ -2195,7 +2226,10 @@ function ProjectEditorPage() {
   const isBuilding = project.is_updating && !project.github_url;
   const isUpdating = project.is_updating && !!project.github_url;
   const hasBuildError = !!project.build_error && !errorDismissed;
-  const inputDisabled = sending;
+  // `handleSend` refuses to send while the agent is working. Reflect that in
+  // the control rather than swallowing the keystroke — CHAT-3 replaces this
+  // with a queue, but until then the refusal has to be visible.
+  const inputDisabled = sending || project.is_updating;
 
   function handleAskToFix() {
     if (!project?.build_error) return;
@@ -2497,19 +2531,41 @@ function ProjectEditorPage() {
               </div>
             ) : (
               messages.map((msg) => (
-                <ChatBubble
-                  key={msg.id}
-                  message={msg}
-                  onAddDatabase={() => setDbModalOpen(true)}
-                  onDeclineDatabase={() => sendMessage("No, continue without a database for now.")}
-                  onSelectOption={(option) => sendMessage(option)}
-                />
+                <div key={msg.id} className="space-y-2">
+                  <ChatBubble
+                    message={msg}
+                    onAddDatabase={() => setDbModalOpen(true)}
+                    onDeclineDatabase={() =>
+                      sendMessage("No, continue without a database for now.")
+                    }
+                    onSelectOption={(option) => sendMessage(option)}
+                  />
+                  {/* The run this message owns, rendered in place. Live while it
+                      is in flight, then frozen onto the message forever. */}
+                  {msg.id === runOwnerId && (logs.length > 0 || currentPlan) ? (
+                    <AgentActivityBlock
+                      logs={logs}
+                      isActive={!!project?.is_updating}
+                      plan={currentPlan}
+                      writtenFiles={writtenFiles}
+                    />
+                  ) : msg.activity ? (
+                    <AgentActivityBlock
+                      logs={msg.activity.logs}
+                      isActive={false}
+                      plan={msg.activity.plan}
+                      writtenFiles={NO_FILES}
+                    />
+                  ) : null}
+                </div>
               ))
             )}
-            {logs.length > 0 && (
+            {/* Runs with no owning message yet — the very first build, or a
+                preview build started from the header. */}
+            {!runOwnerId && (logs.length > 0 || currentPlan) && (
               <AgentActivityBlock
                 logs={logs}
-                isActive={isUpdating}
+                isActive={!!project?.is_updating || buildingPreview}
                 plan={currentPlan}
                 writtenFiles={writtenFiles}
               />
