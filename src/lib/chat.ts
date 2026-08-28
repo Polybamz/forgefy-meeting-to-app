@@ -80,6 +80,146 @@ export interface StoredMessage {
 export const CHAT_HISTORY_LIMIT = 100;
 
 // ---------------------------------------------------------------------------
+// Typed activity events
+// ---------------------------------------------------------------------------
+// The log socket carries {type, message} where message is a string. Some types
+// carry JSON in that string ("plan", "todo", "findings"); "tool" carries a
+// human label that usually names its subject in backticks. Parsing that back
+// out is what lets the UI render a file row instead of a sentence.
+
+export type FindingSeverity = "critical" | "high" | "medium" | "low";
+
+export const FINDING_SEVERITIES: FindingSeverity[] = ["critical", "high", "medium", "low"];
+
+export interface Finding {
+  severity: FindingSeverity;
+  file: string;
+  line: number;
+  summary: string;
+}
+
+export interface FindingsReport {
+  status: "clean" | "issues_found" | string;
+  findings: Finding[];
+  summary: string;
+}
+
+export type TodoStatus = "pending" | "in_progress" | "completed";
+
+export interface TodoItem {
+  content: string;
+  status: TodoStatus;
+  active_form?: string;
+}
+
+/** Parse a JSON-carrying log message, returning null rather than throwing. */
+export function safeJson<T>(raw: string): T | null {
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? (parsed as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function parseFindings(raw: string): FindingsReport | null {
+  const report = safeJson<FindingsReport>(raw);
+  if (!report || !Array.isArray(report.findings)) return null;
+  return report;
+}
+
+export function parseTodos(raw: string): TodoItem[] | null {
+  const todos = safeJson<TodoItem[]>(raw);
+  return Array.isArray(todos) && todos.length > 0 ? todos : null;
+}
+
+/** Group findings worst-first. Empty severities are omitted. */
+export function groupBySeverity(findings: Finding[]): Array<[FindingSeverity, Finding[]]> {
+  return FINDING_SEVERITIES.map(
+    (sev) => [sev, findings.filter((f) => f.severity === sev)] as [FindingSeverity, Finding[]],
+  ).filter(([, list]) => list.length > 0);
+}
+
+/** What a tool call did, for the badge and the status dot. */
+export type ToolAction = "create" | "edit" | "delete" | "move" | "read" | "run" | "other";
+
+export interface ToolEvent {
+  action: ToolAction;
+  /** The backticked subject, when the label named one. */
+  subject: string | null;
+  /** True when the subject looks like a file path rather than a pattern. */
+  isPath: boolean;
+  /** The label with the subject removed, e.g. "1 change". */
+  detail: string | null;
+  /** The original label, always kept so nothing is lost. */
+  label: string;
+}
+
+const TOOL_ACTIONS: Array<[RegExp, ToolAction]> = [
+  [/^Creating\b/i, "create"],
+  [/^Editing\b/i, "edit"],
+  [/^Removing\b|^Deleting\b/i, "delete"],
+  [/^Moving\b|^Renaming\b/i, "move"],
+  [/^Reading\b|^Exploring\b|^Searching\b|^Finding\b|^Listing\b/i, "read"],
+  [/^Running\b|^Starting\b/i, "run"],
+];
+
+/**
+ * Recover structure from a tool label.
+ *
+ * The backend renders tool calls as prose ("Editing `lib/main.dart` · 1
+ * change"). Write calls are the exception: they get a semantic label with no
+ * path at all ("Domain entity [auth] · Login User"), so `subject` is null there
+ * and the label carries the meaning. Callers must render the label either way —
+ * never drop an event because it did not parse.
+ */
+export function parseToolEvent(message: string): ToolEvent {
+  const label = message.trim();
+
+  let action: ToolAction = "other";
+  for (const [re, kind] of TOOL_ACTIONS) {
+    if (re.test(label)) {
+      action = kind;
+      break;
+    }
+  }
+
+  const backticked = label.match(/`([^`]+)`/);
+  const subject = backticked ? backticked[1] : null;
+
+  // A path has a separator or an extension, and no spaces. "src/app.ts" yes;
+  // "useState" or "npm run build" no.
+  const isPath =
+    !!subject && !/\s/.test(subject) && (subject.includes("/") || /\.\w{1,8}$/.test(subject));
+
+  let detail: string | null = null;
+  if (subject) {
+    const rest = label
+      .replace(/`[^`]+`/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    // Strip the leading verb and any leftover separator.
+    detail =
+      rest
+        .replace(/^[A-Za-z ]+?(?=·|$)/, "")
+        .replace(/^[·—-]\s*/, "")
+        .trim() || null;
+  }
+
+  return { action, subject, isPath, detail, label };
+}
+
+/** Human duration for the per-turn stats line. */
+export function formatDuration(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return "—";
+  const total = Math.round(ms / 1000);
+  if (total < 60) return `${total}s`;
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  return secs === 0 ? `${mins}m` : `${mins}m ${secs}s`;
+}
+
+// ---------------------------------------------------------------------------
 // Submission policy
 // ---------------------------------------------------------------------------
 

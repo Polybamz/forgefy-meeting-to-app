@@ -5,13 +5,22 @@ import { apiFetch, connectWs, type BillingStatus, type Project } from "@/lib/api
 import {
   decodeStoredMessages,
   encodeMessagesForPersist,
+  formatDuration,
+  groupBySeverity,
   newId,
+  parseFindings,
+  parseTodos,
+  parseToolEvent,
   resolveSubmit,
   type ChatMessage,
+  type FindingSeverity,
+  type FindingsReport,
   type LogEntry,
   type PlanData,
   type PlanFile,
   type StoredMessage,
+  type TodoItem,
+  type ToolEvent,
   type TurnActivity,
 } from "@/lib/chat";
 import { playAlertSound } from "@/lib/sound";
@@ -65,6 +74,192 @@ const LOG_COLORS: Record<string, string> = {
 const LOG_FALLBACK_COLOR = "text-agent-text-muted";
 
 // ---------------------------------------------------------------------------
+// Typed log rows
+// ---------------------------------------------------------------------------
+// The backend emits structure — plan JSON, todo JSON, findings JSON, and tool
+// labels that name their subject. Flattening all of it to "<emoji> <string>"
+// threw that away. Each renderer below handles one kind; anything unrecognised
+// falls through to PlainRow, so an event is never dropped for lacking one.
+
+const TOOL_BADGES: Record<string, { badge: string; className: string }> = {
+  create: { badge: "+", className: "text-agent-log-done" },
+  edit: { badge: "~", className: "text-agent-log-warning" },
+  delete: { badge: "−", className: "text-agent-log-error" },
+  move: { badge: "→", className: "text-agent-log-warning" },
+  read: { badge: "", className: "text-agent-text-dim" },
+  run: { badge: "$", className: "text-agent-log-validating" },
+  other: { badge: "", className: "text-agent-text-dim" },
+};
+
+const SEVERITY_STYLES: Record<FindingSeverity, string> = {
+  critical: "text-agent-log-error",
+  high: "text-agent-log-error",
+  medium: "text-agent-log-warning",
+  low: "text-agent-text-muted",
+};
+
+/** The generic one-line row. Also the fallback for unknown event types. */
+function PlainRow({
+  icon,
+  color,
+  children,
+}: {
+  icon: React.ReactNode;
+  color: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-2 leading-[1.6]">
+      <span className={`shrink-0 ${color}`}>{icon}</span>
+      <span className={`${color} break-words min-w-0`}>{children}</span>
+    </div>
+  );
+}
+
+/** A tool call that named a file: path, action badge, status dot. */
+function ToolRow({ event, done }: { event: ToolEvent; done: boolean }) {
+  const { badge, className } = TOOL_BADGES[event.action] ?? TOOL_BADGES.other;
+  const isRead = event.action === "read";
+
+  return (
+    <div className="flex items-start gap-2 leading-[1.6]">
+      <span className={`shrink-0 ${done ? "text-agent-log-done" : "text-agent-text-dim"}`}>
+        {done ? "✓" : "○"}
+      </span>
+      <div className="min-w-0 flex-1">
+        {event.isPath && event.subject ? (
+          <>
+            <span className={isRead ? "text-agent-text-dim" : "text-agent-text"}>
+              {event.subject}
+            </span>
+            {event.detail && (
+              <span className="block text-[9px] text-agent-text-dim">{event.detail}</span>
+            )}
+          </>
+        ) : (
+          <span className={isRead ? "text-agent-text-dim" : "text-agent-text"}>{event.label}</span>
+        )}
+      </div>
+      {badge && <span className={`shrink-0 text-[9px] ${className}`}>{badge}</span>}
+    </div>
+  );
+}
+
+/** report_findings, grouped by severity rather than rendered as prose. */
+function FindingsRow({ report }: { report: FindingsReport }) {
+  const groups = groupBySeverity(report.findings);
+
+  if (groups.length === 0) {
+    return (
+      <PlainRow icon="✓" color="text-agent-log-done">
+        Review clean — no issues found.
+      </PlainRow>
+    );
+  }
+
+  return (
+    <div className="my-1 rounded-lg border border-agent-border overflow-hidden">
+      <div className="px-2 py-1 border-b border-agent-border">
+        <span className="text-[9px] uppercase tracking-wider text-agent-text-dim">
+          review · {report.findings.length} {report.findings.length === 1 ? "finding" : "findings"}
+        </span>
+      </div>
+      <div className="px-2 py-1.5 space-y-1.5">
+        {groups.map(([severity, list]) => (
+          <div key={severity}>
+            <span
+              className={`text-[9px] uppercase tracking-wider font-medium ${SEVERITY_STYLES[severity]}`}
+            >
+              {severity} · {list.length}
+            </span>
+            <div className="mt-0.5 space-y-1">
+              {list.map((f, i) => (
+                <div key={`${f.file}-${f.line}-${i}`} className="pl-2">
+                  <span className="text-agent-text block leading-snug">{f.summary}</span>
+                  {f.file && (
+                    <span className="text-[9px] text-agent-text-dim break-all">
+                      {f.file}
+                      {f.line > 0 && `:${f.line}`}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** The agent's own task list, which already arrives as JSON. */
+function TodoRow({ todos }: { todos: TodoItem[] }) {
+  const done = todos.filter((t) => t.status === "completed").length;
+  return (
+    <div className="my-1 rounded-lg border border-agent-border px-2 py-1.5">
+      <span className="text-[9px] uppercase tracking-wider text-agent-text-dim">
+        tasks · {done}/{todos.length}
+      </span>
+      <div className="mt-1 space-y-0.5">
+        {todos.map((t, i) => (
+          <div key={`${t.content}-${i}`} className="flex items-start gap-2 leading-[1.6]">
+            <span
+              className={`shrink-0 ${
+                t.status === "completed"
+                  ? "text-agent-log-done"
+                  : t.status === "in_progress"
+                    ? "text-agent-log-validating"
+                    : "text-agent-text-dim"
+              }`}
+            >
+              {t.status === "completed" ? "✓" : t.status === "in_progress" ? "▸" : "○"}
+            </span>
+            <span
+              className={
+                t.status === "completed"
+                  ? "text-agent-text-dim line-through"
+                  : "text-agent-text min-w-0"
+              }
+            >
+              {t.status === "in_progress" ? (t.active_form ?? t.content) : t.content}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Reasoning, collapsed by default.
+ *
+ * Thinking used to sit at the same visual weight as the actions, which is
+ * backwards: it is the least consequential thing in the stream and there is a
+ * lot of it.
+ */
+function ThinkingRow({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const oneLine = text.replace(/\s+/g, " ").trim();
+  const preview = oneLine.length > 60 ? `${oneLine.slice(0, 60)}…` : oneLine;
+
+  return (
+    <div className="leading-[1.6]">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="w-full flex items-start gap-2 text-left hover:opacity-80 transition-opacity"
+      >
+        <span className="shrink-0 text-agent-log-thinking">◌</span>
+        <span className="text-agent-log-thinking italic min-w-0 flex-1 break-words">
+          {open ? oneLine : preview}
+        </span>
+        <span className="shrink-0 text-[9px] text-agent-text-dim">{open ? "▲" : "▼"}</span>
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // AgentActivityBlock
 // ---------------------------------------------------------------------------
 // A finished run marks every planned file done, so a frozen block never reads
@@ -76,11 +271,14 @@ function AgentActivityBlock({
   isActive,
   plan,
   writtenFiles,
+  stats,
 }: {
   logs: LogEntry[];
   isActive: boolean;
   plan: PlanData | null;
   writtenFiles: Set<string>;
+  /** Present only on a finished run. */
+  stats?: { filesChanged: number; durationMs: number };
 }) {
   const endRef = useRef<HTMLDivElement>(null);
   const [planOpen, setPlanOpen] = useState(true);
@@ -180,29 +378,71 @@ function AgentActivityBlock({
             // status verb and any process not in LOG_ICONS).
             const isProcessing = isActive && i === logs.length - 1;
             const color = LOG_COLORS[entry.type] ?? LOG_FALLBACK_COLOR;
+            const spinner = (
+              <span
+                className="inline-block h-2.5 w-2.5 rounded-full border-[1.5px] border-current border-t-transparent animate-spin align-middle"
+                role="status"
+                aria-label="Processing"
+              />
+            );
+            const icon = isProcessing ? spinner : (LOG_ICONS[entry.type] ?? "·");
+
+            // ── Render by kind ──
+            switch (entry.type) {
+              case "thinking":
+                return <ThinkingRow key={entry.ts} text={entry.message} />;
+
+              case "tool": {
+                const parsed = parseToolEvent(entry.message);
+                return <ToolRow key={entry.ts} event={parsed} done={!isProcessing} />;
+              }
+
+              case "findings": {
+                const report = parseFindings(entry.message);
+                // Unparseable JSON falls through to the plain row rather than
+                // vanishing.
+                if (report) return <FindingsRow key={entry.ts} report={report} />;
+                break;
+              }
+
+              case "todo": {
+                const todos = parseTodos(entry.message);
+                if (todos) return <TodoRow key={entry.ts} todos={todos} />;
+                break;
+              }
+
+              case "text":
+              case "done":
+                return (
+                  <div key={entry.ts} className="flex items-start gap-2 leading-[1.6]">
+                    <span className={`shrink-0 ${color}`}>{icon}</span>
+                    <Md className={`${color} text-[11px] break-words min-w-0`}>{entry.message}</Md>
+                  </div>
+                );
+            }
+
+            // Fallback: errors and warnings keep full weight here, and so does
+            // any event type this build has never seen.
             return (
-              <div key={entry.ts} className="flex items-start gap-2 leading-[1.6]">
-                <span className={`shrink-0 ${color}`}>
-                  {isProcessing ? (
-                    <span
-                      className="inline-block h-2.5 w-2.5 rounded-full border-[1.5px] border-current border-t-transparent animate-spin align-middle"
-                      role="status"
-                      aria-label="Processing"
-                    />
-                  ) : (
-                    (LOG_ICONS[entry.type] ?? "·")
-                  )}
-                </span>
-                {entry.type === "text" || entry.type === "done" ? (
-                  <Md className={`${color} text-[11px] break-words`}>{entry.message}</Md>
-                ) : (
-                  <span className={`${color} break-words`}>{entry.message}</span>
-                )}
-              </div>
+              <PlainRow key={entry.ts} icon={icon} color={color}>
+                {entry.message}
+              </PlainRow>
             );
           })}
           <div ref={endRef} />
         </div>
+
+        {/* Per-turn stats. No token count: the backend does not put one on the
+            log socket, so showing a number here would mean inventing it. */}
+        {stats && (
+          <div className="flex items-center gap-2 px-3 py-1.5 border-t border-agent-border text-[10px] text-agent-text-dim">
+            <span>
+              {stats.filesChanged} {stats.filesChanged === 1 ? "file" : "files"} changed
+            </span>
+            <span>·</span>
+            <span>{formatDuration(stats.durationMs)}</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2611,6 +2851,10 @@ function ProjectEditorPage() {
                       isActive={false}
                       plan={msg.activity.plan}
                       writtenFiles={NO_FILES}
+                      stats={{
+                        filesChanged: msg.activity.writtenFiles.length,
+                        durationMs: msg.activity.endedAt - msg.activity.startedAt,
+                      }}
                     />
                   ) : null}
                 </div>
