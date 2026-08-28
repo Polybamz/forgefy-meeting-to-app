@@ -3,6 +3,7 @@ import {
   decodeStoredMessages,
   encodeMessagesForPersist,
   newId,
+  resolveSubmit,
   type ChatMessage,
   type StoredMessage,
 } from "@/lib/chat";
@@ -91,6 +92,55 @@ describe("encodeMessagesForPersist", () => {
       }),
     ]);
     expect(stored).not.toHaveProperty("activity");
+  });
+});
+
+describe("resolveSubmit", () => {
+  const idle = { hasText: true, busy: false };
+  const busy = { hasText: true, busy: true };
+
+  it("sends on a bare Enter", () => {
+    expect(resolveSubmit({ key: "Enter" }, idle)).toBe("send");
+  });
+
+  it("inserts a newline on Shift+Enter", () => {
+    expect(resolveSubmit({ key: "Enter", shiftKey: true }, idle)).toBe("newline");
+  });
+
+  it("queues instead of sending while the agent is busy", () => {
+    expect(resolveSubmit({ key: "Enter" }, busy)).toBe("queue");
+  });
+
+  it("still inserts a newline on Shift+Enter while busy", () => {
+    expect(resolveSubmit({ key: "Enter", shiftKey: true }, busy)).toBe("newline");
+  });
+
+  it("ignores Enter that is confirming an IME candidate", () => {
+    // The regression this guards: without it, the first conversion in
+    // Japanese/Chinese/Korean input sends a half-typed message.
+    expect(resolveSubmit({ key: "Enter", isComposing: true }, idle)).toBe("ignore");
+    expect(resolveSubmit({ key: "Enter", isComposing: true }, busy)).toBe("ignore");
+  });
+
+  it("prefers the IME guard over Shift", () => {
+    expect(resolveSubmit({ key: "Enter", isComposing: true, shiftKey: true }, idle)).toBe("ignore");
+  });
+
+  it("keeps Cmd/Ctrl+Enter working for existing muscle memory", () => {
+    expect(resolveSubmit({ key: "Enter", metaKey: true }, idle)).toBe("send");
+    expect(resolveSubmit({ key: "Enter", ctrlKey: true }, idle)).toBe("send");
+    expect(resolveSubmit({ key: "Enter", metaKey: true }, busy)).toBe("queue");
+  });
+
+  it("ignores Enter on an empty draft", () => {
+    expect(resolveSubmit({ key: "Enter" }, { hasText: false, busy: false })).toBe("ignore");
+    expect(resolveSubmit({ key: "Enter" }, { hasText: false, busy: true })).toBe("ignore");
+  });
+
+  it("ignores every other key", () => {
+    for (const key of ["a", "Escape", "Tab", "ArrowUp", " "]) {
+      expect(resolveSubmit({ key }, idle)).toBe("ignore");
+    }
   });
 });
 

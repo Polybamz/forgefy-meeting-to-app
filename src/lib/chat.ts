@@ -79,6 +79,56 @@ export interface StoredMessage {
 /** How many messages either side of the wire keeps. */
 export const CHAT_HISTORY_LIMIT = 100;
 
+// ---------------------------------------------------------------------------
+// Submission policy
+// ---------------------------------------------------------------------------
+
+/** What a keyboard gesture in the composer resolves to. */
+export type SubmitAction =
+  /** Send immediately. */
+  | "send"
+  /** Hold it; the agent is busy and it goes out when the run ends. */
+  | "queue"
+  /** Insert a newline — let the textarea handle the key. */
+  | "newline"
+  /** Do nothing, and do not swallow the key. */
+  | "ignore";
+
+export interface SubmitGesture {
+  key: string;
+  shiftKey?: boolean;
+  metaKey?: boolean;
+  ctrlKey?: boolean;
+  /** True while an IME is converting a candidate. */
+  isComposing?: boolean;
+}
+
+export interface ComposerState {
+  /** The trimmed draft is non-empty. */
+  hasText: boolean;
+  /** A run is in flight, or a send is already on the wire. */
+  busy: boolean;
+}
+
+/**
+ * Resolve a composer keystroke into an action.
+ *
+ * Enter sends and Shift+Enter inserts a newline, which is what every chat UI
+ * users know does — the previous binding fired only on Cmd/Ctrl+Enter.
+ * Cmd/Ctrl+Enter keeps working so existing muscle memory is not punished.
+ *
+ * The `isComposing` check is load-bearing: while an IME is converting, Enter
+ * confirms the candidate. Treating it as "send" fires a half-typed message on
+ * the first conversion in Japanese, Chinese and Korean input.
+ */
+export function resolveSubmit(e: SubmitGesture, state: ComposerState): SubmitAction {
+  if (e.key !== "Enter") return "ignore";
+  if (e.isComposing) return "ignore";
+  if (e.shiftKey) return "newline";
+  if (!state.hasText) return "ignore";
+  return state.busy ? "queue" : "send";
+}
+
 /**
  * Collision-free message ids.
  *

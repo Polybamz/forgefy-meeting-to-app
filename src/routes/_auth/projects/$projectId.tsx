@@ -6,6 +6,7 @@ import {
   decodeStoredMessages,
   encodeMessagesForPersist,
   newId,
+  resolveSubmit,
   type ChatMessage,
   type LogEntry,
   type PlanData,
@@ -27,6 +28,12 @@ const TEMPLATE_LABELS: Record<string, string> = {
   react_native: "React Native",
   next: "Next.js",
 };
+
+/** A message the user sent while the agent was busy, waiting to go out. */
+interface QueuedMessage {
+  id: string;
+  text: string;
+}
 
 const LOG_ICONS: Record<string, string> = {
   started: "▶",
@@ -1494,6 +1501,8 @@ function ProjectEditorPage() {
   });
   const [prompt, setPrompt] = useState("");
   const [sending, setSending] = useState(false);
+  // Messages typed while the agent was busy, waiting their turn. Ordered.
+  const [queue, setQueue] = useState<QueuedMessage[]>([]);
   const [stopping, setStopping] = useState(false);
   const [sendError, setSendError] = useState("");
   const [errorDismissed, setErrorDismissed] = useState(false);
@@ -1545,6 +1554,7 @@ function ProjectEditorPage() {
   const writtenFilesRef = useRef<Set<string>>(new Set());
   const runOwnerIdRef = useRef<string | null>(null);
   const runStartedAtRef = useRef<number>(0);
+  const drainingRef = useRef(false);
 
   useEffect(() => {
     logsRef.current = logs;
@@ -2147,12 +2157,24 @@ function ProjectEditorPage() {
     }
   }
 
-  async function handleSend() {
+  // A build takes 1–3 minutes. Rather than refusing the message, hold it and
+  // send it the moment the agent frees up — the user gets to keep typing and
+  // the follow-up is not lost to a dead input.
+  function handleSend() {
     const text = prompt.trim();
-    if (!text || sending || project?.is_updating) return;
+    if (!text) return;
     setPrompt("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
-    await sendMessage(text);
+
+    if (sending || project?.is_updating || queue.length > 0) {
+      setQueue((q) => [...q, { id: newId("queued"), text }]);
+      return;
+    }
+    sendMessage(text);
+  }
+
+  function cancelQueued(id: string) {
+    setQueue((q) => q.filter((m) => m.id !== id));
   }
 
   async function handleStop() {
@@ -2169,10 +2191,20 @@ function ProjectEditorPage() {
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      handleSend();
-    }
+    const action = resolveSubmit(
+      {
+        key: e.key,
+        shiftKey: e.shiftKey,
+        metaKey: e.metaKey,
+        ctrlKey: e.ctrlKey,
+        isComposing: e.nativeEvent.isComposing,
+      },
+      { hasText: prompt.trim().length > 0, busy: sending || !!project?.is_updating },
+    );
+    // "newline" and "ignore" both mean: let the textarea have the key.
+    if (action !== "send" && action !== "queue") return;
+    e.preventDefault();
+    handleSend();
   }
 
   function autoResize(e: React.ChangeEvent<HTMLTextAreaElement>) {
@@ -2180,6 +2212,27 @@ function ProjectEditorPage() {
     e.target.style.height = "auto";
     e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
   }
+
+  // Drain the queue one message at a time, in order, as soon as the agent is
+  // free. `draining` covers the window between dispatching and `sending`
+  // actually flipping, so a single message cannot go out twice.
+  useEffect(() => {
+    if (queue.length === 0) {
+      drainingRef.current = false;
+      return;
+    }
+    if (sending || project?.is_updating || drainingRef.current) return;
+
+    drainingRef.current = true;
+    const next = queue[0];
+    setQueue((q) => q.slice(1));
+    Promise.resolve(sendMessage(next.text)).finally(() => {
+      drainingRef.current = false;
+    });
+    // sendMessage is redeclared every render; drainingRef is what keeps this
+    // from re-firing, so it is deliberately not a dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queue, sending, project?.is_updating]);
 
   if (loading) {
     return (
@@ -2229,10 +2282,10 @@ function ProjectEditorPage() {
   const isBuilding = project.is_updating && !project.github_url;
   const isUpdating = project.is_updating && !!project.github_url;
   const hasBuildError = !!project.build_error && !errorDismissed;
-  // `handleSend` refuses to send while the agent is working. Reflect that in
-  // the control rather than swallowing the keystroke — CHAT-3 replaces this
-  // with a queue, but until then the refusal has to be visible.
-  const inputDisabled = sending || project.is_updating;
+  // The composer stays live while the agent works — a message typed now is
+  // queued, not refused, so the only moment the input is dead is the brief
+  // POST itself.
+  const inputDisabled = sending;
 
   function handleAskToFix() {
     if (!project?.build_error) return;
@@ -2573,6 +2626,27 @@ function ProjectEditorPage() {
                 writtenFiles={writtenFiles}
               />
             )}
+            {/* Queued follow-ups, shown where they will land. */}
+            {queue.map((q) => (
+              <div key={q.id} className="flex justify-end">
+                <div className="group max-w-[88%] flex items-start gap-1.5">
+                  <div className="px-4 py-3 rounded-2xl rounded-br-sm border border-dashed border-accent/40 bg-accent/[0.06] text-[13px] leading-[1.65] text-text-secondary">
+                    <p className="whitespace-pre-wrap">{q.text}</p>
+                    <p className="text-[10px] mt-2 text-text-muted">
+                      Queued — sends when the agent finishes
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => cancelQueued(q.id)}
+                    aria-label="Cancel queued message"
+                    title="Cancel queued message"
+                    className="mt-1 flex items-center justify-center w-6 h-6 rounded-lg text-text-muted hover:text-ink hover:bg-surface transition-colors"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
             <div ref={chatEndRef} />
           </div>
 
@@ -2585,6 +2659,21 @@ function ProjectEditorPage() {
           {/* Input */}
           {!isBuilding && (
             <div className="shrink-0 px-3 pb-3 pt-2 border-t border-border">
+              {/* Queue dock */}
+              {queue.length > 0 && (
+                <div className="flex items-center justify-between gap-2 mb-2 px-3 py-1.5 rounded-xl bg-accent/[0.07] border border-accent/20">
+                  <p className="text-[11px] text-text-secondary">
+                    <span className="font-medium text-accent">{queue.length}</span>{" "}
+                    {queue.length === 1 ? "message" : "messages"} queued
+                  </p>
+                  <button
+                    onClick={() => setQueue([])}
+                    className="text-[11px] text-text-muted hover:text-ink transition-colors"
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
               <div
                 className={[
                   "flex flex-col gap-1 rounded-2xl border transition-all",
@@ -2601,39 +2690,45 @@ function ProjectEditorPage() {
                   disabled={inputDisabled}
                   rows={2}
                   className="w-full resize-none bg-transparent px-4 pt-3 pb-1 text-[13px] text-ink placeholder:text-text-muted outline-none disabled:opacity-50"
-                  placeholder={isUpdating ? "Updating app…" : "Describe a change…"}
+                  placeholder={isUpdating ? "Queue a follow-up…" : "Describe a change…"}
+                  aria-label="Describe a change"
                 />
                 <div className="flex items-center justify-between px-3 pb-2.5">
-                  <p className="text-[11px] text-text-muted">⌘↵ to send</p>
-                  {project?.is_updating ? (
-                    <button
-                      onClick={handleStop}
-                      disabled={stopping}
-                      className="flex items-center justify-center w-8 h-8 rounded-xl bg-destructive text-white transition-colors hover:bg-[oklch(0.5_0.2_25)] disabled:opacity-50 disabled:cursor-not-allowed btn-press"
-                      title="Stop agent"
-                    >
-                      {stopping ? (
-                        <svg
-                          className="w-3.5 h-3.5 animate-spin"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                        >
-                          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-                        </svg>
-                      ) : (
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-                          <rect x="5" y="5" width="14" height="14" rx="2" />
-                        </svg>
-                      )}
-                    </button>
-                  ) : (
+                  <p className="text-[11px] text-text-muted">↵ to send · Shift+↵ newline</p>
+                  <div className="flex items-center gap-1.5">
+                    {/* While the agent runs, Stop and the composer coexist:
+                        sending now queues rather than interrupting. */}
+                    {project?.is_updating && (
+                      <button
+                        onClick={handleStop}
+                        disabled={stopping}
+                        className="flex items-center justify-center w-8 h-8 rounded-xl bg-destructive text-white transition-colors hover:bg-[oklch(0.5_0.2_25)] disabled:opacity-50 disabled:cursor-not-allowed btn-press"
+                        title="Stop agent"
+                        aria-label="Stop agent"
+                      >
+                        {stopping ? (
+                          <svg
+                            className="w-3.5 h-3.5 animate-spin"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                          >
+                            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                          </svg>
+                        ) : (
+                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                            <rect x="5" y="5" width="14" height="14" rx="2" />
+                          </svg>
+                        )}
+                      </button>
+                    )}
                     <button
                       onClick={handleSend}
                       disabled={!prompt.trim() || inputDisabled}
                       className="flex items-center justify-center w-8 h-8 rounded-xl bg-accent text-accent-foreground transition-colors hover:bg-[oklch(0.55_0.135_45)] disabled:opacity-40 disabled:cursor-not-allowed btn-press"
-                      title="Send (⌘↵)"
+                      title={project?.is_updating ? "Queue message (↵)" : "Send (↵)"}
+                      aria-label={project?.is_updating ? "Queue message" : "Send message"}
                     >
                       {sending ? (
                         <svg
@@ -2660,7 +2755,7 @@ function ProjectEditorPage() {
                         </svg>
                       )}
                     </button>
-                  )}
+                  </div>
                 </div>
               </div>
             </div>
