@@ -600,6 +600,7 @@ function PreviewPanel({
     <button
       onClick={() => setRefreshKey((k) => k + 1)}
       title="Reload preview"
+      aria-label="Reload preview"
       className="flex items-center justify-center w-7 h-7 rounded-lg text-text-muted hover:text-ink hover:bg-surface transition-colors"
     >
       <RotateCw className="h-3.5 w-3.5" />
@@ -612,6 +613,7 @@ function PreviewPanel({
       target="_blank"
       rel="noreferrer"
       title="Open in new tab"
+      aria-label="Open preview in a new tab"
       className="flex items-center justify-center w-7 h-7 rounded-lg text-text-muted hover:text-ink hover:bg-surface transition-colors"
     >
       <Maximize2 className="h-3.5 w-3.5" />
@@ -907,6 +909,7 @@ function TreeNode({
     <div>
       <button
         onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
         className="w-full flex items-center gap-1.5 py-[3px] rounded text-left text-[11px] font-mono-ui text-[#858585] hover:text-[#D4D4D4] hover:bg-[#2a2a2a] transition-colors"
         style={{ paddingLeft: `${depth * 12 + 8}px`, paddingRight: "8px" }}
       >
@@ -1415,6 +1418,7 @@ function SupabaseConnectButton({
         target="_blank"
         rel="noreferrer"
         title="Open in Supabase"
+        aria-label="Open this project in Supabase"
         className="flex items-center gap-1.5 h-8 px-3 rounded-xl border border-border hover:border-text-secondary text-[12px] text-text-secondary hover:text-ink transition-colors"
       >
         {SUPABASE_ICON}
@@ -1501,6 +1505,7 @@ function NeonConnectButton({
         target="_blank"
         rel="noreferrer"
         title="Open in Neon console"
+        aria-label="Open this project in the Neon console"
         className="flex items-center gap-1.5 h-8 px-3 rounded-xl border border-border hover:border-text-secondary text-[12px] text-text-secondary hover:text-ink transition-colors"
       >
         {NEON_ICON}
@@ -1563,6 +1568,7 @@ function FirebaseConnectButton({
         target="_blank"
         rel="noreferrer"
         title="Open in Firebase console"
+        aria-label="Open this project in the Firebase console"
         className="flex items-center gap-1.5 h-8 px-3 rounded-xl border border-border hover:border-text-secondary text-[12px] text-text-secondary hover:text-ink transition-colors"
       >
         {FIREBASE_ICON}
@@ -1828,6 +1834,7 @@ function StopButton({ stopping, onClick }: { stopping: boolean; onClick: () => v
       onClick={onClick}
       disabled={stopping}
       title="Stop agent"
+      aria-label={stopping ? "Stopping agent" : "Stop agent"}
       className="flex items-center justify-center w-5 h-5 rounded-lg bg-destructive text-white hover:bg-[oklch(0.5_0.2_25)] transition-colors disabled:opacity-50"
     >
       {stopping ? (
@@ -2907,6 +2914,7 @@ function ProjectEditorPage() {
           <button
             onClick={() => setDbModalOpen(true)}
             title="Connect a database"
+            aria-label="Connect a database"
             className="relative flex items-center justify-center w-8 h-8 rounded-xl border border-border text-text-muted hover:text-ink hover:border-text-muted transition-colors btn-press"
           >
             <Database className="w-4 h-4" />
@@ -2919,6 +2927,7 @@ function ProjectEditorPage() {
           <button
             onClick={() => navigate({ to: "/projects/$projectId/settings", params: { projectId } })}
             title="Project settings"
+            aria-label="Project settings"
             className="flex items-center justify-center w-8 h-8 rounded-xl border border-border text-text-muted hover:text-ink hover:border-text-muted transition-colors btn-press"
           >
             <svg
@@ -2999,6 +3008,7 @@ function ProjectEditorPage() {
                   onClick={() => setErrorDismissed(true)}
                   className="text-amber-600/40 hover:text-amber-600 dark:text-amber-400/40 dark:hover:text-amber-400 transition-colors shrink-0"
                   title="Dismiss"
+                  aria-label="Dismiss the build error"
                 >
                   <svg
                     className="h-3.5 w-3.5"
