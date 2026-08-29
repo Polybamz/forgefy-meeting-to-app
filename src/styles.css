@@ -66,6 +66,20 @@
   --color-accent-light: var(--accent-light);
   --color-warm-white: var(--warm-white);
   --color-ink: var(--ink);
+  /* agent activity block — see the --agent-* notes in :root */
+  --color-agent-surface: var(--agent-surface);
+  --color-agent-border: var(--agent-border);
+  --color-agent-text: var(--agent-text);
+  --color-agent-text-muted: var(--agent-text-muted);
+  --color-agent-text-dim: var(--agent-text-dim);
+  --color-agent-log-info: var(--agent-log-info);
+  --color-agent-log-thinking: var(--agent-log-thinking);
+  --color-agent-log-tool: var(--agent-log-tool);
+  --color-agent-log-text: var(--agent-log-text);
+  --color-agent-log-warning: var(--agent-log-warning);
+  --color-agent-log-error: var(--agent-log-error);
+  --color-agent-log-done: var(--agent-log-done);
+  --color-agent-log-validating: var(--agent-log-validating);
   --font-display: "Playfair Display", Georgia, serif;
   --font-sans: "DM Sans", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
@@ -112,6 +126,29 @@
   --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
   --sidebar-border: oklch(0.929 0.013 255.508);
   --sidebar-ring: oklch(0.704 0.04 256.788);
+
+  /* ── Agent activity block ──────────────────────────────────────────────
+   * The log stream the user watches for the whole build. It used to hardcode
+   * a dark-only palette, so in light mode it rendered as a near-black box.
+   *
+   * Every value here clears WCAG AA (4.5:1) for small text against
+   * --agent-surface in its own theme; the worst case is 5.30:1 in light and
+   * 5.52:1 in dark. The value it replaced (#5a5249 on #100e0c) was 2.32:1.
+   * If you change one of these, re-check the ratio — this text is 11px.
+   */
+  --agent-surface:    oklch(0.945 0.010 78);
+  --agent-border:     oklch(0.855 0.012 70);
+  --agent-text:       oklch(0.300 0.014 55);
+  --agent-text-muted: oklch(0.430 0.016 58);
+  --agent-text-dim:   oklch(0.492 0.014 60);
+  --agent-log-info:       oklch(0.450 0.016 58);
+  --agent-log-thinking:   oklch(0.492 0.014 60);
+  --agent-log-tool:       oklch(0.435 0.130 150);
+  --agent-log-text:       oklch(0.300 0.014 55);
+  --agent-log-warning:    oklch(0.475 0.130 55);
+  --agent-log-error:      oklch(0.478 0.190 27);
+  --agent-log-done:       oklch(0.435 0.130 150);
+  --agent-log-validating: oklch(0.455 0.150 285);
 }
 
 .dark {
@@ -154,6 +191,21 @@
   --sidebar-accent-foreground: oklch(0.918 0.012 78);
   --sidebar-border: oklch(0.240 0.008 52);
   --sidebar-ring: oklch(0.598 0.135 45);
+
+  /* Agent activity block — see the note in :root. Worst ratio here: 5.52:1. */
+  --agent-surface:    oklch(0.168 0.010 50);
+  --agent-border:     oklch(0.285 0.008 52);
+  --agent-text:       oklch(0.900 0.012 78);
+  --agent-text-muted: oklch(0.740 0.014 62);
+  --agent-text-dim:   oklch(0.632 0.012 60);
+  --agent-log-info:       oklch(0.720 0.014 62);
+  --agent-log-thinking:   oklch(0.632 0.012 60);
+  --agent-log-tool:       oklch(0.780 0.150 152);
+  --agent-log-text:       oklch(0.900 0.012 78);
+  --agent-log-warning:    oklch(0.800 0.140 70);
+  --agent-log-error:      oklch(0.700 0.170 25);
+  --agent-log-done:       oklch(0.780 0.150 152);
+  --agent-log-validating: oklch(0.750 0.130 285);
 }
 
 @layer base {

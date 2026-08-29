@@ -13,10 +13,50 @@ export const Route = createFileRoute("/terms")({
       { property: "og:title", content: "Terms of Service — Forgefy" },
       { property: "og:description", content: DESCRIPTION },
       { property: "og:url", content: `${SITE_URL}/terms` },
+      { property: "og:type", content: "website" },
+      { property: "og:image", content: OG_IMAGE },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      { property: "og:image:alt", content: "Terms of Service — Forgefy" },
+      { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "Terms of Service — Forgefy" },
       { name: "twitter:description", content: DESCRIPTION },
+      { name: "twitter:image", content: OG_IMAGE },
     ],
     links: [{ rel: "canonical", href: `${SITE_URL}/terms` }],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebPage",
+          name: "Terms of Service — Forgefy",
+          description: DESCRIPTION,
+          url: `${SITE_URL}/terms`,
+        }),
+      },
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "BreadcrumbList",
+          itemListElement: [
+            {
+              "@type": "ListItem",
+              position: 1,
+              name: "Home",
+              item: `${SITE_URL}/`,
+            },
+            {
+              "@type": "ListItem",
+              position: 2,
+              name: "Terms of Service",
+              item: `${SITE_URL}/terms`,
+            },
+          ],
+        }),
+      },
+    ],
   }),
 });
 
