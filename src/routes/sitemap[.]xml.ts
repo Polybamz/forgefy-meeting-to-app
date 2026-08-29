@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
 
 const BASE_URL = "https://forgefy.dev";
+// here
 
 export const Route = createFileRoute("/sitemap.xml")({
   server: {
