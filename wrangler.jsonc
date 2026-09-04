@@ -47,7 +47,7 @@
   },
 
   "vars": {
-    "API_ORIGIN": "https://forgefy.onrender.com"
+    "API_ORIGIN": "https://server.forgefy.dev"
   },
 
   "observability": {
