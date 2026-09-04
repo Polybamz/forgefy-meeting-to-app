@@ -121,7 +121,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "@type": "Organization",
           name: "Forgefy",
           url: SITE_URL,
-          logo: `${SITE_URL}/favicon.ico`,
+          logo: `${SITE_URL}/icons/icon-512.png`,
           description:
             "Forgefy joins your planning calls, extracts what your team decided, and builds Flutter, React Native, and Next.js apps simultaneously.",
         }),
