@@ -10,7 +10,6 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
-import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as LoginRouteImport } from './routes/login'
@@ -31,11 +30,6 @@ import { Route as AuthProjectsProjectIdSettingsRouteImport } from './routes/_aut
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
-  id: '/sitemap.xml',
-  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RegisterRoute = RegisterRouteImport.update({
@@ -125,7 +119,6 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/register': typeof RegisterRoute
-  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/billing': typeof AuthBillingRouteWithChildren
   '/dashboard': typeof AuthDashboardRoute
@@ -144,7 +137,6 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/register': typeof RegisterRoute
-  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/billing': typeof AuthBillingRouteWithChildren
   '/dashboard': typeof AuthDashboardRoute
@@ -165,7 +157,6 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/register': typeof RegisterRoute
-  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/_auth/billing': typeof AuthBillingRouteWithChildren
   '/_auth/dashboard': typeof AuthDashboardRoute
@@ -186,7 +177,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/privacy'
     | '/register'
-    | '/sitemap.xml'
     | '/terms'
     | '/billing'
     | '/dashboard'
@@ -205,7 +195,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/privacy'
     | '/register'
-    | '/sitemap.xml'
     | '/terms'
     | '/billing'
     | '/dashboard'
@@ -225,7 +214,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/privacy'
     | '/register'
-    | '/sitemap.xml'
     | '/terms'
     | '/_auth/billing'
     | '/_auth/dashboard'
@@ -246,7 +234,6 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   PrivacyRoute: typeof PrivacyRoute
   RegisterRoute: typeof RegisterRoute
-  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TermsRoute: typeof TermsRoute
 }
 
@@ -257,13 +244,6 @@ declare module '@tanstack/react-router' {
       path: '/terms'
       fullPath: '/terms'
       preLoaderRoute: typeof TermsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sitemap.xml': {
-      id: '/sitemap.xml'
-      path: '/sitemap.xml'
-      fullPath: '/sitemap.xml'
-      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/register': {
@@ -426,7 +406,6 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   PrivacyRoute: PrivacyRoute,
   RegisterRoute: RegisterRoute,
-  SitemapDotxmlRoute: SitemapDotxmlRoute,
   TermsRoute: TermsRoute,
 }
 export const routeTree = rootRouteImport
