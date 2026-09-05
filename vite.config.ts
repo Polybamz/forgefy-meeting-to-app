@@ -7,7 +7,10 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 
 export default async (env: ConfigEnv) => {
   const loaded = loadEnv(env.mode, process.cwd(), "");
-  const apiTarget = (loaded.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
+  // Deliberately not VITE_-prefixed: Vite only auto-inlines VITE_* vars into
+  // the client bundle, and this one must never end up there — it only tells
+  // the dev server's own proxy where to forward /api and /ws.
+  const apiTarget = (loaded.DEV_API_PROXY_TARGET || "http://localhost:5000").replace(/\/$/, "");
 
   // Vite only auto-inlines VITE_* vars into the client bundle; the SSR/server
   // bundle needs them defined explicitly too, so both see the same values.

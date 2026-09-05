@@ -19,8 +19,9 @@
 
   // The Worker does two things static hosting cannot: proxy /api and /ws to the
   // backend (as vercel.json rewrites do), and serve _shell.html for client-side
-  // routes. Without it you would also have to set VITE_API_URL to an absolute
-  // origin, since src/lib/api.ts defaults to relative /api paths.
+  // routes. src/lib/api.ts always calls relative /api and /ws paths — there is
+  // no env var to bake in an absolute backend origin, so this proxy is load-
+  // bearing, not optional.
   "main": "./worker/index.ts",
 
   "assets": {

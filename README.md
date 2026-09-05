@@ -22,7 +22,7 @@ Copy `.env.example` to `.env` and fill in:
 
 | Variable | Description |
 |---|---|
-| `VITE_API_URL` | Backend API origin. Unset in dev (Vite proxies `/api` and `/ws` to `http://localhost:5000`); set to the deployed backend origin in production if not using the Vercel rewrite. |
+| `DEV_API_PROXY_TARGET` | Only affects `vite dev`'s own proxy for `/api` and `/ws` — defaults to `http://localhost:5000`. Not read by the production build; the built client always calls its own origin. |
 | `VITE_FIREBASE_API_KEY` | Firebase Web App API key |
 | `VITE_FIREBASE_AUTH_DOMAIN` | Firebase Auth domain |
 | `VITE_FIREBASE_PROJECT_ID` | Firebase project ID |
@@ -38,7 +38,7 @@ npm install
 npm run dev
 ```
 
-The dev server proxies `/api` and `/ws` to `http://localhost:5000` by default — run `forgefy-backend` locally on that port, or set `VITE_API_URL` to point elsewhere.
+The dev server proxies `/api` and `/ws` to `http://localhost:5000` by default — run `forgefy-backend` locally on that port, or set `DEV_API_PROXY_TARGET` to point elsewhere.
 
 ## Scripts
 
@@ -61,7 +61,7 @@ Deployed on Vercel. `vercel.json` sets the build/output config and rewrites `/ap
 src/
 ├── routes/                    # TanStack Router file-based routes
 ├── lib/
-│   ├── api.ts                 # Backend API client (VITE_API_URL-based)
+│   ├── api.ts                 # Backend API client (always same-origin /api, /ws)
 │   └── firebase.ts            # Firebase Auth (Google sign-in only)
 └── components/                # UI components (shadcn/radix-based)
 supabase/migrations/           # Only migration: waitlist_signups table + RLS policy (provisioned, no submitting UI yet)
