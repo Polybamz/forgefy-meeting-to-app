@@ -1,7 +1,3 @@
-// Empty base — Vite's dev proxy forwards /api/* and /ws/* to the backend.
-// For production, set VITE_API_URL to the backend's absolute origin.
-export const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
-
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem("forgefy_access_token");
@@ -20,11 +16,7 @@ export function clearTokens(): void {
 export function getWsUrl(path: string): string {
   const token = getToken();
   const query = token ? `?token=${encodeURIComponent(token)}` : "";
-  if (API_BASE) {
-    // Absolute base configured (production) — convert http → ws
-    return `${API_BASE.replace(/^http/, "ws")}${path}${query}`;
-  }
-  // Dev proxy: derive ws URL from current page origin
+  // Same-origin: the Worker/Vercel rewrite proxies /ws/* to the backend.
   if (typeof window !== "undefined") {
     const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
     return `${proto}//${window.location.host}${path}${query}`;
@@ -94,7 +86,7 @@ async function attemptRefresh(): Promise<boolean> {
     typeof window !== "undefined" ? localStorage.getItem("forgefy_refresh_token") : null;
   if (!refreshToken) return false;
   try {
-    const res = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
+    const res = await fetch("/api/v1/auth/refresh", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh_token: refreshToken }),
@@ -114,7 +106,7 @@ export async function apiFetch(path: string, init?: RequestInit, _retry = true):
   // covers tokens revoked server-side).
   if (_retry) await ensureFreshToken();
   const token = getToken();
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(path, {
     ...init,
     headers: {
       "Content-Type": "application/json",
