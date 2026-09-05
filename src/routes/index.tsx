@@ -32,27 +32,6 @@ scripts: [
         type: "application/ld+json",
         children: JSON.stringify({
           "@context": "https://schema.org",
-          "@type": "Organization",
-          name: "Forgefy",
-          url: SITE_URL,
-          logo: `${SITE_URL}/favicon.ico`,
-          description:
-            "Forgefy joins your planning calls, extracts what your team decided, and builds Flutter, React Native, and Next.js apps simultaneously.",
-        }),
-      },
-      {
-        type: "application/ld+json",
-        children: JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": "WebSite",
-          name: "Forgefy",
-          url: SITE_URL,
-        }),
-      },
-      {
-        type: "application/ld+json",
-        children: JSON.stringify({
-          "@context": "https://schema.org",
           "@type": "WebPage",
           name: "Forgefy — Your meeting just became an app.",
           description: "Forgefy joins your planning calls, extracts what your team decided, and builds your app in Flutter, React Native, or Next.js automatically.",
