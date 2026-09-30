@@ -2,6 +2,7 @@ import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-ro
 import { useState } from "react";
 import { getToken, setTokens } from "@/lib/api";
 import { oauthErrorMessage, signInWithOAuth, type OAuthProviderName } from "@/lib/firebase";
+import { isValidEmail } from "@/lib/validation";
 
 export const Route = createFileRoute("/login")({
   beforeLoad: () => {
@@ -22,9 +23,25 @@ function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resendState, setResendState] = useState<"idle" | "sending" | "sent">("idle");
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState<OAuthProviderName | null>(null);
   const providerLabel = { google: "Google", github: "GitHub" } as const;
+
+  async function onResend() {
+    setResendState("sending");
+    try {
+      const res = await fetch("/api/v1/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      setResendState(res.ok ? "sent" : "idle");
+    } catch {
+      setResendState("idle");
+    }
+  }
 
   async function onOAuthSignIn(provider: OAuthProviderName) {
     setError("");
@@ -55,6 +72,12 @@ function LoginPage() {
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
+    setNeedsVerification(false);
+    setResendState("idle");
+    if (!isValidEmail(email)) {
+      setError("Enter a valid email address.");
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/v1/auth/login", {
@@ -65,6 +88,9 @@ function LoginPage() {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setError(data.detail ?? "Invalid credentials.");
+        setNeedsVerification(
+          typeof data.type === "string" && data.type.includes("emailnotverified"),
+        );
         return;
       }
       const data = await res.json();
@@ -202,6 +228,21 @@ function LoginPage() {
                 </svg>
                 {error}
               </div>
+            )}
+
+            {needsVerification && (
+              <button
+                type="button"
+                onClick={onResend}
+                disabled={resendState === "sending"}
+                className="w-full text-center text-[13px] text-accent hover:text-accent/80 underline-offset-2 underline transition-colors disabled:opacity-60"
+              >
+                {resendState === "sending"
+                  ? "Sending…"
+                  : resendState === "sent"
+                    ? "Sent — check your inbox"
+                    : "Resend verification email"}
+              </button>
             )}
 
             <button

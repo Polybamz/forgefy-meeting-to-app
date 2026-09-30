@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { SITE_URL } from "./__root";
+import { OG_IMAGE, SITE_URL } from "./__root";
 
 const DESCRIPTION =
   "The terms that govern your use of Forgefy — meeting recording, AI processing, generated code, subscriptions, and third-party integrations.";

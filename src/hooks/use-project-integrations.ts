@@ -6,6 +6,12 @@ export interface SupabaseOrg {
   name: string;
 }
 
+/** The full return shape of {@link useProjectIntegrations}, so callers in
+ * the settings drawer / route can accept the hook's return without
+ * re-deriving it.
+ */
+export type UseProjectIntegrationsReturn = ReturnType<typeof useProjectIntegrations>;
+
 interface UseProjectIntegrationsOptions {
   projectId: string;
   project: Project | null;

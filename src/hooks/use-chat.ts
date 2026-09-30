@@ -160,7 +160,7 @@ export function useChat({
     try {
       const res = await apiFetch(`/api/v1/projects/${projectId}/chat`, {
         method: "POST",
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, agent: project?.agent }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));

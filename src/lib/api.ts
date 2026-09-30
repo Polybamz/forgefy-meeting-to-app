@@ -141,6 +141,13 @@ export interface Project {
   repo_owner?: "platform" | "user";
   preview_url: string | null;
   artifact_url: string | null;
+  /** Live production URL after a publish — a <slug>.<base-domain> subdomain when
+   *  PUBLISH_BASE_DOMAIN is configured, otherwise the project's *.pages.dev URL. */
+  published_url?: string | null;
+  /** The attached subdomain, e.g. "bun.forgefy.dev". Null when publishing fell
+   *  back to the *.pages.dev address (no base domain / name unavailable). */
+  published_domain?: string | null;
+  published_at?: string | null;
   is_updating: boolean;
   build_error: string | null;
   /** "retry" | "user_fix" | "support" */
@@ -162,6 +169,75 @@ export interface Project {
   firebase_app_id?: string | null;
   db_decision_pending?: boolean;
   db_decision_reason?: string | null;
+  /** "forgefy" | "claude_code" — which coding agent builds this project. Defaults to "forgefy". */
+  agent?: string;
+  /** Claude Code backend override: "anthropic" | "openrouter" | "ollama" | "litellm" | "custom". */
+  claude_code_backend?: string;
+  /** Claude Code model name (e.g. "claude-sonnet-4-5", "deepseek-coder"). */
+  claude_code_model?: string;
+}
+
+export interface CodingAgentOption {
+  key: "forgefy" | "claude_code";
+  display_name: string;
+  available: boolean;
+  status: string;
+  label: string;
+}
+
+export async function fetchAgents(): Promise<CodingAgentOption[]> {
+  const res = await apiFetch("/api/v1/agents");
+  if (!res.ok) return [];
+  return (await res.json()) as CodingAgentOption[];
+}
+
+/** A build model offered to the user for selection. */
+export interface BuildModelOption {
+  /** The value stored against the project/user (e.g. "claude"). */
+  value: string;
+  /** Display name (e.g. "Claude"). */
+  label: string;
+  /** Provider name (e.g. "Anthropic"), used to build the subtitle. */
+  provider: string;
+  /** Short descriptor (e.g. "precise reasoning"). */
+  sub: string;
+}
+
+/**
+ * The build models an admin has offered for selection, from
+ * GET /api/v1/account/build-models. This is the single source of truth for the
+ * model picker — adding a model in the dashboard makes it show up here, with no
+ * frontend deploy. Returns an empty list if the request fails so the caller can
+ * render its own empty state.
+ */
+export async function fetchBuildModels(): Promise<BuildModelOption[]> {
+  const res = await apiFetch("/api/v1/account/build-models");
+  if (!res.ok) return [];
+  const models = (await res.json()) as Array<{
+    model: string;
+    label?: string;
+    provider?: string;
+    sub?: string;
+  }>;
+  return models.map((m) => ({
+    value: m.model,
+    label: m.label || m.model,
+    provider: m.provider ?? "",
+    sub: m.sub ?? "",
+  }));
+}
+
+/** "Google · fast & capable" — the subtitle line for a build-model card. */
+export function buildModelSubtitle(opt: BuildModelOption): string {
+  return [opt.provider, opt.sub].filter(Boolean).join(" · ");
+}
+
+export async function updateProjectAgent(projectId: string, agent: string): Promise<boolean> {
+  const res = await apiFetch(`/api/v1/projects/${projectId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ agent }),
+  });
+  return res.ok;
 }
 
 export interface BillingStatus {

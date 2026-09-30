@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+﻿import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Check,
@@ -36,6 +36,14 @@ import { useProjectIntegrations } from "@/hooks/use-project-integrations";
 import { playAlertSound } from "@/lib/sound";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { ProjectSettingsContent } from "./$projectId_.settings";
 
 export const Route = createFileRoute("/_auth/projects/$projectId")({
   component: ProjectEditorPage,
@@ -1855,6 +1863,9 @@ function ProjectEditorPage() {
   const [rightTab, setRightTab] = useState<"preview" | "code">("preview");
   const [chatWidth, setChatWidth] = useState(loadChatWidth);
   const [draggingSplit, setDraggingSplit] = useState(false);
+  // Project settings — opened as a side drawer instead of navigating away, so
+  // the live build/chat preview stays in view while the user tweaks settings.
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   // Shared with useChat: a send that queues an update sets this so the socket
@@ -2297,7 +2308,7 @@ function ProjectEditorPage() {
             )}
           </button>
           <button
-            onClick={() => navigate({ to: "/projects/$projectId/settings", params: { projectId } })}
+            onClick={() => setSettingsOpen(true)}
             title="Project settings"
             aria-label="Project settings"
             className="flex items-center justify-center w-8 h-8 rounded-xl border border-border text-text-muted hover:text-ink hover:border-text-muted transition-colors btn-press"
@@ -2317,6 +2328,30 @@ function ProjectEditorPage() {
           </button>
         </div>
       </header>
+
+      {/* Project settings — side drawer (tabbed). Opened from the toolbar gear
+          button above; stays inline so the live preview keeps running. */}
+      <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <SheetContent side="right" className="w-full overflow-y-auto p-0 gap-0 sm:max-w-2xl">
+          <SheetHeader className="px-6 pt-6 pb-4">
+            <SheetTitle>Settings</SheetTitle>
+            <SheetDescription>{project?.app_name ?? "Project settings"}</SheetDescription>
+          </SheetHeader>
+          {project && (
+            <div className="px-6 pb-6">
+              <ProjectSettingsContent
+                project={project}
+                projectId={projectId}
+                integrations={integrations}
+                onDeleted={() => {
+                  setSettingsOpen(false);
+                  navigate({ to: "/projects" });
+                }}
+              />
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
 
       {dbModalOpen && (
         <DatabaseConnectModal
@@ -2754,5 +2789,3 @@ function ProjectEditorPage() {
     </div>
   );
 }
-
-

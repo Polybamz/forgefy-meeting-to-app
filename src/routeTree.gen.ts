@@ -19,6 +19,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthSettingsRouteImport } from './routes/_auth/settings'
 import { Route as AuthDevelopersRouteImport } from './routes/_auth/developers'
 import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard'
+import { Route as AuthCliAuthRouteImport } from './routes/_auth/cli-auth'
 import { Route as AuthBillingRouteImport } from './routes/_auth/billing'
 import { Route as AuthSessionsIndexRouteImport } from './routes/_auth/sessions/index'
 import { Route as AuthProjectsIndexRouteImport } from './routes/_auth/projects/index'
@@ -76,6 +77,11 @@ const AuthDashboardRoute = AuthDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthRoute,
 } as any)
+const AuthCliAuthRoute = AuthCliAuthRouteImport.update({
+  id: '/cli-auth',
+  path: '/cli-auth',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthBillingRoute = AuthBillingRouteImport.update({
   id: '/billing',
   path: '/billing',
@@ -121,6 +127,7 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/terms': typeof TermsRoute
   '/billing': typeof AuthBillingRouteWithChildren
+  '/cli-auth': typeof AuthCliAuthRoute
   '/dashboard': typeof AuthDashboardRoute
   '/developers': typeof AuthDevelopersRoute
   '/settings': typeof AuthSettingsRoute
@@ -139,6 +146,7 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/terms': typeof TermsRoute
   '/billing': typeof AuthBillingRouteWithChildren
+  '/cli-auth': typeof AuthCliAuthRoute
   '/dashboard': typeof AuthDashboardRoute
   '/developers': typeof AuthDevelopersRoute
   '/settings': typeof AuthSettingsRoute
@@ -159,6 +167,7 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/terms': typeof TermsRoute
   '/_auth/billing': typeof AuthBillingRouteWithChildren
+  '/_auth/cli-auth': typeof AuthCliAuthRoute
   '/_auth/dashboard': typeof AuthDashboardRoute
   '/_auth/developers': typeof AuthDevelopersRoute
   '/_auth/settings': typeof AuthSettingsRoute
@@ -179,6 +188,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/terms'
     | '/billing'
+    | '/cli-auth'
     | '/dashboard'
     | '/developers'
     | '/settings'
@@ -197,6 +207,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/terms'
     | '/billing'
+    | '/cli-auth'
     | '/dashboard'
     | '/developers'
     | '/settings'
@@ -216,6 +227,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/terms'
     | '/_auth/billing'
+    | '/_auth/cli-auth'
     | '/_auth/dashboard'
     | '/_auth/developers'
     | '/_auth/settings'
@@ -309,6 +321,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthDashboardRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/cli-auth': {
+      id: '/_auth/cli-auth'
+      path: '/cli-auth'
+      fullPath: '/cli-auth'
+      preLoaderRoute: typeof AuthCliAuthRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/billing': {
       id: '/_auth/billing'
       path: '/billing'
@@ -375,6 +394,7 @@ const AuthBillingRouteWithChildren = AuthBillingRoute._addFileChildren(
 
 interface AuthRouteChildren {
   AuthBillingRoute: typeof AuthBillingRouteWithChildren
+  AuthCliAuthRoute: typeof AuthCliAuthRoute
   AuthDashboardRoute: typeof AuthDashboardRoute
   AuthDevelopersRoute: typeof AuthDevelopersRoute
   AuthSettingsRoute: typeof AuthSettingsRoute
@@ -387,6 +407,7 @@ interface AuthRouteChildren {
 
 const AuthRouteChildren: AuthRouteChildren = {
   AuthBillingRoute: AuthBillingRouteWithChildren,
+  AuthCliAuthRoute: AuthCliAuthRoute,
   AuthDashboardRoute: AuthDashboardRoute,
   AuthDevelopersRoute: AuthDevelopersRoute,
   AuthSettingsRoute: AuthSettingsRoute,
