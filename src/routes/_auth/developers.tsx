@@ -508,6 +508,61 @@ function McpSection() {
 }
 
 // ---------------------------------------------------------------------------
+// CLI section — use your Forgefy account from the forgefy-cli terminal tool
+// ---------------------------------------------------------------------------
+function CliSection() {
+  const apiOrigin = useApiOrigin();
+
+  const envSnippet = `export FORGEFY_API_KEY=fgy_live_...
+export FORGEFY_API_URL=${apiOrigin}`;
+
+  return (
+    <Section
+      title="Use Forgefy from the CLI"
+      description="forgefy-cli is a terminal coding assistant. Point it at your account instead of a separate OpenAI/Ollama key — it draws from the same plan and quota as everything above."
+    >
+      <McpStep n={1} title="Install the CLI">
+        <p className="text-[12px] text-text-secondary">
+          No Python required — this installs a standalone binary, same as Ollama's or Claude
+          Code's installer.
+        </p>
+        <p className="text-[12px] text-text-muted">macOS / Linux:</p>
+        <McpCode>{`curl -fsSL https://raw.githubusercontent.com/Polybamz/forgefy-cli/main/install.sh | sh`}</McpCode>
+        <p className="text-[12px] text-text-muted">Windows (PowerShell):</p>
+        <McpCode>{`irm https://raw.githubusercontent.com/Polybamz/forgefy-cli/main/install.ps1 | iex`}</McpCode>
+        <p className="text-[12px] text-text-muted">
+          Already have Python? <code className="font-mono-ui text-ink">pipx install forgefy-cli</code>{" "}
+          works too.
+        </p>
+      </McpStep>
+
+      <McpStep n={2} title="Set your account key">
+        <p className="text-[12px] text-text-secondary">
+          Replace <code className="font-mono-ui text-ink">fgy_live_...</code> with a key from
+          above. Credentials are only ever read from the environment, never written to a config
+          file.
+        </p>
+        <McpCode>{envSnippet}</McpCode>
+      </McpStep>
+
+      <McpStep n={3} title="Chat, run, or edit">
+        <p className="text-[12px] text-text-secondary">
+          List the models your plan allows, then use any CLI command with{" "}
+          <code className="font-mono-ui text-ink">--provider forgefy</code>:
+        </p>
+        <McpCode>{`forgefy models --provider forgefy
+forgefy chat --provider forgefy --model <model-id>`}</McpCode>
+      </McpStep>
+
+      <p className="text-[12px] text-text-muted pt-3">
+        Token usage and this key's "last used" time above update the same way as any other API
+        call — the CLI is just another client of this account.
+      </p>
+    </Section>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 function DevelopersPage() {
@@ -529,6 +584,7 @@ function DevelopersPage() {
         <SdkSection />
         <QuickstartSection />
         <McpSection />
+        <CliSection />
       </div>
     </div>
   );

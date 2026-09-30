@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { SITE_URL } from "./__root";
+import { OG_IMAGE, SITE_URL } from "./__root";
 
 const DESCRIPTION =
   "How Forgefy collects, uses, and protects your meeting content, generated code, and account data.";

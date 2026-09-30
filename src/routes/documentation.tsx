@@ -5,7 +5,7 @@ import { useApiOrigin } from "@/hooks/use-api-origin";
 import { ApiExamples } from "@/components/api-examples";
 import { HighlightedCode } from "@/components/highlighted-code";
 import { SdkGuide } from "@/components/sdk-guide";
-import { SITE_URL } from "./__root";
+import { OG_IMAGE, SITE_URL } from "./__root";
 
 const DESCRIPTION =
   "Learn how Forgefy turns your meetings into working apps — sessions, blueprints, builds, databases, GitHub, and billing.";

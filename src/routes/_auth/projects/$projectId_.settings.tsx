@@ -1,7 +1,24 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { apiFetch, type Project } from "@/lib/api";
+import { useEffect, useState, type ComponentType, type SVGProps } from "react";
+import {
+  apiFetch,
+  fetchAgents,
+  updateProjectAgent,
+  type CodingAgentOption,
+  type Project,
+} from "@/lib/api";
 import { toast } from "sonner";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AlertTriangle, Code, Database, GitBranch, Loader2, Rocket, Settings } from "lucide-react";
+import { GitHubSyncButton, IntegrationsTabContent } from "@/components/integrations-ui";
+import type { UseProjectIntegrationsReturn } from "@/hooks/use-project-integrations";
 
 export const Route = createFileRoute("/_auth/projects/$projectId_/settings")({
   component: ProjectSettingsPage,
@@ -13,13 +30,6 @@ const TEMPLATE_LABELS: Record<string, string> = {
   react_native: "React Native",
   next: "Next.js",
 };
-
-const BUILD_MODEL_OPTIONS = [
-  { value: "gemini", label: "Gemini", sub: "Google — fast & capable" },
-  { value: "claude", label: "Claude", sub: "Anthropic — precise reasoning" },
-  { value: "gpt", label: "GPT-4o", sub: "OpenAI" },
-  { value: "Qwen3", label: "Qwen3", sub: "Open models — OpenRouter / Ollama" },
-] as const;
 
 // ---------------------------------------------------------------------------
 // Layout helpers
@@ -103,22 +113,39 @@ function GeneralSection({ project }: { project: Project }) {
   );
 }
 
-function RepositorySection({ project }: { project: Project }) {
-  if (!project.repo_full_name) return null;
+function RepositorySection({
+  project,
+  integrations,
+}: {
+  project: Project;
+  integrations?: UseProjectIntegrationsReturn;
+}) {
+  if (!project.repo_full_name && !integrations) return null;
   return (
     <Section
       title="Repository"
       description="The GitHub repository where your app's source code lives."
     >
       <Row label="Repository">
-        <a
-          href={project.github_url ?? "#"}
-          target="_blank"
-          rel="noreferrer"
-          className="text-[13px] text-accent hover:underline font-mono-ui"
-        >
-          {project.repo_full_name} ↗
-        </a>
+        {integrations ? (
+          <GitHubSyncButton
+            project={project}
+            githubLinked={integrations.githubLinked}
+            transferring={integrations.transferring}
+            transferError={integrations.transferError}
+            onConnect={integrations.connectGitHubForTransfer}
+            onSync={integrations.transferToGitHub}
+          />
+        ) : (
+          <a
+            href={project.github_url ?? "#"}
+            target="_blank"
+            rel="noreferrer"
+            className="text-[13px] text-accent hover:underline font-mono-ui"
+          >
+            {project.repo_full_name} ↗
+          </a>
+        )}
       </Row>
       {project.preview_url && (
         <Row label="Preview URL">
@@ -148,56 +175,77 @@ function RepositorySection({ project }: { project: Project }) {
   );
 }
 
-function BuildModelSection({ projectId }: { projectId: string }) {
-  const [current, setCurrent] = useState<string | null>(null);
+function CodingAgentSection({ project }: { project: Project }) {
+  const [agents, setAgents] = useState<CodingAgentOption[]>([]);
+  const [selected, setSelected] = useState<string>(project.agent ?? "forgefy");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    apiFetch("/api/v1/account/build-model")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d && setCurrent(d.model))
-      .catch(() => {});
-  }, [projectId]);
-
-  async function select(value: string) {
-    if (saving || value === current) return;
-    setSaving(true);
-    try {
-      const res = await apiFetch("/api/v1/account/build-model", {
-        method: "PATCH",
-        body: JSON.stringify({ model: value }),
+    let alive = true;
+    fetchAgents()
+      .then((opts) => {
+        if (alive) setAgents(opts);
+      })
+      .catch(() => {
+        /* fall back to the two known agents so the UI still works offline */
+        if (alive) {
+          setAgents([
+            {
+              key: "forgefy",
+              display_name: "Forgefy Agent",
+              available: true,
+              status: "available",
+              label: "Available",
+            },
+            {
+              key: "claude_code",
+              display_name: "Claude Code",
+              available: false,
+              status: "not_configured",
+              label: "Not configured",
+            },
+          ]);
+        }
       });
-      if (res.ok) {
-        const d = await res.json();
-        setCurrent(d.model);
-        toast.success(
-          `Build model set to ${BUILD_MODEL_OPTIONS.find((o) => o.value === d.model)?.label ?? d.model}.`,
-        );
-      } else {
-        toast.error("Failed to update build model.");
-      }
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  async function handleAgentSelect(key: string) {
+    if (key === selected || saving) return;
+    setSaving(true);
+    setError("");
+    const prev = selected;
+    setSelected(key); // optimistic
+    try {
+      const ok = await updateProjectAgent(project.id, key);
+      if (!ok) throw new Error("Request failed.");
+      toast.success(
+        `Coding agent set to ${key === "claude_code" ? "Claude Code" : "Forgefy Agent"}.`,
+      );
     } catch {
-      toast.error("Network error.");
+      setSelected(prev); // roll back on failure
+      setError("Could not save the coding agent. Please try again.");
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <Section
-      title="Build Model"
-      description="The AI model used to generate and update your app code. Takes effect on the next build or update."
-    >
-      {current === null ? (
-        <p className="text-[12px] text-text-muted">Loading…</p>
-      ) : (
-        <div className="grid grid-cols-2 gap-2">
-          {BUILD_MODEL_OPTIONS.map((opt) => {
-            const active = current === opt.value;
+    <Section title="Coding Agent" description="Which agent writes and updates this project's code.">
+      <div className="flex flex-col gap-2">
+        {agents.length === 0 ? (
+          <p className="text-[12px] text-text-muted">Loading agents…</p>
+        ) : (
+          agents.map((opt) => {
+            const active = opt.key === selected;
             return (
               <button
-                key={opt.value}
-                onClick={() => select(opt.value)}
+                key={opt.key}
+                type="button"
+                onClick={() => void handleAgentSelect(opt.key)}
                 disabled={saving}
                 className={`flex flex-col items-start gap-0.5 px-4 py-3 rounded-lg border text-left transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                   active
@@ -207,14 +255,108 @@ function BuildModelSection({ projectId }: { projectId: string }) {
               >
                 <span className={`text-[13px] font-medium ${active ? "text-accent" : "text-ink"}`}>
                   {active && <span className="mr-1">✓</span>}
-                  {opt.label}
+                  {opt.display_name}
                 </span>
-                <span className="text-[11px] text-text-muted">{opt.sub}</span>
+                <span className="text-[11px] text-text-muted">
+                  {opt.available ? opt.label : `${opt.label} — select to configure`}
+                </span>
               </button>
             );
-          })}
+          })
+        )}
+      </div>
+
+      {error && <p className="text-[12px] text-destructive mt-2">{error}</p>}
+    </Section>
+  );
+}
+
+function PublishSection({ project, projectId }: { project: Project; projectId: string }) {
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState("");
+
+  const canPublish = project.template_key === "next" || project.template_key === "react_native";
+  const hasGithub = !!project.github_url;
+
+  async function handlePublish() {
+    if (publishing || project.is_updating || !canPublish || !hasGithub) return;
+    setPublishing(true);
+    setPublishError("");
+    try {
+      const res = await apiFetch(`/api/v1/projects/${projectId}/publish`, { method: "POST" });
+      if (res.ok) {
+        toast.success("Publish queued — your app is being deployed to production.");
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setPublishError((d as { detail?: string }).detail ?? "Publish failed.");
+      }
+    } catch {
+      setPublishError("Network error. Please try again.");
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  return (
+    <Section
+      title="Publish"
+      description="Deploy your app to a stable production URL via Cloudflare Pages."
+    >
+      {project.is_updating && (
+        <div className="mb-4 flex items-center gap-2 text-[12px] text-text-secondary">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <span>A build is already in progress.</span>
         </div>
       )}
+      <Row label="Published URL">
+        {project.published_url ? (
+          <a
+            href={project.published_url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-[13px] text-accent hover:underline font-mono-ui"
+          >
+            {project.published_url} ↗
+          </a>
+        ) : (
+          <span className="text-[12px] text-text-muted">Not published yet.</span>
+        )}
+      </Row>
+      {project.published_domain && (
+        <Row label="Custom domain">
+          <span className="text-[13px] text-ink">{project.published_domain}</span>
+        </Row>
+      )}
+      {project.published_at && (
+        <Row label="Published at">
+          <span className="text-[12px] text-text-secondary">
+            {new Date(project.published_at).toLocaleDateString(undefined, { dateStyle: "medium" })}
+          </span>
+        </Row>
+      )}
+      {!canPublish && (
+        <p className="text-[12px] text-text-muted">Only web projects (Next.js) can be published.</p>
+      )}
+      {!hasGithub && (
+        <p className="text-[12px] text-text-muted">Connect your GitHub repository first.</p>
+      )}
+      {canPublish && hasGithub && !project.is_updating && (
+        <button
+          onClick={handlePublish}
+          disabled={publishing}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-accent-foreground text-[13px] font-medium hover:bg-[oklch(0.55_0.135_45)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed btn-press shadow-warm-xs"
+        >
+          {publishing ? (
+            <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Publishing…
+            </>
+          ) : (
+            "Publish to production"
+          )}
+        </button>
+      )}
+      {publishError && <p className="text-[12px] text-destructive mt-2">{publishError}</p>}
     </Section>
   );
 }
@@ -325,8 +467,94 @@ function DangerZone({ project, onDeleted }: { project: Project; onDeleted: () =>
   );
 }
 
+interface SettingsTab {
+  id: string;
+  label: string;
+  icon: ComponentType<SVGProps<SVGSVGElement>>;
+}
+
+// Tab order is deliberate: the destructive "Danger Zone" sits last so the
+// regular management tabs don't end with a delete button. The Integrations
+// tab lives next to Github because connecting a GitHub repo and a database
+// are the same "where does this app live / persist data" concern.
+const SETTINGS_TABS: SettingsTab[] = [
+  { id: "general", label: "General", icon: Settings },
+  { id: "github", label: "Github", icon: GitBranch },
+  { id: "integrations", label: "Integrations", icon: Database },
+  { id: "coding-agent", label: "Coding Agent", icon: Code },
+  { id: "publish", label: "Publish", icon: Rocket },
+  { id: "danger", label: "Danger Zone", icon: AlertTriangle },
+];
+
 // ---------------------------------------------------------------------------
-// Page
+// Shared content — rendered inside a side drawer by both this route and the
+// project page's own settings drawer. The sections are exposed as a tabbed
+// surface rather than one tall stacked scroll, so the wide coding-agent
+// picker doesn't push the later sections — and the danger-zone buttons — off-
+// canvas in a narrow drawer.
+// ---------------------------------------------------------------------------
+export function ProjectSettingsContent({
+  project,
+  projectId,
+  onDeleted,
+  integrations,
+}: {
+  project: Project;
+  projectId: string;
+  onDeleted: () => void;
+  integrations?: UseProjectIntegrationsReturn;
+}) {
+  // The Integrations tab drives the live connect flow: its buttons mutate
+  // `integrations` state that the project page renders as modals. Only the
+  // project page runs those modals, so the tab is omitted on the standalone
+  // /settings route (which passes no `integrations`) rather than rendering
+  // connect buttons that can't open their follow-up modals.
+  const tabs = integrations ? SETTINGS_TABS : SETTINGS_TABS.filter((t) => t.id !== "integrations");
+
+  return (
+    <Tabs defaultValue={tabs[0].id} className="w-full">
+      <div className="border-b border-border overflow-x-scroll scrollbar-thin scrollbar-thumb-border/50 scrollbar-track-border/20">
+        <TabsList className="h-auto w-max justify-start  gap-1.5 py-1.5 pl-1 pr-2 text-[12px] font-medium uppercase tracking-wider text-text-secondary ">
+          {tabs.map((t) => (
+            <TabsTrigger
+              key={t.id}
+              value={t.id}
+              className="flex items-center gap-2 whitespace-nowrap hover:text-primary transition-colors hover:border-1 border-green-800"
+            >
+              <t.icon className="h-4 w-4" />
+              <span>{t.label}</span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </div>
+
+      <TabsContent value="general" className="mt-0">
+        <GeneralSection project={project} />
+      </TabsContent>
+      <TabsContent value="github" className="mt-0">
+        <RepositorySection project={project} integrations={integrations} />
+      </TabsContent>
+      {integrations && (
+        <TabsContent value="integrations" className="mt-0">
+          <IntegrationsTabContent project={project} integrations={integrations} />
+        </TabsContent>
+      )}
+      <TabsContent value="coding-agent" className="mt-0">
+        <CodingAgentSection project={project} />
+      </TabsContent>
+      <TabsContent value="publish" className="mt-0">
+        <PublishSection project={project} projectId={projectId} />
+      </TabsContent>
+      <TabsContent value="danger" className="mt-0">
+        <DangerZone project={project} onDeleted={onDeleted} />
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Route — the same settings, presented as a side drawer over the app shell.
+// Closing it returns to the project page.
 // ---------------------------------------------------------------------------
 function ProjectSettingsPage() {
   const { projectId } = Route.useParams();
@@ -343,53 +571,47 @@ function ProjectSettingsPage() {
       .finally(() => setLoading(false));
   }, [projectId]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh] text-text-muted text-[14px]">
-        <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse mr-2" />
-        Loading…
-      </div>
-    );
-  }
-
-  if (error || !project) {
-    return (
-      <div className="px-6 py-12 max-w-2xl mx-auto">
-        <p className="text-destructive text-[14px]">{error || "Project not found."}</p>
-        <Link to="/dashboard" className="mt-4 inline-block text-[13px] text-accent underline">
-          ← Back to dashboard
-        </Link>
-      </div>
-    );
-  }
+  const close = () => navigate({ to: "/projects/$projectId", params: { projectId } });
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-10 border-b border-border bg-warm-white/90 backdrop-blur-sm px-6 py-3 flex items-center gap-3">
-        <Link
-          to="/projects/$projectId"
-          params={{ projectId }}
-          className="text-[13px] text-text-muted hover:text-ink transition-colors shrink-0"
-        >
-          ← {project.app_name}
-        </Link>
-        <span className="text-border">|</span>
-        <h1 className="font-display text-[16px] text-ink">Settings</h1>
-      </header>
+    <Sheet
+      open
+      onOpenChange={(open) => {
+        if (!open) close();
+      }}
+    >
+      <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
+        <SheetHeader className="pr-8">
+          <SheetTitle>Settings</SheetTitle>
+          <SheetDescription>{project?.app_name ?? "Project settings"}</SheetDescription>
+        </SheetHeader>
 
-      {/* Content */}
-      <div className="px-6 md:px-10 py-10 max-w-2xl mx-auto space-y-6">
-        <div>
-          <p className="label-eyebrow mb-1">Project Settings</p>
-          <h2 className="font-display text-[28px] text-ink leading-tight">{project.app_name}</h2>
+        <div className="mt-4">
+          {loading ? (
+            <div className="flex items-center gap-2 text-text-muted text-[13px]">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+              Loading…
+            </div>
+          ) : error || !project ? (
+            <div className="space-y-3">
+              <p className="text-destructive text-[13px]">{error || "Project not found."}</p>
+              <Link
+                to="/projects/$projectId"
+                params={{ projectId }}
+                className="inline-block text-[13px] text-accent underline"
+              >
+                ← Back to project
+              </Link>
+            </div>
+          ) : (
+            <ProjectSettingsContent
+              project={project}
+              projectId={projectId}
+              onDeleted={() => navigate({ to: "/dashboard" })}
+            />
+          )}
         </div>
-
-        <GeneralSection project={project} />
-        <RepositorySection project={project} />
-        <BuildModelSection projectId={projectId} />
-        <DangerZone project={project} onDeleted={() => navigate({ to: "/dashboard" })} />
-      </div>
-    </div>
+      </SheetContent>
+    </Sheet>
   );
 }

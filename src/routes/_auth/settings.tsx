@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { apiFetch, clearTokens, getToken } from "@/lib/api";
+import { apiFetch, buildModelSubtitle, clearTokens, fetchBuildModels, getToken, type BuildModelOption } from "@/lib/api";
 import { ThemeToggle } from "@/hooks/use-theme";
 
 export const Route = createFileRoute("/_auth/settings")({
@@ -311,22 +311,31 @@ const ZOOM_ERRORS: Record<string, string> = {
 // ---------------------------------------------------------------------------
 // Build model section
 // ---------------------------------------------------------------------------
-const BUILD_MODEL_OPTIONS = [
-  { value: "gemini", label: "Gemini", sub: "Google · fast & capable" },
-  { value: "claude", label: "Claude", sub: "Anthropic · precise reasoning" },
-  { value: "gpt", label: "GPT-4o", sub: "OpenAI" },
-  { value: "Qwen3", label: "Qwen3", sub: "Open models · OpenRouter / Ollama" },
-] as const;
-
 function BuildModelSection() {
   const [current, setCurrent] = useState<string | null>(null);
+  const [options, setOptions] = useState<BuildModelOption[] | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    let alive = true;
     apiFetch("/api/v1/account/build-model")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d && setCurrent(d.model))
+      .then((d) => {
+        if (alive && d) setCurrent(d.model);
+      })
       .catch(() => {});
+    // The list an admin has curated in the dashboard — fetched, not hardcoded,
+    // so a newly added model appears here without a frontend deploy.
+    fetchBuildModels()
+      .then((opts) => {
+        if (alive) setOptions(opts);
+      })
+      .catch(() => {
+        if (alive) setOptions([]);
+      });
+    return () => {
+      alive = false;
+    };
   }, []);
 
   async function select(value: string) {
@@ -341,7 +350,7 @@ function BuildModelSection() {
         const d = await res.json();
         setCurrent(d.model);
         toast.success(
-          `Build model switched to ${BUILD_MODEL_OPTIONS.find((o) => o.value === d.model)?.label ?? d.model}.`,
+          `Build model switched to ${options?.find((o) => o.value === d.model)?.label ?? d.model}.`,
         );
       } else {
         toast.error("Failed to update build model.");
@@ -358,11 +367,13 @@ function BuildModelSection() {
       title="Build Model"
       description="The AI model used to generate and update your app code. Takes effect on the next build or update."
     >
-      {current === null ? (
+      {current === null || options === null ? (
         <div className="skeleton h-28 w-full rounded-xl" />
+      ) : options.length === 0 ? (
+        <p className="text-[12px] text-text-muted">No build models are available right now.</p>
       ) : (
         <div className="grid grid-cols-2 gap-2.5">
-          {BUILD_MODEL_OPTIONS.map((opt) => {
+          {options.map((opt) => {
             const active = current === opt.value;
             return (
               <button
@@ -394,7 +405,9 @@ function BuildModelSection() {
                   )}
                   {opt.label}
                 </span>
-                <span className="text-[11px] text-text-muted">{opt.sub}</span>
+                <span className="text-[11px] text-text-muted">
+                  {buildModelSubtitle(opt)}
+                </span>
               </button>
             );
           })}

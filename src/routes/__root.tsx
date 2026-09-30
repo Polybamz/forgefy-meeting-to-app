@@ -73,9 +73,9 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 export const SITE_URL = "https://forgefy.dev";
+export const OG_IMAGE = `${SITE_URL}/og-image.png`;
 const DEFAULT_DESCRIPTION =
   "Forgefy joins your planning calls, extracts what your team actually decided, and builds Flutter, React Native, and Next.js apps — simultaneously";
-const OG_IMAGE = `${SITE_URL}/og-image.png`;
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({

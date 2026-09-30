@@ -2,6 +2,7 @@ import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-ro
 import { useState } from "react";
 import { getToken, setTokens } from "@/lib/api";
 import { oauthErrorMessage, signInWithOAuth, type OAuthProviderName } from "@/lib/firebase";
+import { isValidEmail } from "@/lib/validation";
 
 export const Route = createFileRoute("/register")({
   beforeLoad: () => {
@@ -28,7 +29,24 @@ function RegisterPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState<OAuthProviderName | null>(null);
+  const [checkEmail, setCheckEmail] = useState(false);
+  const [resendState, setResendState] = useState<"idle" | "sending" | "sent">("idle");
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
   const providerLabel = { google: "Google", github: "GitHub" } as const;
+
+  async function onResend() {
+    setResendState("sending");
+    try {
+      const res = await fetch("/api/v1/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      setResendState(res.ok ? "sent" : "idle");
+    } catch {
+      setResendState("idle");
+    }
+  }
 
   async function onOAuthSignIn(provider: OAuthProviderName) {
     setError("");
@@ -38,7 +56,7 @@ function RegisterPage() {
       const res = await fetch("/api/v1/auth/oauth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id_token: idToken }),
+        body: JSON.stringify({ id_token: idToken, marketing_opt_in: marketingOptIn }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -59,6 +77,10 @@ function RegisterPage() {
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
+    if (!isValidEmail(email)) {
+      setError("Enter a valid email address.");
+      return;
+    }
     if (password !== confirm) {
       setError("Passwords do not match.");
       return;
@@ -72,7 +94,7 @@ function RegisterPage() {
       const registerRes = await fetch("/api/v1/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, marketing_opt_in: marketingOptIn }),
       });
       if (!registerRes.ok) {
         const data = await registerRes.json().catch(() => ({}));
@@ -80,19 +102,9 @@ function RegisterPage() {
         return;
       }
 
-      // Auto-login after register
-      const loginRes = await fetch("/api/v1/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      if (loginRes.ok) {
-        const data = await loginRes.json();
-        setTokens(data.access_token, data.refresh_token);
-        navigate({ to: "/dashboard" });
-      } else {
-        navigate({ to: "/login" });
-      }
+      // New accounts must verify their email before they can sign in — the
+      // login endpoint will reject them until then.
+      setCheckEmail(true);
     } catch {
       setError("Network error. Please try again.");
     } finally {
@@ -126,168 +138,222 @@ function RegisterPage() {
           </p>
         </div>
 
-        {/* Card */}
-        <div className="rounded-2xl border border-border bg-card shadow-warm-lg p-8 space-y-5">
-          {/* OAuth sign-in */}
-          <div className="space-y-3">
-            <button
-              type="button"
-              onClick={() => onOAuthSignIn("google")}
-              disabled={oauthLoading !== null || loading}
-              className="w-full h-11 flex items-center justify-center gap-2.5 rounded-xl border border-border bg-background text-[14px] font-medium text-ink transition-all hover:bg-surface hover:border-text-muted disabled:opacity-60 btn-press"
-            >
-              {oauthLoading === "google" ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-                  <span>Signing in…</span>
-                </div>
-              ) : (
-                <>
-                  <GoogleIcon />
-                  Continue with Google
-                </>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => onOAuthSignIn("github")}
-              disabled={oauthLoading !== null || loading}
-              className="w-full h-11 flex items-center justify-center gap-2.5 rounded-xl border border-border bg-background text-[14px] font-medium text-ink transition-all hover:bg-surface hover:border-text-muted disabled:opacity-60 btn-press"
-            >
-              {oauthLoading === "github" ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-                  <span>Signing in…</span>
-                </div>
-              ) : (
-                <>
-                  <GitHubIcon />
-                  Continue with GitHub
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* Divider */}
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-border" />
-            <span className="text-[12px] text-text-muted">or continue with email</span>
-            <div className="flex-1 h-px bg-border" />
-          </div>
-
-          {/* Email / password form */}
-          <form onSubmit={onSubmit} className="space-y-4" aria-label="Create account">
-            <div className="space-y-1.5">
-              <label htmlFor="email" className="label-eyebrow block">
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                required
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full h-11 px-3.5 rounded-xl bg-background border border-border text-[14px] text-ink placeholder:text-text-muted outline-none focus:border-accent focus:ring-2 focus:ring-accent/15 transition-all"
-                placeholder="you@example.com"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label htmlFor="password" className="label-eyebrow block">
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                required
-                autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full h-11 px-3.5 rounded-xl bg-background border border-border text-[14px] text-ink placeholder:text-text-muted outline-none focus:border-accent focus:ring-2 focus:ring-accent/15 transition-all"
-                placeholder="min. 8 characters"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label htmlFor="confirm" className="label-eyebrow block">
-                Confirm password
-              </label>
-              <input
-                id="confirm"
-                type="password"
-                required
-                autoComplete="new-password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                className="w-full h-11 px-3.5 rounded-xl bg-background border border-border text-[14px] text-ink placeholder:text-text-muted outline-none focus:border-accent focus:ring-2 focus:ring-accent/15 transition-all"
-                placeholder="••••••••"
-              />
-            </div>
-
-            {error && (
-              <div
-                role="alert"
-                className="flex items-start gap-2 p-3 rounded-xl bg-destructive/8 border border-destructive/20 text-[13px] text-destructive"
+        {checkEmail ? (
+          <div className="rounded-2xl border border-border bg-card shadow-warm-lg p-8 space-y-4 text-center">
+            <div className="w-11 h-11 mx-auto rounded-full bg-accent/10 flex items-center justify-center">
+              <svg
+                className="w-5 h-5 text-accent"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
               >
-                <svg
-                  className="w-4 h-4 shrink-0 mt-px"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="12" y1="8" x2="12" y2="12" />
-                  <line x1="12" y1="16" x2="12.01" y2="16" />
-                </svg>
-                {error}
-              </div>
-            )}
-
+                <path d="M4 4h16v16H4z" />
+                <path d="m22 6-10 7L2 6" />
+              </svg>
+            </div>
+            <h2 className="text-[16px] font-display text-ink">Check your email</h2>
+            <p className="text-[14px] text-text-secondary">
+              We sent a verification link to <span className="text-ink font-medium">{email}</span>.
+              Click it, then sign in.
+            </p>
             <button
-              type="submit"
-              disabled={loading || oauthLoading !== null}
-              className="w-full h-11 rounded-xl bg-accent text-accent-foreground text-[14px] font-medium transition-all hover:bg-[oklch(0.55_0.135_45)] disabled:opacity-60 btn-press shadow-warm-sm mt-1"
+              type="button"
+              onClick={onResend}
+              disabled={resendState === "sending"}
+              className="text-[13px] text-accent hover:text-accent/80 underline-offset-2 underline transition-colors disabled:opacity-60"
             >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <div className="w-4 h-4 rounded-full border-2 border-accent-foreground/40 border-t-accent-foreground animate-spin" />
-                  Creating account…
-                </span>
-              ) : (
-                "Create account →"
-              )}
+              {resendState === "sending"
+                ? "Sending…"
+                : resendState === "sent"
+                  ? "Sent — check your inbox"
+                  : "Resend verification email"}
             </button>
-          </form>
+            <div className="pt-2">
+              <Link
+                to="/login"
+                className="text-[14px] text-accent hover:text-accent/80 underline-offset-2 underline transition-colors"
+              >
+                Go to sign in
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Card */}
+            <div className="rounded-2xl border border-border bg-card shadow-warm-lg p-8 space-y-5">
+              {/* OAuth sign-in */}
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => onOAuthSignIn("google")}
+                  disabled={oauthLoading !== null || loading}
+                  className="w-full h-11 flex items-center justify-center gap-2.5 rounded-xl border border-border bg-background text-[14px] font-medium text-ink transition-all hover:bg-surface hover:border-text-muted disabled:opacity-60 btn-press"
+                >
+                  {oauthLoading === "google" ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+                      <span>Signing in…</span>
+                    </div>
+                  ) : (
+                    <>
+                      <GoogleIcon />
+                      Continue with Google
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOAuthSignIn("github")}
+                  disabled={oauthLoading !== null || loading}
+                  className="w-full h-11 flex items-center justify-center gap-2.5 rounded-xl border border-border bg-background text-[14px] font-medium text-ink transition-all hover:bg-surface hover:border-text-muted disabled:opacity-60 btn-press"
+                >
+                  {oauthLoading === "github" ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+                      <span>Signing in…</span>
+                    </div>
+                  ) : (
+                    <>
+                      <GitHubIcon />
+                      Continue with GitHub
+                    </>
+                  )}
+                </button>
+              </div>
 
-          <p className="text-center text-[13px] text-text-muted">
-            Already have an account?{" "}
-            <Link
-              to="/login"
-              className="text-accent hover:text-accent/80 underline-offset-2 underline transition-colors"
-            >
-              Sign in
-            </Link>
-          </p>
-        </div>
+              {/* Divider */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-[12px] text-text-muted">or continue with email</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
 
-        <p className="text-center text-[12px] text-text-muted mt-5">
-          By creating an account, you agree to our{" "}
-          <Link to="/terms" className="text-accent hover:underline">
-            Terms of Service
-          </Link>{" "}
-          and{" "}
-          <Link to="/privacy" className="text-accent hover:underline">
-            Privacy Policy
-          </Link>
-          .
-        </p>
+              {/* Email / password form */}
+              <form onSubmit={onSubmit} className="space-y-4" aria-label="Create account">
+                <div className="space-y-1.5">
+                  <label htmlFor="email" className="label-eyebrow block">
+                    Email
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full h-11 px-3.5 rounded-xl bg-background border border-border text-[14px] text-ink placeholder:text-text-muted outline-none focus:border-accent focus:ring-2 focus:ring-accent/15 transition-all"
+                    placeholder="you@example.com"
+                  />
+                </div>
 
-        {/* Trust signal */}
-        <p className="text-center text-[12px] text-text-muted mt-5">
-          Free to start · No credit card required
-        </p>
+                <div className="space-y-1.5">
+                  <label htmlFor="password" className="label-eyebrow block">
+                    Password
+                  </label>
+                  <input
+                    id="password"
+                    type="password"
+                    required
+                    autoComplete="new-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full h-11 px-3.5 rounded-xl bg-background border border-border text-[14px] text-ink placeholder:text-text-muted outline-none focus:border-accent focus:ring-2 focus:ring-accent/15 transition-all"
+                    placeholder="min. 8 characters"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="confirm" className="label-eyebrow block">
+                    Confirm password
+                  </label>
+                  <input
+                    id="confirm"
+                    type="password"
+                    required
+                    autoComplete="new-password"
+                    value={confirm}
+                    onChange={(e) => setConfirm(e.target.value)}
+                    className="w-full h-11 px-3.5 rounded-xl bg-background border border-border text-[14px] text-ink placeholder:text-text-muted outline-none focus:border-accent focus:ring-2 focus:ring-accent/15 transition-all"
+                    placeholder="••••••••"
+                  />
+                </div>
+
+                <label className="flex items-start gap-2 text-[13px] text-text-secondary cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={marketingOptIn}
+                    onChange={(e) => setMarketingOptIn(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-border accent-accent"
+                  />
+                  Send me product updates and tips
+                </label>
+
+                {error && (
+                  <div
+                    role="alert"
+                    className="flex items-start gap-2 p-3 rounded-xl bg-destructive/8 border border-destructive/20 text-[13px] text-destructive"
+                  >
+                    <svg
+                      className="w-4 h-4 shrink-0 mt-px"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                    {error}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading || oauthLoading !== null}
+                  className="w-full h-11 rounded-xl bg-accent text-accent-foreground text-[14px] font-medium transition-all hover:bg-[oklch(0.55_0.135_45)] disabled:opacity-60 btn-press shadow-warm-sm mt-1"
+                >
+                  {loading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 rounded-full border-2 border-accent-foreground/40 border-t-accent-foreground animate-spin" />
+                      Creating account…
+                    </span>
+                  ) : (
+                    "Create account →"
+                  )}
+                </button>
+              </form>
+
+              <p className="text-center text-[13px] text-text-muted">
+                Already have an account?{" "}
+                <Link
+                  to="/login"
+                  className="text-accent hover:text-accent/80 underline-offset-2 underline transition-colors"
+                >
+                  Sign in
+                </Link>
+              </p>
+            </div>
+
+            <p className="text-center text-[12px] text-text-muted mt-5">
+              By creating an account, you agree to our{" "}
+              <Link to="/terms" className="text-accent hover:underline">
+                Terms of Service
+              </Link>{" "}
+              and{" "}
+              <Link to="/privacy" className="text-accent hover:underline">
+                Privacy Policy
+              </Link>
+              .
+            </p>
+
+            {/* Trust signal */}
+            <p className="text-center text-[12px] text-text-muted mt-5">
+              Free to start · No credit card required
+            </p>
+          </>
+        )}
       </div>
     </main>
   );

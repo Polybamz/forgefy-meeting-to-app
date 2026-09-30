@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   apiFetch,
+  buildModelSubtitle,
   clearTokens,
+  fetchBuildModels,
   getToken,
   listStoredSessions,
   setTokens,
@@ -194,5 +196,56 @@ describe("stored sessions", () => {
       storeSession({ ...session, id: `s${i}` });
     }
     expect(listStoredSessions()).toHaveLength(20);
+  });
+});
+
+describe("build models", () => {
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    localStorage.clear();
+    global.fetch = vi.fn();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it("maps the catalogue response into BuildModelOption", async () => {
+    setTokens(FRESH, "refresh-456");
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify([
+          { model: "claude", label: "Claude", provider: "Anthropic", sub: "precise reasoning" },
+          { model: "custom" },
+        ]),
+        { status: 200 },
+      ),
+    );
+
+    const models = await fetchBuildModels();
+
+    expect(models).toEqual([
+      { value: "claude", label: "Claude", provider: "Anthropic", sub: "precise reasoning" },
+      // Missing metadata degrades gracefully instead of producing undefined.
+      { value: "custom", label: "custom", provider: "", sub: "" },
+    ]);
+  });
+
+  it("returns an empty list when the catalogue request fails", async () => {
+    setTokens(FRESH, "refresh-456");
+    vi.mocked(global.fetch).mockResolvedValueOnce(new Response(null, { status: 500 }));
+
+    expect(await fetchBuildModels()).toEqual([]);
+  });
+
+  it("builds a subtitle from provider and descriptor", () => {
+    expect(
+      buildModelSubtitle({ value: "x", label: "X", provider: "Google", sub: "fast & capable" }),
+    ).toBe("Google · fast & capable");
+    expect(buildModelSubtitle({ value: "x", label: "X", provider: "OpenAI", sub: "" })).toBe(
+      "OpenAI",
+    );
+    expect(buildModelSubtitle({ value: "x", label: "X", provider: "", sub: "" })).toBe("");
   });
 });
