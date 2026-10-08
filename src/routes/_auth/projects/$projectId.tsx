@@ -13,7 +13,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { apiFetch, connectWs, type BillingStatus, type Project } from "@/lib/api";
+import { apiFetch, pollJson, type BillingStatus, type Project } from "@/lib/api";
 import {
   formatDuration,
   groupBySeverity,
@@ -1867,8 +1867,7 @@ function ProjectEditorPage() {
   // the live build/chat preview stays in view while the user tweaks settings.
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  const wsRef = useRef<WebSocket | null>(null);
-  // Shared with useChat: a send that queues an update sets this so the socket
+  // Shared with useChat: a send that queues an update sets this so the poller
   // does not miss the leading edge of the run.
   const prevUpdatingRef = useRef(false);
   const prevUpdatedAtRef = useRef<string | null>(null);
@@ -1992,79 +1991,60 @@ function ProjectEditorPage() {
   } = integrations;
 
   useEffect(() => {
-    return connectWs("/ws/projects", (ws) => {
-      wsRef.current = ws;
+    return pollJson<Project>(`/api/v1/projects/${projectId}`, (updated) => {
+      const wasUpdating = prevUpdatingRef.current;
+      const prevUpdatedAt = prevUpdatedAtRef.current;
 
-      ws.onmessage = (e) => {
-        try {
-          const msg = JSON.parse(e.data);
-          if (msg.type === "projects") {
-            const updated: Project | undefined = (msg.data as Project[]).find(
-              (p) => p.id === projectId,
-            );
-            if (!updated) return;
+      prevUpdatingRef.current = updated.is_updating;
+      prevUpdatedAtRef.current = updated.updated_at;
 
-            const wasUpdating = prevUpdatingRef.current;
-            const prevUpdatedAt = prevUpdatedAtRef.current;
+      setProject(updated);
 
-            prevUpdatingRef.current = updated.is_updating;
-            prevUpdatedAtRef.current = updated.updated_at;
+      if (!wasUpdating || updated.is_updating) return;
 
-            setProject(updated);
+      // ── The run just finished ──
+      setBuildingPreview(false);
+      loadTokenBalance();
+      playAlertSound();
 
-            if (!wasUpdating || updated.is_updating) return;
+      // Freeze the activity onto the message that owns this run before
+      // anything clears it. Runs with no owner (the first build, a
+      // preview build, a database wire-in) hand it to the message the
+      // completion itself appends, so the record still has a home.
+      const snapshot = takeActivitySnapshot();
+      const owner = claimRunOwner();
+      if (owner) {
+        setMessages((prev) => prev.map((m) => (m.id === owner ? { ...m, activity: snapshot } : m)));
+      }
 
-            // ── The run just finished ──
-            setBuildingPreview(false);
-            loadTokenBalance();
-            playAlertSound();
+      if (!updated.build_error && prevUpdatedAt !== updated.updated_at) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: newId("assistant"),
+            role: "assistant",
+            text:
+              (updated as { last_summary?: string }).last_summary ||
+              "Your app has been updated successfully!",
+            timestamp: new Date(),
+            activity: owner ? undefined : snapshot,
+          },
+        ]);
+      }
 
-            // Freeze the activity onto the message that owns this run before
-            // anything clears it. Runs with no owner (the first build, a
-            // preview build, a database wire-in) hand it to the message the
-            // completion itself appends, so the record still has a home.
-            const snapshot = takeActivitySnapshot();
-            const owner = claimRunOwner();
-            if (owner) {
-              setMessages((prev) =>
-                prev.map((m) => (m.id === owner ? { ...m, activity: snapshot } : m)),
-              );
-            }
-
-            if (!updated.build_error && prevUpdatedAt !== updated.updated_at) {
-              setMessages((prev) => [
-                ...prev,
-                {
-                  id: newId("assistant"),
-                  role: "assistant",
-                  text:
-                    (updated as { last_summary?: string }).last_summary ||
-                    "Your app has been updated successfully!",
-                  timestamp: new Date(),
-                  activity: owner ? undefined : snapshot,
-                },
-              ]);
-            }
-
-            if (updated.build_error) {
-              setErrorDismissed(false);
-              setMessages((prev) => [
-                ...prev,
-                {
-                  id: newId("err"),
-                  role: "error",
-                  text: `Update failed: ${updated.build_error}`,
-                  timestamp: new Date(),
-                  activity: owner ? undefined : snapshot,
-                },
-              ]);
-            }
-          }
-        } catch {
-          /* ignore */
-        }
-      };
-      ws.onerror = () => ws.close();
+      if (updated.build_error) {
+        setErrorDismissed(false);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: newId("err"),
+            role: "error",
+            text: `Update failed: ${updated.build_error}`,
+            timestamp: new Date(),
+            activity: owner ? undefined : snapshot,
+          },
+        ]);
+      }
     });
   }, [projectId, loadTokenBalance, takeActivitySnapshot, claimRunOwner, setMessages]);
 

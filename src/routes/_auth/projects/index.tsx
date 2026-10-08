@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useEffect, useRef } from "react";
-import { toast } from "sonner";
-import { connectWs, type Project } from "@/lib/api";
+import { useState, useEffect } from "react";
+import { pollJson, type Project } from "@/lib/api";
 
 export const Route = createFileRoute("/_auth/projects/")({
   component: ProjectsPage,
@@ -165,37 +164,15 @@ function ProjectCardSkeleton() {
 
 function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
-  const [wsReady, setWsReady] = useState(false);
+  const [dataReady, setDataReady] = useState(false);
   const [showSkeleton, setShowSkeleton] = useState(true);
-  const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
     const timeout = setTimeout(() => setShowSkeleton(false), 2000);
-    let errorToasted = false;
-    const dispose = connectWs("/ws/projects", (ws) => {
-      wsRef.current = ws;
-
-      ws.onmessage = (e) => {
-        try {
-          const msg = JSON.parse(e.data as string);
-          if (msg.type === "projects") {
-            setProjects(msg.data);
-            setWsReady(true);
-            setShowSkeleton(false);
-          }
-        } catch {
-          /* ignore */
-        }
-      };
-      ws.onerror = () => {
-        ws.close();
-        setShowSkeleton(false);
-        setWsReady(true);
-        if (!errorToasted) {
-          errorToasted = true;
-          toast.error("Live project updates unavailable — reconnecting…");
-        }
-      };
+    const dispose = pollJson<Project[]>("/api/v1/projects", (data) => {
+      setProjects(data);
+      setDataReady(true);
+      setShowSkeleton(false);
     });
     return () => {
       clearTimeout(timeout);
@@ -203,7 +180,7 @@ function ProjectsPage() {
     };
   }, []);
 
-  const isLoading = showSkeleton && !wsReady;
+  const isLoading = showSkeleton && !dataReady;
   const building = projects.filter((p) => p.is_updating && !p.build_error);
   const failed = projects.filter((p) => p.build_error);
   const done = projects.filter((p) => !p.is_updating && !p.build_error);

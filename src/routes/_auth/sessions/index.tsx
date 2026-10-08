@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { apiFetch, connectWs, type StoredSession } from "@/lib/api";
+import { apiFetch, pollJson, type StoredSession } from "@/lib/api";
 import { Mic2, Upload, Radio, Globe, Trash2, X } from "lucide-react";
 
 export const Route = createFileRoute("/_auth/sessions/")({
@@ -402,45 +402,28 @@ function SessionSkeleton() {
 // ---------------------------------------------------------------------------
 function SessionsPage() {
   const [sessions, setSessions] = useState<StoredSession[]>([]);
-  const [wsReady, setWsReady] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
+  const [dataReady, setDataReady] = useState(false);
 
   function handleSessionDeleted(id: string) {
     setSessions((prev) => prev.filter((s) => s.id !== id));
   }
 
   useEffect(() => {
-    let errorToasted = false;
-    return connectWs("/ws/sessions", (ws) => {
-      wsRef.current = ws;
-      ws.onopen = () => setWsReady(true);
-      ws.onmessage = (e) => {
-        try {
-          const msg = JSON.parse(e.data as string);
-          if (msg.type === "sessions") setSessions(msg.data);
-        } catch {
-          /* ignore */
-        }
-      };
-      ws.onerror = () => {
-        ws.close();
-        if (!errorToasted) {
-          errorToasted = true;
-          toast.error("Live session updates unavailable — reconnecting…");
-        }
-      };
+    return pollJson<StoredSession[]>("/api/v1/voxa/session", (data) => {
+      setSessions(data);
+      setDataReady(true);
     });
   }, []);
 
   const [showSkeleton, setShowSkeleton] = useState(true);
   useEffect(() => {
-    if (wsReady) {
+    if (dataReady) {
       setShowSkeleton(false);
       return;
     }
     const t = setTimeout(() => setShowSkeleton(false), 2000);
     return () => clearTimeout(t);
-  }, [wsReady]);
+  }, [dataReady]);
 
   return (
     <div className="px-6 md:px-10 py-10 max-w-4xl mx-auto page-enter">

@@ -81,6 +81,50 @@ export function connectWs(path: string, setup: (ws: WebSocket) => void): () => v
   };
 }
 
+/**
+ * Poll a GET endpoint, calling onData whenever the response body changes.
+ *
+ * Replaces the old push-over-WebSocket pattern (see connectWs above) for
+ * data that doesn't need sub-second latency: a project/session list changes
+ * on user action, not continuously, so polling is strictly simpler and
+ * doesn't hold a Firestore-backed connection open per browser tab. Same
+ * backoff shape as the old server-side pollers (5s while changing, up to
+ * 60s once idle) so perceived responsiveness is unchanged.
+ */
+export function pollJson<T>(path: string, onData: (data: T) => void): () => void {
+  let disposed = false;
+  let last: string | null = null;
+  let delay = 5_000;
+  const pollMax = 60_000;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  async function tick(): Promise<void> {
+    if (disposed) return;
+    try {
+      const res = await apiFetch(path);
+      if (res.ok) {
+        const text = await res.text();
+        if (text !== last) {
+          last = text;
+          delay = 5_000;
+          onData(JSON.parse(text) as T);
+        } else {
+          delay = Math.min(delay * 2, pollMax);
+        }
+      }
+    } catch {
+      // Network hiccup — retry on the next tick at the current delay.
+    }
+    if (!disposed) timer = setTimeout(() => void tick(), delay);
+  }
+
+  void tick();
+  return () => {
+    disposed = true;
+    clearTimeout(timer);
+  };
+}
+
 async function attemptRefresh(): Promise<boolean> {
   const refreshToken =
     typeof window !== "undefined" ? localStorage.getItem("forgefy_refresh_token") : null;

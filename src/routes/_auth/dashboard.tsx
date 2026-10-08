@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect, useRef } from "react";
-import { apiFetch, connectWs, type StoredSession, type Project } from "@/lib/api";
+import { useState, useEffect } from "react";
+import { apiFetch, pollJson, type StoredSession, type Project } from "@/lib/api";
 import { LayoutDashboard, Mic2, FolderKanban, Github, ArrowRight, Circle } from "lucide-react";
 
 export const Route = createFileRoute("/_auth/dashboard")({
@@ -375,40 +375,14 @@ function NewSessionCard() {
 function DashboardPage() {
   const [sessions, setSessions] = useState<StoredSession[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [wsReady, setWsReady] = useState(false);
-  const wsSessionsRef = useRef<WebSocket | null>(null);
-  const wsProjectsRef = useRef<WebSocket | null>(null);
+  const [dataReady, setDataReady] = useState(false);
 
   useEffect(() => {
-    const disposeSessions = connectWs("/ws/sessions", (sessWs) => {
-      wsSessionsRef.current = sessWs;
-      sessWs.onmessage = (e) => {
-        try {
-          const msg = JSON.parse(e.data as string);
-          if (msg.type === "sessions") {
-            setSessions(msg.data);
-            setWsReady(true);
-          }
-        } catch {
-          // ignore malformed WS messages
-        }
-      };
-      sessWs.onerror = () => sessWs.close();
-      sessWs.onopen = () => setWsReady(true);
+    const disposeSessions = pollJson<StoredSession[]>("/api/v1/voxa/session", (data) => {
+      setSessions(data);
+      setDataReady(true);
     });
-
-    const disposeProjects = connectWs("/ws/projects", (projWs) => {
-      wsProjectsRef.current = projWs;
-      projWs.onmessage = (e) => {
-        try {
-          const msg = JSON.parse(e.data as string);
-          if (msg.type === "projects") setProjects(msg.data);
-        } catch {
-          // ignore malformed WS messages
-        }
-      };
-      projWs.onerror = () => projWs.close();
-    });
+    const disposeProjects = pollJson<Project[]>("/api/v1/projects", setProjects);
 
     return () => {
       disposeSessions();
@@ -423,16 +397,16 @@ function DashboardPage() {
   ).length;
   const buildingProjects = projects.filter((p) => p.is_updating && !p.build_error).length;
 
-  // Show skeletons until first WS message arrives — cap at ~2s
+  // Show skeletons until the first poll response arrives — cap at ~2s
   const [showSkeleton, setShowSkeleton] = useState(true);
   useEffect(() => {
-    if (wsReady) {
+    if (dataReady) {
       setShowSkeleton(false);
       return;
     }
     const t = setTimeout(() => setShowSkeleton(false), 2000);
     return () => clearTimeout(t);
-  }, [wsReady]);
+  }, [dataReady]);
 
   return (
     <div className="px-6 md:px-10 py-10 max-w-5xl mx-auto page-enter">
